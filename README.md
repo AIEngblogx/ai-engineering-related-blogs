@@ -1,6 +1,6 @@
 # AIEngblogx
 
-把 Anthropic Engineering、Google DeepMind、OpenAI Engineering 的公开工程文章按段落排成中英对照，方便对着原文读术语。现在收了 70 篇。
+把 Anthropic Engineering、Google DeepMind、OpenAI Engineering 的公开工程文章按段落排成中英对照，方便对着原文读术语。现在收了 61 篇。
 
 站点在 https://aiengblogx.github.io/ai-engineering-related-blogs/，Pages 从 `main` 根目录发布。左边按来源分目录，顶部搜索中文英文都能搜；文章页中文在上、对应英文在下，点「隐藏英文原文」可以只留中文。每篇开头都有原文链接和日期。
 
@@ -18,7 +18,7 @@ node dist/main.js translate --model <model> --lang zh-CN --json
 node scripts/export-site.mjs ../ai-engineering-related-blogs https://aiengblogx.github.io/ai-engineering-related-blogs
 ```
 
-第二个参数写进 RSS 链接，换域名时改这里重跑一次。只有有译文的文章会被导出。
+第二个参数写进 RSS 链接，换域名时改这里重跑一次。只有有译文、且抓到正文的文章会被导出。
 
 ## 版权
 
