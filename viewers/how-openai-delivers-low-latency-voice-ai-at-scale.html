@@ -87,6 +87,14 @@ mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; p
 .sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
 .sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
 .group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.nav-group > summary.group { cursor: pointer; list-style: none; }
+.nav-group > summary.group::-webkit-details-marker { display: none; }
+.nav-group > summary.group::before {
+  content: ""; display: inline-block; width: 5px; height: 5px; margin-right: 8px;
+  border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted);
+  transform: rotate(-45deg); vertical-align: 2px;
+}
+.nav-group[open] > summary.group::before { transform: rotate(45deg); vertical-align: 1px; }
 .num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
 .empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
 .post-list { list-style: none; padding: 0; margin: 0 0 24px; }
@@ -183,137 +191,149 @@ body[data-layout="target-source"] .pane-source { order: 2; }
 <aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
 <a href="../about.html">About</a>
 <a href="../rss.xml">RSS</a>
-<div class="group">Google Deepmind</div>
-<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
-<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
-<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">03</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
-<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">04</span>Gemini 4 Carbon: Our next frontier model</a>
-<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">05</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
-<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">06</span>Developing Gemini 4 Argon responsibly and safely</a>
-<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">07</span>Gemini 4 Argon: Built to solve your hardest problems</a>
-<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">08</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
-<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">09</span>Gemini 4 Argon: our next era of frontier intelligence</a>
-<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">10</span>Introducing Gemini 3.8 Live with Live Avatar</a>
-<div class="group">Anthropic Engineering</div>
-<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">11</span>The components of agent memory</a>
-<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">12</span>Redesigning source control at Anthropic</a>
-<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">13</span>How we contain Claude across products</a>
-<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">14</span>An update on recent Claude Code quality reports</a>
-<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">15</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
-<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">16</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
-<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">17</span>Harness design for long-running application development</a>
-<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">18</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
-<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">19</span>Building a C compiler with a team of parallel Claudes</a>
-<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">20</span>Quantifying infrastructure noise in agentic coding evals</a>
-<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">21</span>Designing AI-resistant technical evaluations</a>
-<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">22</span>Demystifying evals for AI agents</a>
-<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">23</span>Effective harnesses for long-running agents</a>
-<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">24</span>Introducing advanced tool use on the Claude Developer Platform</a>
-<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">25</span>Code execution with MCP: Building more efficient agents</a>
-<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">26</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
-<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">27</span>Equipping agents for the real world with Agent Skills</a>
-<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">28</span>Effective context engineering for AI agents</a>
-<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">29</span>A postmortem of three recent issues</a>
-<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">30</span>Writing effective tools for agents — with agents</a>
-<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">31</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
-<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">32</span>Confidential Inference via Trusted Virtual Machines</a>
-<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">33</span>How we built our multi-agent research system</a>
-<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">34</span>Claude Code: Best practices for agentic coding</a>
-<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">35</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
-<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">36</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
-<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">37</span>Building effective agents</a>
-<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">38</span>Introducing Contextual Retrieval</a>
-<div class="group">Openai Engineering</div>
-<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">39</span>Scaling Git at OpenAI</a>
-<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">40</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
-<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">41</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
-<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">42</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
-<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">43</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
-<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">44</span>How we built a realtime system for responsive voice AI in six months</a>
-<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">45</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
-<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">46</span>Core dump epidemiology: fixing an 18-year-old bug</a>
-<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">47</span>Building self-improving tax agents with Codex</a>
-<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">48</span>Building a safe, effective sandbox to enable Codex on Windows</a>
-<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">49</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
-<a class="nav-item current" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html" aria-current="page"><span class="num">50</span>How OpenAI delivers low-latency voice AI at scale</a>
-<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">51</span>An open-source spec for orchestration: Symphony</a>
-<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">52</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
-<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">53</span>From model to agent: Equipping the Responses API with a computer environment</a>
-<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">54</span>Beyond rate limits: scaling access to Codex and Sora</a>
-<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">55</span>Harness engineering: leveraging Codex in an agent-first world</a>
-<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">56</span>Unlocking the Codex harness: how we built the App Server</a>
-<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">57</span>Inside OpenAI’s in-house data agent</a>
-<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">58</span>Unrolling the Codex agent loop</a>
-<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">59</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
-<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">60</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
-<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">61</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></aside>
+<details class="nav-group" open>
+<summary class="group">Anthropic Engineering</summary>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">01</span>代理内存的组成部分（The components of agent memory）</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">02</span>Anthropic 的源代码控制重新设计（Redesigning source control at Anthropic）</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>如何在各产品中集成 Claude（How we contain Claude across products）</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>最近 Claude 代码质量报告更新（An update on recent Claude Code quality reports）</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>分离管理代理的缩放：将大脑与手分离（Scaling Managed Agents: Decoupling the brain from the hands）</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>我们如何构建 Claude Code 自动模式：一种更安全的权限跳过方法（How we built Claude Code auto mode: a safer way to skip permissions）</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>长周期应用开发中的 harness设计（Harness design for long-running application development）</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Claude Opus 4.6 BrowseComp性能中的评估意识（Eval awareness in Claude Opus 4.6’s BrowseComp performance）</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>使用团队和并行 Claudes 构建 C 编译器（Building a C compiler with a team of parallel Claudes）</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>量化代理式编码中的基础设施噪声影响（Quantifying infrastructure noise in agentic coding evals）</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">11</span>设计抗AI技术评估（Designing AI-resistant technical evaluations）</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">12</span>揭秘 AI 智能体的评估方法（Demystifying evals for AI agents）</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>长期运行代理的有效管理工具（Effective harnesses for long-running agents）</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>介绍 Claude 开发者平台上的高级工具使用（Introducing advanced tool use on the Claude Developer Platform）</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>使用 MCP 执行代码：构建更高效的智能体（Code execution with MCP: Building more efficient agents）</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>超越权限提示：让 Claude Code 更加安全与自主（Beyond permission prompts: making Claude Code more secure and autonomous）</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>为真实世界中的代理配备代理技能（Equipping agents for the real world with Agent Skills）</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>AI智能体有效的上下文工程（Effective context engineering for AI agents）</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">19</span>最近三个问题的反思（A postmortem of three recent issues）</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>编写有效的代理工具 — 与代理一起（Writing effective tools for agents — with agents）</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">21</span>桌面扩展：Claude 桌面一键 MCP 服务器安装（Desktop Extensions: One-click MCP server installation for Claude Desktop）</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>通过可信虚拟机的保密推理（Confidential Inference via Trusted Virtual Machines）</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>我们如何构建多智能体研究系统（How we built our multi-agent research system）</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">24</span>Claude Code：代理式编码的最佳实践（Claude Code: Best practices for agentic coding）</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">25</span>“思考”工具：让 Claude 在复杂的工具使用场景中停止并思考（The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations）</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">26</span>通过 Claude 3.5 Sonnet 提升 SWE-bench 标准（Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet）</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">27</span>构建有效智能体（Building effective agents）</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">28</span>介绍上下文检索（Introducing Contextual Retrieval）</a>
+</details>
+<details class="nav-group" open>
+<summary class="group">OpenAI Engineering</summary>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">01</span>OpenAI 的 Git 扩展（Scaling Git at OpenAI）</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">02</span>快速扩展在线存储以服务超过10亿个ChatGPT用户（第二部分）（Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)）</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">03</span>我们如何构建 ChatGPT 新颖的广告堆栈以提升用户信任和相关性（How we built ChatGPT’s novel ad stack for user trust and relevance）</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">04</span>快速扩展在线存储服务，满足超过10亿 ChatGPT用户的需求（Rapidly scaling online storage to serve over 1 billion ChatGPT users）</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">05</span>Jalapeño 的首批结果显示出其在 AI 推理方面的领先速度和效率（Jalapeño’s first results show industry-leading speed and efficiency in AI inference）</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">06</span>如何在六个月内构建实时响应语音人工智能系统（How we built a realtime system for responsive voice AI in six months）</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">07</span>GPT-5.6 如何融合前沿智能与前沿效率（How GPT-5.6 fuses frontier intelligence with frontier efficiency）</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">08</span>核心转储流行病学：修复一个18年的漏洞（Core dump epidemiology: fixing an 18-year-old bug）</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">09</span>构建自我改进的税务代理系统（Building self-improving tax agents with Codex）</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">10</span>构建安全有效的沙箱以在 Windows 上启用 Codex（Building a safe, effective sandbox to enable Codex on Windows）</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">11</span>利用MRC（多路径可靠连接）解锁大规模AI训练网络（Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)）</a>
+<a class="nav-item current" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html" aria-current="page"><span class="num">12</span>OpenAI如何大规模提供低延迟语音人工智能（How OpenAI delivers low-latency voice AI at scale）</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">13</span>开源编排规范：Symphony（An open-source spec for orchestration: Symphony）</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">14</span>使用 Responses API中的 WebSockets 加速代理工作流（Speeding up agentic workflows with WebSockets in the Responses API）</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">15</span>从模型到代理：为 Responses API 配备计算机环境（From model to agent: Equipping the Responses API with a computer environment）</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">16</span>超出速率限制：扩展 Codex 和 Sora 的访问能力（Beyond rate limits: scaling access to Codex and Sora）</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">17</span>利用代码在代理优先时代（Harness engineering: leveraging Codex in an agent-first world）</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">18</span>解锁代码器装置：我们如何构建应用服务器（Unlocking the Codex harness: how we built the App Server）</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">19</span>OpenAI内部数据代理（Inside OpenAI’s in-house data agent）</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">20</span>展开代码本代理循环（Unrolling the Codex agent loop）</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">21</span>将 PostgreSQL 扩展以支持 8 亿 ChatGPT 用户（Scaling PostgreSQL to power 800 million ChatGPT users）</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">22</span>我们如何使用Codex在28天内将Sora推送到Android平台（How We Used Codex to Ship Sora for Android in 28 Days）</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">23</span>我们如何构建 OWL，基于 ChatGPT 的浏览器 Atlas 的新架构（How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas）</a>
+</details>
+<details class="nav-group" open>
+<summary class="group">Google DeepMind</summary>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2：解析细胞如何读取DNA以更好地理解疾病（AlphaGenome 2: Deciphering how cells read DNA to better understand disease）</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon 现已上市（Gemini 4 Carbon is now available）</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">03</span>Gemini Omni 1.2 Flash：快速且经济实惠，镜头更长（Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips）</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">04</span>Gemini 4 Carbon：我们的下一个前沿模型（Gemini 4 Carbon: Our next frontier model）</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">05</span>利用 Google Antigravity 加速抗菌肽的搜索（Accelerating the search for antimicrobial peptides with Google Antigravity）</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">06</span>负责任且安全地开发 Gemini 4 Argon（Developing Gemini 4 Argon responsibly and safely）</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">07</span>Gemini 4 Argon：专为解决最棘手问题而设计（Gemini 4 Argon: Built to solve your hardest problems）</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">08</span>EmbeddingGemma 2：一个开放、轻量的多模态嵌入模型（EmbeddingGemma 2: an open, lightweight multimodal embedding model）</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">09</span>Gemini 4 Argon：我们下一个前沿智能时代（Gemini 4 Argon: our next era of frontier intelligence）</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">10</span>推出 Gemini 3.8 实时版带实时头像（Introducing Gemini 3.8 Live with Live Avatar）</a>
+</details></nav></aside>
 <details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
 <a href="../about.html">About</a>
 <a href="../rss.xml">RSS</a>
-<div class="group">Google Deepmind</div>
-<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
-<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
-<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">03</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
-<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">04</span>Gemini 4 Carbon: Our next frontier model</a>
-<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">05</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
-<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">06</span>Developing Gemini 4 Argon responsibly and safely</a>
-<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">07</span>Gemini 4 Argon: Built to solve your hardest problems</a>
-<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">08</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
-<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">09</span>Gemini 4 Argon: our next era of frontier intelligence</a>
-<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">10</span>Introducing Gemini 3.8 Live with Live Avatar</a>
-<div class="group">Anthropic Engineering</div>
-<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">11</span>The components of agent memory</a>
-<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">12</span>Redesigning source control at Anthropic</a>
-<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">13</span>How we contain Claude across products</a>
-<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">14</span>An update on recent Claude Code quality reports</a>
-<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">15</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
-<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">16</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
-<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">17</span>Harness design for long-running application development</a>
-<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">18</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
-<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">19</span>Building a C compiler with a team of parallel Claudes</a>
-<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">20</span>Quantifying infrastructure noise in agentic coding evals</a>
-<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">21</span>Designing AI-resistant technical evaluations</a>
-<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">22</span>Demystifying evals for AI agents</a>
-<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">23</span>Effective harnesses for long-running agents</a>
-<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">24</span>Introducing advanced tool use on the Claude Developer Platform</a>
-<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">25</span>Code execution with MCP: Building more efficient agents</a>
-<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">26</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
-<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">27</span>Equipping agents for the real world with Agent Skills</a>
-<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">28</span>Effective context engineering for AI agents</a>
-<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">29</span>A postmortem of three recent issues</a>
-<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">30</span>Writing effective tools for agents — with agents</a>
-<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">31</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
-<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">32</span>Confidential Inference via Trusted Virtual Machines</a>
-<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">33</span>How we built our multi-agent research system</a>
-<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">34</span>Claude Code: Best practices for agentic coding</a>
-<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">35</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
-<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">36</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
-<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">37</span>Building effective agents</a>
-<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">38</span>Introducing Contextual Retrieval</a>
-<div class="group">Openai Engineering</div>
-<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">39</span>Scaling Git at OpenAI</a>
-<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">40</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
-<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">41</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
-<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">42</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
-<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">43</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
-<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">44</span>How we built a realtime system for responsive voice AI in six months</a>
-<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">45</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
-<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">46</span>Core dump epidemiology: fixing an 18-year-old bug</a>
-<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">47</span>Building self-improving tax agents with Codex</a>
-<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">48</span>Building a safe, effective sandbox to enable Codex on Windows</a>
-<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">49</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
-<a class="nav-item current" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html" aria-current="page"><span class="num">50</span>How OpenAI delivers low-latency voice AI at scale</a>
-<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">51</span>An open-source spec for orchestration: Symphony</a>
-<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">52</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
-<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">53</span>From model to agent: Equipping the Responses API with a computer environment</a>
-<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">54</span>Beyond rate limits: scaling access to Codex and Sora</a>
-<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">55</span>Harness engineering: leveraging Codex in an agent-first world</a>
-<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">56</span>Unlocking the Codex harness: how we built the App Server</a>
-<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">57</span>Inside OpenAI’s in-house data agent</a>
-<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">58</span>Unrolling the Codex agent loop</a>
-<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">59</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
-<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">60</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
-<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">61</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></details>
+<details class="nav-group" open>
+<summary class="group">Anthropic Engineering</summary>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">01</span>代理内存的组成部分（The components of agent memory）</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">02</span>Anthropic 的源代码控制重新设计（Redesigning source control at Anthropic）</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>如何在各产品中集成 Claude（How we contain Claude across products）</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>最近 Claude 代码质量报告更新（An update on recent Claude Code quality reports）</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>分离管理代理的缩放：将大脑与手分离（Scaling Managed Agents: Decoupling the brain from the hands）</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>我们如何构建 Claude Code 自动模式：一种更安全的权限跳过方法（How we built Claude Code auto mode: a safer way to skip permissions）</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>长周期应用开发中的 harness设计（Harness design for long-running application development）</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Claude Opus 4.6 BrowseComp性能中的评估意识（Eval awareness in Claude Opus 4.6’s BrowseComp performance）</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>使用团队和并行 Claudes 构建 C 编译器（Building a C compiler with a team of parallel Claudes）</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>量化代理式编码中的基础设施噪声影响（Quantifying infrastructure noise in agentic coding evals）</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">11</span>设计抗AI技术评估（Designing AI-resistant technical evaluations）</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">12</span>揭秘 AI 智能体的评估方法（Demystifying evals for AI agents）</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>长期运行代理的有效管理工具（Effective harnesses for long-running agents）</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>介绍 Claude 开发者平台上的高级工具使用（Introducing advanced tool use on the Claude Developer Platform）</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>使用 MCP 执行代码：构建更高效的智能体（Code execution with MCP: Building more efficient agents）</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>超越权限提示：让 Claude Code 更加安全与自主（Beyond permission prompts: making Claude Code more secure and autonomous）</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>为真实世界中的代理配备代理技能（Equipping agents for the real world with Agent Skills）</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>AI智能体有效的上下文工程（Effective context engineering for AI agents）</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">19</span>最近三个问题的反思（A postmortem of three recent issues）</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>编写有效的代理工具 — 与代理一起（Writing effective tools for agents — with agents）</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">21</span>桌面扩展：Claude 桌面一键 MCP 服务器安装（Desktop Extensions: One-click MCP server installation for Claude Desktop）</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>通过可信虚拟机的保密推理（Confidential Inference via Trusted Virtual Machines）</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>我们如何构建多智能体研究系统（How we built our multi-agent research system）</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">24</span>Claude Code：代理式编码的最佳实践（Claude Code: Best practices for agentic coding）</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">25</span>“思考”工具：让 Claude 在复杂的工具使用场景中停止并思考（The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations）</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">26</span>通过 Claude 3.5 Sonnet 提升 SWE-bench 标准（Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet）</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">27</span>构建有效智能体（Building effective agents）</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">28</span>介绍上下文检索（Introducing Contextual Retrieval）</a>
+</details>
+<details class="nav-group" open>
+<summary class="group">OpenAI Engineering</summary>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">01</span>OpenAI 的 Git 扩展（Scaling Git at OpenAI）</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">02</span>快速扩展在线存储以服务超过10亿个ChatGPT用户（第二部分）（Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)）</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">03</span>我们如何构建 ChatGPT 新颖的广告堆栈以提升用户信任和相关性（How we built ChatGPT’s novel ad stack for user trust and relevance）</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">04</span>快速扩展在线存储服务，满足超过10亿 ChatGPT用户的需求（Rapidly scaling online storage to serve over 1 billion ChatGPT users）</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">05</span>Jalapeño 的首批结果显示出其在 AI 推理方面的领先速度和效率（Jalapeño’s first results show industry-leading speed and efficiency in AI inference）</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">06</span>如何在六个月内构建实时响应语音人工智能系统（How we built a realtime system for responsive voice AI in six months）</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">07</span>GPT-5.6 如何融合前沿智能与前沿效率（How GPT-5.6 fuses frontier intelligence with frontier efficiency）</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">08</span>核心转储流行病学：修复一个18年的漏洞（Core dump epidemiology: fixing an 18-year-old bug）</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">09</span>构建自我改进的税务代理系统（Building self-improving tax agents with Codex）</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">10</span>构建安全有效的沙箱以在 Windows 上启用 Codex（Building a safe, effective sandbox to enable Codex on Windows）</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">11</span>利用MRC（多路径可靠连接）解锁大规模AI训练网络（Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)）</a>
+<a class="nav-item current" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html" aria-current="page"><span class="num">12</span>OpenAI如何大规模提供低延迟语音人工智能（How OpenAI delivers low-latency voice AI at scale）</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">13</span>开源编排规范：Symphony（An open-source spec for orchestration: Symphony）</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">14</span>使用 Responses API中的 WebSockets 加速代理工作流（Speeding up agentic workflows with WebSockets in the Responses API）</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">15</span>从模型到代理：为 Responses API 配备计算机环境（From model to agent: Equipping the Responses API with a computer environment）</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">16</span>超出速率限制：扩展 Codex 和 Sora 的访问能力（Beyond rate limits: scaling access to Codex and Sora）</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">17</span>利用代码在代理优先时代（Harness engineering: leveraging Codex in an agent-first world）</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">18</span>解锁代码器装置：我们如何构建应用服务器（Unlocking the Codex harness: how we built the App Server）</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">19</span>OpenAI内部数据代理（Inside OpenAI’s in-house data agent）</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">20</span>展开代码本代理循环（Unrolling the Codex agent loop）</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">21</span>将 PostgreSQL 扩展以支持 8 亿 ChatGPT 用户（Scaling PostgreSQL to power 800 million ChatGPT users）</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">22</span>我们如何使用Codex在28天内将Sora推送到Android平台（How We Used Codex to Ship Sora for Android in 28 Days）</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">23</span>我们如何构建 OWL，基于 ChatGPT 的浏览器 Atlas 的新架构（How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas）</a>
+</details>
+<details class="nav-group" open>
+<summary class="group">Google DeepMind</summary>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2：解析细胞如何读取DNA以更好地理解疾病（AlphaGenome 2: Deciphering how cells read DNA to better understand disease）</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon 现已上市（Gemini 4 Carbon is now available）</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">03</span>Gemini Omni 1.2 Flash：快速且经济实惠，镜头更长（Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips）</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">04</span>Gemini 4 Carbon：我们的下一个前沿模型（Gemini 4 Carbon: Our next frontier model）</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">05</span>利用 Google Antigravity 加速抗菌肽的搜索（Accelerating the search for antimicrobial peptides with Google Antigravity）</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">06</span>负责任且安全地开发 Gemini 4 Argon（Developing Gemini 4 Argon responsibly and safely）</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">07</span>Gemini 4 Argon：专为解决最棘手问题而设计（Gemini 4 Argon: Built to solve your hardest problems）</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">08</span>EmbeddingGemma 2：一个开放、轻量的多模态嵌入模型（EmbeddingGemma 2: an open, lightweight multimodal embedding model）</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">09</span>Gemini 4 Argon：我们下一个前沿智能时代（Gemini 4 Argon: our next era of frontier intelligence）</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">10</span>推出 Gemini 3.8 实时版带实时头像（Introducing Gemini 3.8 Live with Live Avatar）</a>
+</details></nav></details>
 <main class="main"><article class="page">
   <h1>How OpenAI delivers low-latency voice AI at scale</h1>
   <p class="subline">原文：<a href="https://openai.com/index/delivering-low-latency-voice-ai-at-scale" target="_blank" rel="noopener noreferrer">https://openai.com/index/delivering-low-latency-voice-ai-at-scale</a> · 2026-05-04 · OpenAI Engineering · 中英对照</p>
@@ -327,11 +347,9 @@ body[data-layout="target-source"] .pane-source { order: 2; }
 }
 body.hide-source .pair .source { display: none; }
 .reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
-.reader-tools .hint { color: var(--muted); }
 </style>
 <div class="reader-tools">
 <button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
-<span class="hint">中文译文在上，英文原文在下</span>
 </div>
 <script>
 (function () {
@@ -1036,20 +1054,18 @@ body.hide-source .pair .source { display: none; }
   function filterNav(query) {
     var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
     for (var n = 0; n < navs.length; n++) {
-      var nav = navs[n];
-      var items = nav.querySelectorAll(".nav-item");
-      for (var i = 0; i < items.length; i++) {
-        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
-      }
-      var groups = nav.querySelectorAll(".group");
+      var groups = navs[n].querySelectorAll(".nav-group");
       for (var g = 0; g < groups.length; g++) {
-        var sibling = groups[g].nextElementSibling;
+        var group = groups[g];
+        var items = group.querySelectorAll(".nav-item");
         var visible = false;
-        while (sibling !== null && sibling.classList.contains("nav-item")) {
-          if (!sibling.hidden) visible = true;
-          sibling = sibling.nextElementSibling;
+        for (var i = 0; i < items.length; i++) {
+          var match = query === "" || items[i].textContent.toLowerCase().indexOf(query) !== -1;
+          items[i].hidden = !match;
+          if (match) visible = true;
         }
-        groups[g].hidden = query !== "" && !visible;
+        group.hidden = query !== "" && !visible;
+        if (query !== "" && visible) group.open = true;
       }
     }
   }
