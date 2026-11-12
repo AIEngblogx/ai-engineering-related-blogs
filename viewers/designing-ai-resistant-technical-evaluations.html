@@ -1,0 +1,824 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Designing AI-resistant technical evaluations · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Designing AI-resistant technical evaluations</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">01</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">02</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item current" href="../viewers/designing-ai-resistant-technical-evaluations.html" aria-current="page"><span class="num">11</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">12</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">19</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">21</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">24</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">25</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">26</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">27</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">28</span>Introducing Contextual Retrieval</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">01</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">02</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item current" href="../viewers/designing-ai-resistant-technical-evaluations.html" aria-current="page"><span class="num">11</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">12</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">19</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">21</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">24</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">25</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">26</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">27</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">28</span>Introducing Contextual Retrieval</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Designing AI-resistant technical evaluations</h1>
+  <p class="subline">原文：<a href="https://www.anthropic.com/research/AI-resistant-technical-evaluations" target="_blank" rel="noopener noreferrer">https://www.anthropic.com/research/AI-resistant-technical-evaluations</a> · 2026-01-21 · Anthropic Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Fe53e6b703eca6d16db69a95389896b8a3c0ffd43-2000x1125.jpg&amp;w=1920&amp;q=75" alt="Designing AI-resistant technical evaluations" loading="lazy">
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">由 Tristan Hume 撰写，他是 Anthropic 性能优化团队的首席成员。Tristan 设计并重新设计了测试方案，这一举措帮助 Anthropic 雇佣了数十名性能工程师。</p>
+<p class="source" lang="en">Written by Tristan Hume, a lead on Anthropic&#39;s performance optimization team. Tristan designed—and redesigned—the take-home test that&#39;s helped Anthropic hire dozens of performance engineers.</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">&lt;text&gt;
+模型 2026年7月24日 推出 Claude Opus 5
+&lt;/text&gt;</p>
+<p class="source" lang="en">ModelsJul 24, 2026Introducing Claude Opus 5</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">模型</p>
+<p class="source" lang="en">Models</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">2026年7月24日</p>
+<p class="source" lang="en">Jul 24, 2026</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">随着人工智能能力的提升，评估技术候选人的难度越来越大。如今能够清晰区分不同人类技能水平的方法，未来可能只需模型就能轻松解决，从而使其无法用于评估。</p>
+<p class="source" lang="en">Evaluating technical candidates becomes harder as AI capabilities improve. A take-home that distinguishes well between human skill levels today may be trivially solved by models tomorrow—rendering it useless for evaluation.</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">自2024年初以来，我们的性能工程团队采用了一种家庭作业测试方式，要求候选人为模拟加速器优化代码。已有1000多名候选人完成了测试，其中数十人现在在这里工作，包括那些推荐使用我们的Trainium集群并发布了Claude 3 Opus所有模型的工程师。</p>
+<p class="source" lang="en">Since early 2024, our performance engineering team has used a take-home test where candidates optimize code for a simulated accelerator. Over 1,000 candidates have completed it, and dozens now work here, including engineers who brought up our Trainium cluster and shipped every model since Claude 3 Opus.</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">但是每个新的 Claude 模型都迫使我们重新设计测试。在相同的时间限制下，Claude Opus 4 的表现优于大多数人类申请者。这仍然让我们能够区分最优秀的候选人——但随后 Claude Opus 4.5 甚至与这些人并列。在无限时间的情况下，人类仍然可以超越模型，但在这种限时测试的限制下，我们不再有办法区分我们最优秀的候选人与最强大的模型的输出。</p>
+<p class="source" lang="en">But each new Claude model has forced us to redesign the test. When given the same time limit, Claude Opus 4 outperformed most human applicants. That still allowed us to distinguish the strongest candidates—but then Claude Opus 4.5 matched even those. Humans can still outperform models when given unlimited time, but under the constraints of the take-home test, we no longer had a way to distinguish between the output of our top candidates and our most capable model.</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">我现在已经对我们的核心内容进行了三个版本的迭代，以确保它仍然具有影响力。每次迭代中，我都对哪些因素能让评估结果在人工智能辅助下更加可靠，以及哪些因素不行，有了新的认识。</p>
+<p class="source" lang="en">I&#39;ve now iterated through three versions of our take-home in an attempt to ensure it still carries signal. Each time, I’ve learned something new about what makes evaluations robust to AI assistance and what doesn&#39;t.</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">这篇文章描述了原始的家庭作业设计，每个 Claude 模型是如何击败它的，以及我不得不采取的一些非常不寻常的方法，以确保我们的测试能够超越最先进的模型的能力。虽然我们的工作随着模型的发展而发展，但我们仍然需要更多优秀的工程师——只是需要更多富有创意的方式来找到他们。</p>
+<p class="source" lang="en">This post describes the original take-home design, how each Claude model defeated it, and the increasingly unusual approaches I&#39;ve had to take to ensure our test stays ahead of our top model’s capabilities. While the work we do has evolved alongside our models, we still need more strong engineers—just increasingly creative ways to find them.</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">为此，我们将原始内容作为公开挑战发布，因为在没有时间限制的情况下，人类的最佳表现仍然超过 Claude 的能力。如果你能击败 Opus 4.5，我们非常希望听到你的想法——详细信息在本文底部。</p>
+<p class="source" lang="en">To that end, we&#39;re releasing the original take-home as an open challenge, since with unlimited time the best human performance still exceeds what Claude can achieve. If you can best Opus 4.5, we’d love to hear from you—details are at the bottom of this post.</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">带回家的物品的来源</p>
+<p class="source" lang="en">The origin of the take-home</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">2023年11月，我们正在准备训练并推出Claude Opus 3。我们已经获得了新的TPU和GPU集群，大型Trainium集群也即将投入使用，我们在加速器上的投入也比以往更多，但面对新的规模需求，我们缺乏足够的性能工程师。我在Twitter上发帖邀请人们给我们发邮件，结果收到的候选人数量超过了我们通过常规面试流程能够评估的数量，而这一流程需要员工和候选人花费大量时间</p>
+<p class="source" lang="en">In November 2023, we were preparing to train and launch Claude Opus 3. We’d secured new TPU and GPU clusters, our large Trainium cluster was coming, and we were spending considerably more than we had in the past on accelerators, but we didn&#39;t have enough performance engineers for our new scale. I posted on Twitter asking people to email us, which brought in more promising candidates than we could evaluate through our standard interview pipeline, a process that consumes significant time for staff and candidates</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">我们需要一种更有效的方式来评估候选人。因此，我花了两周时间设计了一份带回家的测试，以充分反映职位要求，并识别出最优秀的申请者。</p>
+<p class="source" lang="en">We needed a way to evaluate candidates more efficiently. So, I took two weeks to design a take-home test that could adequately capture the demands of the role and identify the most capable applicants.</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">设计目标</p>
+<p class="source" lang="en">Design goals</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">招聘会名声不好。通常它们充满了工程师觉得无聊的通用问题，导致筛选效果也差。我的目标不同：要创造真正吸引人的内容，让候选人乐于参与，并能在高分辨率下捕捉到他们的技术技能。</p>
+<p class="source" lang="en">Take-homes have a bad reputation. Usually they’re filled with generic problems which engineers find boring, and which make for poor filters. My goal was different: create something genuinely engaging that would make candidates excited to participate and allow us to capture their technical skills at a high-level of resolution.</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">这种格式在评估性能工程技能方面比实时面试更具优势：</p>
+<p class="source" lang="en">The format also offers advantages over live interviews for evaluating performance engineering skills:</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">更长的时间范围：工程师在编码时很少面临不到一小时的截止时间。4小时的时间段（后来缩短为2小时）更能反映工作的实际性质。虽然仍然比大多数实际任务要短，但我们需要权衡其难度。</p>
+<p class="source" lang="en">Longer time horizon: Engineers rarely face deadlines of less than an hour when coding. A 4-hour window (later reduced to 2 hours) better reflects the actual nature of the job. It&#39;s still shorter than most real tasks, but we need to balance that with how onerous it is.</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">真实的场景环境：没有人在观看或期待解说。考生可以在不受干扰的情况下使用自己的编辑工具进行工作。</p>
+<p class="source" lang="en">Realistic environment: No one watching or expecting narration. Candidates work in their own editor without distraction.</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">是时候考虑理解和使用工具了：性能优化需要了解现有系统，有时还需要开发调试工具。在正常的50分钟面试中，这两点都很难实际评估。</p>
+<p class="source" lang="en">Time for comprehension and tooling: Performance optimization requires understanding existing systems and sometimes building debugging tools. Both are hard to realistically evaluate in a normal 50 minute interview.</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">与人工智能辅助的兼容性：Anthropic的一般候选者指导要求候选人在没有人工智能辅助的情况下完成回家作业，除非另有说明。对于本次回家作业，我们明确说明了例外情况。</p>
+<p class="source" lang="en">Compatibility with AI assistance: Anthropic&#39;s general candidate guidance asks candidates to complete take-homes without AI unless indicated otherwise. For this take-home, we explicitly indicate otherwise.</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">长期问题对人工智能来说更难完全解决，因此候选人可以使用人工智能工具（就像在实际工作中一样），同时仍需展示自己的技能。</p>
+<p class="source" lang="en">Longer-horizon problems are harder for AI to solve completely, so candidates can use AI tools (as they would on the job) while still needing to demonstrate their own skills.</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">除了这些特定于格式的目标之外，我运用了设计任何面试时使用的相同原则，以让材料易于携带：</p>
+<p class="source" lang="en">Beyond these format-specific goals, I applied the same principles I use when designing any interview to make the take-home:</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">实际工作的代表：这个问题应该让候选人体验一下实际工作包含的内容。</p>
+<p class="source" lang="en">Representative of real work: The problem should give candidates a taste of what the job actually involves.</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">高信号：评估方式应避免依赖单一洞察力的问题，确保考生有多次机会展示他们的全部能力——尽可能减少偶然性。此外，评分分布应广泛，并且深度要足够，以至于即使是优秀的考生也无法完成所有题目。</p>
+<p class="source" lang="en">High signal: The take-home should avoid problems that hinge on a single insight and ensure candidates have many chances to show their full abilities — leaving as little as possible to chance. It should also have a wide scoring distribution,and ensure enough depth that even strong candidates don&#39;t finish everything.</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">没有特定的领域知识：具备良好基础的人可以在工作中学习具体技能。不必要的狭窄专业知识要求会限制候选人范围。</p>
+<p class="source" lang="en">No specific domain knowledge: People with good fundamentals can learn specifics on the job. Requiring narrow expertise unnecessarily limits the candidate pool.</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">乐趣：快速的开发循环、具有深度的有趣问题以及创造空间。</p>
+<p class="source" lang="en">Fun: Fast development loops, interesting problems with depth, and room for creativity.</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">模拟机器</p>
+<p class="source" lang="en">The simulated machine</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">我创建了一个 Python 模拟器，用于一个具有类似 TPU 特性的虚拟加速器。候选者可以在这台机器上优化代码，使用热重载 Perfetto 追踪功能来显示所有指令，这与我们在 Trainium 上使用的工具类似。</p>
+<p class="source" lang="en">I built a Python simulator for a fake accelerator with characteristics that resemble TPUs. Candidates optimize code running on this machine, using a hot-reloading Perfetto trace that shows every instruction, similar to the tooling we have on Trainium.</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">该机器具备一些使加速器优化变得有趣的特性：手动管理的缓存内存（与中央处理单元不同，加速器通常需要显式的内存管理）、VLIW（每个周期并行运行多个执行单元，需要高效的指令打包）、SIMD（每条指令对多个元素进行向量运算）以及多核处理（将工作分配到多个核心上）。</p>
+<p class="source" lang="en">The machine includes features that make accelerator optimization interesting: manually managed scratchpad memory (unlike CPUs, accelerators often require explicit memory management), VLIW (multiple execution units running in parallel each cycle, requiring efficient instruction packing), SIMD (vector operations on many elements per instruction), and multicore (distributing work across cores).</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Febebb22ddbba7103f3af4e8a55a13245d3897802-2149x831.png&amp;w=3840&amp;q=75" alt="" loading="lazy">
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">该任务是一种并行树遍历，特意没有采用深度学习风格，因为大多数性能工程师当时还没有从事过深度学习工作，可以在工作中学习特定领域知识。这个问题灵感来自无分支的 SIMD 决策树推理，这是一个经典的机器学习优化挑战，只是过去只有少数候选人遇到过。</p>
+<p class="source" lang="en">The task is a parallel tree traversal, deliberately not deep learning flavored, since most performance engineers hadn&#39;t worked on deep learning yet and could learn domain specifics on the job. The problem was inspired by branchless SIMD decision tree inference, a classical ML optimization challenge as a nod to the past, which only a few candidates had encountered before.</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">候选人最初采用完全串行实现，然后逐步利用机器的并行性。热身阶段使用多核并行处理，之后候选人可以选择进行 SIMD 向量化或 VLIW 指令打包处理。原始版本还包含一个错误，候选人需要首先调试，以此锻炼他们构建工具的能力。</p>
+<p class="source" lang="en">Candidates start with a fully serial implementation and progressively exploit the machine&#39;s parallelism. The warmup is multicore parallelism, then candidates choose whether to tackle SIMD vectorization or VLIW instruction packing. The original version also included a bug that candidates needed to debug first, exercising their ability to build tooling.</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">初步结果</p>
+<p class="source" lang="en">Early results</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">最初的测试效果很好。Twitter团队中的一个人得分远高于其他人。他于二月初开始工作，比我们通过标准流程招聘的第一批员工早了两周。测试证明具有预测性：他立刻开始优化内核，并找到了解决一个导致启动受阻的编译器错误的方法，该错误与张量索引数学运算超出32位限制有关。</p>
+<p class="source" lang="en">The initial take-home worked well. One person from the Twitter batch scored substantially higher than everyone else. He started in early February, two weeks after our first hires through the standard pipeline. The test proved predictive: He immediately began optimizing kernels and found a workaround for a launch-blocking compiler bug involving tensor indexing math overflowing 32 bits.</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">在接下来的一年半里，大约1000名候选人完成了测试任务，这帮助我们雇用了目前大部分的性能工程团队成员。对于经验有限的候选人来说，这尤其有价值：我们一些表现最优秀的工程师直接来自本科阶段，但在测试任务中展现出的能力足以让我们自信地录用他们。</p>
+<p class="source" lang="en">Over the next year and a half, about 1,000 candidates completed the take-home, and it helped us hire most of our current performance engineering team. It proved especially valuable for candidates with limited experience on paper: several of our highest-performing engineers came directly from undergrad but showed enough skill on the take-home for us to hire confidently.</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">反馈很积极。许多候选人超过了4小时的限制，因为他们非常享受这个过程。最优秀的无限时间提交作品包括完整的优化小型编译器以及一些我未曾预料到的巧妙优化方案。</p>
+<p class="source" lang="en">Feedback was positive. Many candidates worked past the 4-hour limit because they were enjoying themselves. The strongest unlimited-time submissions included full optimizing mini-compilers and several clever optimizations I hadn&#39;t anticipated.</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">然后 Claude Opus 4 击败了它</p>
+<p class="source" lang="en">Then Claude Opus 4 defeated it</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">到2025年5月，Claude 3.7 Sonnet已经发展到这样的程度：超过50%的候选方案完全可以通过Claude Code来处理。随后，我在测试环境中使用了Claude Opus 4的预发布版本，它在4小时的限制内提出了一个比几乎所有人类更好的优化方案。</p>
+<p class="source" lang="en">By May 2025, Claude 3.7 Sonnet had already crept up to the point where over 50% of candidates would have been better off delegating to Claude Code entirely. I then tested a pre-release version of Claude Opus 4 on the take-home. It came up with a more optimized solution than almost all humans did within the 4-hour limit.</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">这不是我的第一次被 Claude 模型击败的面试。我在 2023 年设计了一个现场面试问题，因为当时的问题都是基于早期 Claude 模型熟悉且容易解决的常见任务。我试图设计一个需要更多解决问题能力而非知识的问题，仍然基于我在工作中解决的一个真实（但小众）问题。Claude 3 Opus 第一部分解决了这个问题，Claude 3.5 Sonnet 则解决了第二部分。我们仍然使用它，因为我们的其他现场问题也并不具备抗 AI 能力。</p>
+<p class="source" lang="en">This wasn&#39;t my first interview defeated by a Claude model. I&#39;d designed a live interview question in 2023 specifically because our questions at the time were based around common tasks that early Claude models had lots of knowledge of and so could solve easily. I tried to design a question that required more problem solving skill than knowledge, still based on a real (but niche) problem I&#39;d solved at work. Claude 3 Opus beat part 1 of that question; Claude 3.5 Sonnet beat part 2. We still use it because our other live questions aren&#39;t AI-resistant either.</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">对于回家作业部分，有一个简单的解决方案。问题远比4小时能探索的更深层次，因此我使用Claude Opus 4来定位问题开始出现的位置。这成为了版本2的新起点。我编写了更简洁的起始代码，增加了新的机器功能以提升深度，并删除了多核处理（Claude已经解决了这个问题，它只是让开发流程变慢，而没有增加信号传输）。</p>
+<p class="source" lang="en">For the take-home, there was a straightforward fix. The problem had far more depth than anyone could explore in 4 hours, so I used Claude Opus 4 to identify where it started struggling. That became the new starting point for version 2. I wrote cleaner starter code, added new machine features for more depth, and removed multicore (which Claude had already solved, and which only slowed down development loops without adding signal).</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">我也将时间限制从4小时缩短到了2小时。最初选择4小时是基于候选人的反馈，因为担心他们在处理问题或产生困惑时可能会陷入困境而失去机会，但安排工作带来的额外开销导致我们的项目流程出现了多周的延迟。2小时更容易在周末内完成。</p>
+<p class="source" lang="en">I also shortened the time limit from 4 hours to 2 hours. I&#39;d originally chosen 4 hours based on candidate feedback preferring less risk of getting sunk if they got stuck for a bit on a bug or confusion, but the scheduling overhead was causing multi-week delays in our pipeline. Two hours is much easier to fit into a weekend.</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">版本 2 更重视巧妙的优化见解，而非调试和代码量。它在几个月的时间里对我们非常有帮助。</p>
+<p class="source" lang="en">Version 2 emphasized clever optimization insights over debugging and code volume. It served us well—for several months.</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">然后 Claude Opus 4.5 击败了那个</p>
+<p class="source" lang="en">Then Claude Opus 4.5 defeated that</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">当我测试了 Claude Opus 4.5 的预发布检查点后，看到 Claude Code 在2小时内逐步改进了解决方案，解决了最初的瓶颈问题，并实现了所有常见的微优化，不到1小时就达到了我们的标准。</p>
+<p class="source" lang="en">When I tested a pre-release Claude Opus 4.5 checkpoint, I watched Claude Code work on the problem for 2 hours, gradually improving its solution. It solved the initial bottlenecks, implemented all the common micro-optimizations, and met our passing threshold in under an hour.</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">然后它停止了，认为已经遇到了无法克服的内存带宽瓶颈。大多数人类也会得出同样的结论。但有一些巧妙的方法可以利用问题的结构来绕过这个瓶颈。当我告诉 Claude 可以实现的循环计数结果时，它思考了一会儿，找到了方法。随后它进行了调试、调整，并进一步实现了优化。到了2小时的时间点，它的得分与那个使用 Claude 4 并受到指导的人类表现相当。</p>
+<p class="source" lang="en">Then it stopped, convinced it had hit an insurmountable memory bandwidth bottleneck. Most humans reach the same conclusion. But there are clever tricks that exploit the problem structure to work around that bottleneck. When I told Claude the cycle count it was possible to achieve, it thought for a while and found the trick. It then debugged, tuned, and implemented further optimizations. By the 2-hour mark, its score matched the best human performance within that time limit—and that human had made heavy use of Claude 4 with steering.</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">我们在内部测试计算环境中对它进行了测试，以确保其效果更加可靠，并确认它能够在2小时内超越人类水平，还能随着时间继续提升性能。发布后，我们甚至以通用方式改进了计算环境，从而获得了更高的分数。</p>
+<p class="source" lang="en">We tried it out in our internal test-time compute harness for more rigor and confirmed it could both beat humans in 2 hours and continue climbing with time. Post-launch we even improved our harness in a generic way and got a higher score.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F378256f8023fc3d48f2992b9ee9884a4658e3ab1-1681x463.png&amp;w=3840&amp;q=75" alt="" loading="lazy">
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">我遇到了问题。我们即将发布一个模型，在我们的内部评估中，最佳策略就是将任务交给 Claude Code 处理。</p>
+<p class="source" lang="en">I had a problem. We were about to release a model where the best strategy on our take-home would be delegating to Claude Code.</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">考虑各种选项</p>
+<p class="source" lang="en">Considering the options</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">一些同事建议禁止人工智能辅助。我不想这么做。除了执行上的困难之外，我觉得人们在我们的工作中仍然发挥着重要作用，我应该能找到办法让他们在人工智能存在的环境中也能脱颖而出——就像他们在传统工作中那样。我不想立即接受“人类在超过几小时的任务上只有优势”这种观点。</p>
+<p class="source" lang="en">Some colleagues suggested banning AI assistance. I didn&#39;t want to do this. Beyond the enforcement challenges, I had a sense that given people continue to play a vital role in our work, I should be able to figure out some way for them to distinguish themselves in a setting with AI—like they&#39;d have on the job. I didn&#39;t want to give in yet to the idea that humans only have an advantage on tasks longer than a few hours.</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">其他人建议将标准提高到“显著超越 Claude Code 单独使用时所能达到的水平”。这里的问题在于 Claude 运行速度很快。人类通常需要在阅读和理解问题之前花费一半的时间来优化。试图引导 Claude 的人可能会始终落后，直到事情发生之后才明白 Claude 做了什么。最可行的策略可能是坐下来观察。</p>
+<p class="source" lang="en">Others suggested raising the bar to &quot;substantially outperform what Claude Code achieves alone.&quot; The concern here was that Claude works fast. Humans typically spend half the 2 hours reading and understanding the problem before they start optimizing. A human trying to steer Claude would likely be constantly behind, understanding what Claude did only after the fact. The dominant strategy might become sitting back and watching.</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">现在，Anthropic的性能工程师仍然有很多工作要做，但看起来更像是在进行艰难的调试、系统设计、性能分析，以及研究如何验证系统的正确性，还有如何让Claude的代码更简洁、更优雅。不幸的是，这些工作在没有大量时间和共同背景的情况下，很难以客观的方式进行测试。设计能够代表该工作的面试一直都很困难，现在则比以往更加困难。</p>
+<p class="source" lang="en">Nowadays performance engineers at Anthropic still have lots of work to do, but it looks more like tough debugging, systems design, performance analysis, figuring out how to verify the correctness of our systems, and figuring out how to make Claude&#39;s code simpler and more elegant. Unfortunately these things are tough to test in an objective way without a lot of time or common context. It&#39;s always been hard to design interviews that represent the job, but now it&#39;s harder than ever.</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">但我也担心，如果我投入精力设计一个新的回家使用版本，要么 Claude Opus 4.5 就能解决这个问题，要么任务会变得太难，人类在两小时内无法完成。</p>
+<p class="source" lang="en">But I also worried if I invested in designing a new take-home, either Claude Opus 4.5 would solve that too, or it would become so challenging that it would be impossible for humans to complete in two hours.</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">尝试 1：一个不同的优化问题</p>
+<p class="source" lang="en">Attempt 1: A different optimization problem</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">我意识到 Claude 可以帮我快速实现我所设计的方案，这激励我尝试开发一个更具挑战性的任务。我选择了一个在 Anthropic 工作过的复杂内核优化问题作为目标：在避免银行冲突的同时，对 2D TPU 寄存器进行高效的数据转换。我在模拟机器上将其简化为一个更简单的问题，然后让 Claude 在一天内就完成了这些修改。</p>
+<p class="source" lang="en">I realized Claude could help me implement whatever I designed quickly, which motivated me to try developing a harder take-home. I chose a problem based on one of the trickier kernel optimizations I&#39;d done at Anthropic: an efficient data transposition on 2D TPU registers while avoiding bank conflicts. I distilled it into a simpler problem on a simulated machine and had Claude implement the changes in under a day.</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">Claude Opus 4.5 发现了一种我完全没有想到的优化方法。通过仔细分析，它意识到可以完全转换计算过程，而不是只处理数据的转换，于是相应地重写了整个程序。</p>
+<p class="source" lang="en">Claude Opus 4.5 found a great optimization I hadn&#39;t even thought of. Through careful analysis, it realized it could transpose the entire computation rather than figuring out how to transpose the data, and it rewrote the whole program accordingly.</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">在我的实际案例中，这种方法根本不起作用，所以我修复了问题以去掉那种方法。Claude随后取得了一些进展，但找不到最高效的解决方案。看起来我又有了新问题，现在只能希望人类候选者能足够快地解决它。但我还是有些疑虑，于是我使用Claude Code的“ultrathink”功能以及更长的思考预算再次检查了……结果它解决了问题。它甚至知道解决银行冲突的窍门。</p>
+<p class="source" lang="en">In my real case, this wouldn&#39;t have worked, so I patched the problem to remove that approach. Claude then made progress but couldn&#39;t find the most efficient solution. It seemed like I had my new problem, now I just had to hope human candidates could get it fast enough. But I had some nagging doubt, so I double-checked using Claude Code&#39;s &quot;ultrathink&quot; feature with longer thinking budgets ... and it solved it. It even knew the tricks for fixing bank conflicts.</p>
+</div>
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">事后看来，这并非适合尝试的正确问题。许多平台的工程师都在处理数据转换和银行冲突问题，因此 Claude 拥有丰富的训练数据可供参考。虽然我是从基础原理出发找到解决方案的，但 Claude 可以借助更丰富的经验工具箱。</p>
+<p class="source" lang="en">In hindsight, this wasn&#39;t the right problem to try. Engineers across many platforms have struggled with data transposition and bank conflicts, so Claude has substantial training data to draw on. While I&#39;d found my solution from first principles, Claude could draw on a larger toolbox of experience.</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">尝试 2：更加奇怪</p>
+<p class="source" lang="en">Attempt 2: Going weirder</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">我需要一个能够让人类推理战胜 Claude 丰富经验的问题：某种完全超出预期的情况。不幸的是，这与我希望被明确识别为该工作要求的目标产生了冲突。</p>
+<p class="source" lang="en">I needed a problem where human reasoning could win over Claude&#39;s larger experience base: something sufficiently out of distribution. Unfortunately, this conflicted with my goal of being recognizably like the job.</p>
+</div>
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">我想到了那些我特别喜欢的独特优化问题，最终选择了 Zachtronics 游戏。这些编程谜题游戏使用非常特殊且限制严格的指令集，迫使你以非传统的方式编程。例如，在 Shenzhen I/O 游戏中，程序被分散在多个通信芯片上，每个芯片只包含大约 10 条指令和一两个状态寄存器。巧妙的优化方法常常涉及将状态编码到指令指针或分支标志中。</p>
+<p class="source" lang="en">I thought about the most unusual optimization problems I&#39;d enjoyed and landed on Zachtronics games. These programming puzzle games use unusual, highly constrained instruction sets that force you to program in unconventional ways. For example, in Shenzhen I/O, programs are split across multiple communicating chips that each hold only about 10 instructions with one or two state registers. Clever optimization often involves encoding state into the instruction pointer or branch flags.</p>
+</div>
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">我设计了一个新的家庭作业，包含谜题，使用一个非常有限的指令集，旨在减少指令数量的同时优化解决方案。我实现了一个中等难度的谜题，并在 Claude Opus 4.5 上进行了测试，结果失败了。我继续完成了更多谜题，并让同事验证，那些对问题不太熟悉的人也能比 Claude 表现更好。</p>
+<p class="source" lang="en">I designed a new take-home consisting of puzzles using a tiny, heavily constrained instruction set, optimizing solutions for minimal instruction count. I implemented one medium-hard puzzle and tested it on Claude Opus 4.5. It failed. I filled out more puzzles and had colleagues verify that people less steeped in the problem than me could still outperform Claude.</p>
+</div>
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">与 Zachtronics 游戏不同，我故意没有提供任何可视化或调试工具。初始代码仅用于检查解决方案是否有效。构建调试工具正是测试的一部分：你可以插入精心设计的打印语句，或者让编码模型在几分钟内生成交互式调试器。关于如何投资工具的选择也是信号之一。</p>
+<p class="source" lang="en">Unlike Zachtronics games, I intentionally provided no visualization or debugging tools. The starter code only checks whether solutions are valid. Building debugging tools is part of what&#39;s being tested: you can either insert well-crafted print statements or ask a coding model to generate an interactive debugger in a few minutes. Judgment about how to invest in tooling is part of the signal.</p>
+</div>
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">我对新的带回家版本相当满意。由于包含更多的独立子问题，其变化幅度可能比原版本小。初步结果很有希望：分数与候选人的过往工作水平密切相关，而且我能力最强的同事的得分比迄今为止的任何候选人都高。</p>
+<p class="source" lang="en">I&#39;m reasonably happy with the new take-home. It might have lower variance than the original because it comprises more independent sub-problems. Early results are promising: scores correlate well with the caliber of candidates&#39; past work, and one of my most capable colleagues scored higher than any candidate so far.</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">我仍然为放弃原作的真实感和丰富的深度而感到难过。但真实感可能已成为我们不再拥有的奢侈品。原作之所以成功，是因为它模仿了真实的创作。而替代作品之所以有效，是因为它模拟了新颖的创作。</p>
+<p class="source" lang="en">I&#39;m still sad to have given up the realism and varied depth of the original. But realism may be a luxury we no longer have. The original worked because it resembled real work. The replacement works because it simulates novel work.</p>
+</div>
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">一个开放的挑战</p>
+<p class="source" lang="en">An open challenge</p>
+</div>
+<div class="pair" id="p-64">
+<p class="target" lang="zh-CN">我们正在发布原始测试材料，任何人都可以在无限时间内尝试。在足够长的时间范围内，人类专家比当前模型具有优势。有史以来提交的最快的人类解决方案，即便使用大量的测试时间计算，也远远超过了 Claude 在测试中的表现。</p>
+<p class="source" lang="en">We&#39;re releasing the original take-home for anyone to try with unlimited time. Human experts retain an advantage over current models at sufficiently long time horizons. The fastest human solution ever submitted substantially exceeds what Claude has achieved even with extensive test-time compute.</p>
+</div>
+<div class="pair" id="p-65">
+<p class="target" lang="zh-CN">发布的版本从零开始（就像版本 1 一样），但使用了版本 2 的指令集和单核设计，因此循环次数与版本 2 相当。</p>
+<p class="source" lang="en">The released version starts from scratch (like version 1) but uses version 2&#39;s instruction set and single-core design, so cycle counts are comparable to version 2.</p>
+</div>
+<div class="pair" id="p-66">
+<p class="target" lang="zh-CN">性能基准测试（以模拟机器的时钟周期为单位衡量）：</p>
+<p class="source" lang="en">Performance benchmarks (measured in clock cycles from the simulated machine):</p>
+</div>
+<div class="pair" id="p-67">
+<p class="target" lang="zh-CN">2164次循环：经过数小时在测试时间计算框架中的运行后，Claude Opus 4</p>
+<p class="source" lang="en">2164 cycles: Claude Opus 4 after many hours in the test-time compute harness</p>
+</div>
+<div class="pair" id="p-68">
+<p class="target" lang="zh-CN">1790次循环：在休闲的 Claude Code 会话中，Claude Opus 4.5 的表现大约与人类在2小时内的最佳表现相当</p>
+<p class="source" lang="en">1790 cycles: Claude Opus 4.5 in a casual Claude Code session, approximately matching the best human performance in 2 hours</p>
+</div>
+<div class="pair" id="p-69">
+<p class="target" lang="zh-CN">1579次循环：在我们的测试计算环境下，Claude Opus 4.5在2小时后完成。</p>
+<p class="source" lang="en">1579 cycles: Claude Opus 4.5 after 2 hours in our test-time compute harness</p>
+</div>
+<div class="pair" id="p-70">
+<p class="target" lang="zh-CN">1548次循环：Claude Sonnet 4.5，经过超过2小时的多重测试计算后得出。</p>
+<p class="source" lang="en">1548 cycles: Claude Sonnet 4.5 after many more than 2 hours of test-time compute</p>
+</div>
+<div class="pair" id="p-71">
+<p class="target" lang="zh-CN">1487次循环：Claude Opus 4.5在11.5小时使用harness后完成。</p>
+<p class="source" lang="en">1487 cycles: Claude Opus 4.5 after 11.5 hours in the harness</p>
+</div>
+<div class="pair" id="p-72">
+<p class="target" lang="zh-CN">1363次循环：经过数小时使用改进的测试时间计算环境后，Claude Opus 4.5的表现。</p>
+<p class="source" lang="en">1363 cycles: Claude Opus 4.5 in an improved test time compute harness after many hours</p>
+</div>
+<div class="pair" id="p-73">
+<p class="target" lang="zh-CN">在 GitHub 上下载它。如果你在1487次迭代以下进行优化，并且超过 Claude 初始性能的最佳水平，请将你的代码和简历通过 performance-recruiting@anthropic.com 发送给我们。</p>
+<p class="source" lang="en">Download it on GitHub. If you optimize below 1487 cycles, beating Claude&#39;s best performance at launch, email us at performance-recruiting@anthropic.com with your code and a resume.</p>
+</div>
+<div class="pair" id="p-74">
+<p class="target" lang="zh-CN">或者您可以通过我们的常规流程来申请，该流程使用我们目前能抵抗 Claude 的提交方式。我们很想知道这种方式能持续多久。</p>
+<p class="source" lang="en">Or you can apply through our typical process, which uses our (now) Claude-resistant take-home. We&#39;re curious how long it lasts.</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://www.anthropic.com/research/AI-resistant-technical-evaluations" target="_blank" rel="noopener noreferrer">https://www.anthropic.com/research/AI-resistant-technical-evaluations</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html">← Quantifying infrastructure noise in agentic coding evals</a><a href="../viewers/demystifying-evals-for-ai-agents.html">Demystifying evals for AI agents →</a></nav>
+  <footer class="footer">本站为公开 AI 工程博客的非官方中英对照归档。中文译文仅作辅助阅读，请以英文原文为准；文章内容版权归原作者所有。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

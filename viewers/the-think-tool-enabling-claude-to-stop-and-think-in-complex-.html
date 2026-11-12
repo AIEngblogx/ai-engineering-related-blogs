@@ -1,0 +1,1060 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">01</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">02</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">11</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">12</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">19</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">21</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">24</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item current" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html" aria-current="page"><span class="num">25</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">26</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">27</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">28</span>Introducing Contextual Retrieval</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">01</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">02</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">11</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">12</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">19</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">21</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">24</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item current" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html" aria-current="page"><span class="num">25</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">26</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">27</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">28</span>Introducing Contextual Retrieval</a></nav></details>
+<main class="main"><article class="page">
+  <h1>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</h1>
+  <p class="subline">原文：<a href="https://www.anthropic.com/research/claude-think-tool" target="_blank" rel="noopener noreferrer">https://www.anthropic.com/research/claude-think-tool</a> · 2025-03-20 · Anthropic Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">扩展思维更新</p>
+<p class="source" lang="en">Extended thinking update</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">自最初发布以来，扩展思维能力得到了提升，因此在大多数情况下，我们建议使用该功能而非专门的思考工具。扩展思维同样具有类似优势——为 Claude 提供了思考复杂问题的空间——并且具有更好的集成和性能。有关具体实现细节，请参阅我们的扩展思维文档。</p>
+<p class="source" lang="en">Extended thinking capabilities have improved since its initial release, such that we recommend using that feature instead of a dedicated think tool in most cases. Extended thinking provides similar benefits—giving Claude space to reason through complex problems—with better integration and performance. See our extended thinking documentation for implementation details.</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">随着我们继续提升 Claude 的复杂问题解决能力，我们发现了一种特别有效的方法：一种“思考”工具，可以在复杂任务中为结构化思考提供专门的空间。</p>
+<p class="source" lang="en">As we continue to enhance Claude&#39;s complex problem-solving abilities, we&#39;ve discovered a particularly effective approach: a &quot;think&quot; tool that creates dedicated space for structured thinking during complex tasks.</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">这种简单却强大的技术——正如我们下面将解释的，它与 Claude 新的“扩展思维”功能不同（有关扩展思维的实现细节，请参见此处）——显著提升了 Claude 的代理工具使用能力。这包括遵循规则、做出一致的决策以及处理多步骤问题，而且实现成本极低。</p>
+<p class="source" lang="en">This simple yet powerful technique—which, as we’ll explain below, is different from Claude’s new “extended thinking” capability (see here for extended thinking implementation details)—has resulted in remarkable improvements in Claude&#39;s agentic tool use ability. This includes following policies, making consistent decisions, and handling multi-step problems, all with minimal implementation overhead.</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">在本文中，我们将探讨如何在不同应用程序上实现“思考”工具，并基于经过验证的基准测试结果，为开发者提供实用的指导。</p>
+<p class="source" lang="en">In this post, we&#39;ll explore how to implement the “think” tool on different applications, sharing practical guidance for developers based on verified benchmark results.</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">什么是“思考”工具？</p>
+<p class="source" lang="en">What is the &quot;think&quot; tool?</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">使用“think”工具，我们让 Claude 能够加入一个额外的思考步骤，并为其指定一个独立空间，作为它得出最终答案的一部分。</p>
+<p class="source" lang="en">With the &quot;think&quot; tool, we&#39;re giving Claude the ability to include an additional thinking step—complete with its own designated space—as part of getting to its final answer.</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">虽然听起来与扩展思维类似，但两者是不同的概念。扩展思维指的是Claude在生成回应之前所进行的思考过程。在扩展思维模式下，Claude会深入思考并反复调整其计划，然后再采取行动。所谓“思考”工具，是为了让Claude在生成回应后能够暂停并思考是否拥有继续前进所需的所有信息。这在执行长链工具调用或与用户进行长多步骤对话时特别有用。</p>
+<p class="source" lang="en">While it sounds similar to extended thinking, it&#39;s a different concept. Extended thinking is all about what Claude does before it starts generating a response. With extended thinking, Claude deeply considers and iterates on its plan before taking action. The &quot;think&quot; tool is for Claude, once it starts generating a response, to add a step to stop and think about whether it has all the information it needs to move forward. This is particularly helpful when performing long chains of tool calls or in long multi-step conversations with the user.</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">这使得“思考”工具更适合于这种情况：Claude 仅凭用户查询无法获得制定回复所需的所有信息，需要处理外部信息（例如工具调用结果中的信息）。Claude 使用“思考”工具进行的推理不如扩展思考所能得出的结果全面，而是更专注于模型发现的新信息。</p>
+<p class="source" lang="en">This makes the “think” tool more suitable for cases where Claude does not have all the information needed to formulate its response from the user query alone, and where it needs to process external information (e.g. information in tool call results). The reasoning Claude performs with the “think” tool is less comprehensive than what can be obtained with extended thinking, and is more focused on new information that the model discovers.</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">我们建议在简单的工具使用场景中，如非顺序工具调用或简单的指令执行时，使用扩展思维。在编程、数学和物理等场景中，当不需要 Claude 调用工具时，扩展思维也很有用。“think”工具则更适合于 Claude 需要调用复杂工具、在长的工具调用链中仔细分析工具输出、在有详细指导方针的政策密集型环境中操作，或者进行顺序决策的场景，因为每一步都依赖于前一步的结果，错误会带来严重后果。</p>
+<p class="source" lang="en">We recommend using extended thinking for simpler tool use scenarios like non-sequential tool calls or straightforward instruction following. Extended thinking is also useful for use cases, like coding, math, and physics, when you don’t need Claude to call tools. The “think” tool is better suited for when Claude needs to call complex tools, analyze tool outputs carefully in long chains of tool calls, navigate policy-heavy environments with detailed guidelines, or make sequential decisions where each step builds on previous ones and mistakes are costly.</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">这是一个使用来自 τ-Bench 的标准工具规范格式的示例实现：</p>
+<p class="source" lang="en">Here&#39;s a sample implementation using the standard tool specification format that comes from τ-Bench:</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">{ &quot;name&quot;: &quot;think&quot;, &quot;description&quot;: &quot;使用该工具来思考某事。它不会获取新信息或更改数据库，只是将想法添加到日志中。在需要复杂推理或缓存内存时使用它。&quot;, &quot;input_schema&quot;: { &quot;type&quot;: &quot;object&quot;, &quot;properties&quot;: { &quot;thought&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;需要思考的想法。&quot; } }, &quot;required&quot;: [&quot;thought&quot;] } }</p>
+<p class="source" lang="en">{ &quot;name&quot;: &quot;think&quot;, &quot;description&quot;: &quot;Use the tool to think about something. It will not obtain new information or change the database, but just append the thought to the log. Use it when complex reasoning or some cache memory is needed.&quot;, &quot;input_schema&quot;: { &quot;type&quot;: &quot;object&quot;, &quot;properties&quot;: { &quot;thought&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;A thought to think about.&quot; } }, &quot;required&quot;: [&quot;thought&quot;] } }</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">τ基准测试中的性能表现</p>
+<p class="source" lang="en">Performance on τ-Bench</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">我们使用 τ-bench 对“think”工具进行了评估，这是一个全面的基准测试，旨在检验模型在真实的客户服务场景中使用工具的能力，其中“think”工具是评估标准环境的一部分。</p>
+<p class="source" lang="en">We evaluated the &quot;think&quot; tool using τ-bench (tau-bench), a comprehensive benchmark designed to test a model’s ability to use tools in realistic customer service scenarios, where the &quot;think&quot; tool is part of the evaluation’s standard environment.</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">&lt;text&gt;
+τ-bench 评估了 Claude 的能力：
+&lt;/text&gt;</p>
+<p class="source" lang="en">τ-bench evaluates Claude&#39;s ability to:</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">使用模拟用户进行真实的对话体验</p>
+<p class="source" lang="en">Navigate realistic conversations with simulated users</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">始终遵循复杂的客户服务Agent政策指南</p>
+<p class="source" lang="en">Follow complex customer service agent policy guidelines consistently</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">使用多种工具来访问和操作环境数据库</p>
+<p class="source" lang="en">Use a variety of tools to access and manipulate the environment database</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">在 τ-bench 中使用的主要评估指标是 pass^k，它衡量了给定任务中所有 k 次独立任务尝试都成功的概率，并对所有任务进行平均。与其他 LLM 评估中常用的 pass@k 指标不同（后者衡量 k 次尝试中至少一次成功的情况），pass^k 则评估一致性和可靠性——对于需要严格遵循政策的客户服务应用来说，这些品质至关重要。</p>
+<p class="source" lang="en">The primary evaluation metric used in τ-bench is pass^k, which measures the probability that all k independent task trials are successful for a given task, averaged across all tasks. Unlike the pass@k metric that is common for other LLM evaluations (which measures if at least one of k trials succeeds), pass^k evaluates consistency and reliability—critical qualities for customer service applications where consistent adherence to policies is essential.</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">性能分析</p>
+<p class="source" lang="en">Performance Analysis</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">我们的评估比较了几种不同的配置：</p>
+<p class="source" lang="en">Our evaluation compared several different configurations:</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">基线（没有“思考”工具，没有扩展思考模式）</p>
+<p class="source" lang="en">Baseline (no &quot;think&quot; tool, no extended thinking mode)</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">仅扩展思维模式</p>
+<p class="source" lang="en">Extended thinking mode alone</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">“Think”工具单独使用</p>
+<p class="source" lang="en">&quot;Think&quot; tool alone</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">“Think”工具与优化后的提示词（适用于航空领域）</p>
+<p class="source" lang="en">&quot;Think&quot; tool with optimized prompt (for airline domain)</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">实验结果显示，当 Claude 3.7 在基准测试中的“航空”和“零售”客户服务领域有效使用“思考”工具时，性能有了显著提升：</p>
+<p class="source" lang="en">The results showed dramatic improvements when Claude 3.7 effectively used the &quot;think&quot; tool in both the “airline” and “retail” customer service domains of the benchmark:</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">航空公司领域：经过优化的提示词“think”工具在pass^1指标上的得分为0.570，而基线模型的得分仅为0.370——相对提升了54%；</p>
+<p class="source" lang="en">Airline domain: The &quot;think&quot; tool with an optimized prompt achieved 0.570 on the pass^1 metric, compared to just 0.370 for the baseline—a 54% relative improvement;</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">零售领域：仅使用“思考”工具就能达到 0.812，而基线版本为 0.783。</p>
+<p class="source" lang="en">Retail domain: The &quot;think&quot; tool alone achieves 0.812, compared to 0.783 for the baseline.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Fff91e5c84be59ae71306bcc60adba9affed86484-2200x1300.jpg&amp;w=3840&amp;q=75" alt="A line graph showing the performance of Claude 3.7 Sonnet on the &quot;airline&quot; domain of the Tau-Bench eval" loading="lazy">
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">Claude 3.7 Sonnet在Tau-Bench评估的“航空公司”领域中的表现</p>
+<p class="source" lang="en">Claude 3.7 Sonnet&#39;s performance on the &quot;Airline&quot; domain of the Tau-Bench eval</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">配置</p>
+<p class="source" lang="en">Configuration</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">k=1</p>
+<p class="source" lang="en">k=1</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">k=2</p>
+<p class="source" lang="en">k=2</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">k=3</p>
+<p class="source" lang="en">k=3</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">k=4</p>
+<p class="source" lang="en">k=4</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">k=5</p>
+<p class="source" lang="en">k=5</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">“思考” + 提示词</p>
+<p class="source" lang="en">&quot;Think&quot; + Prompt</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">0.584</p>
+<p class="source" lang="en">0.584</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">0.444</p>
+<p class="source" lang="en">0.444</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">0.384</p>
+<p class="source" lang="en">0.384</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">0.356</p>
+<p class="source" lang="en">0.356</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">0.340</p>
+<p class="source" lang="en">0.340</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">“思考”</p>
+<p class="source" lang="en">&quot;Think&quot;</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">0.404</p>
+<p class="source" lang="en">0.404</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">0.254</p>
+<p class="source" lang="en">0.254</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">0.186</p>
+<p class="source" lang="en">0.186</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">0.140</p>
+<p class="source" lang="en">0.140</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">0.100</p>
+<p class="source" lang="en">0.100</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">扩展思维</p>
+<p class="source" lang="en">Extended thinking</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">0.412</p>
+<p class="source" lang="en">0.412</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">0.290</p>
+<p class="source" lang="en">0.290</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">0.232</p>
+<p class="source" lang="en">0.232</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">0.192</p>
+<p class="source" lang="en">0.192</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">0.160</p>
+<p class="source" lang="en">0.160</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">基线</p>
+<p class="source" lang="en">Baseline</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">0.332</p>
+<p class="source" lang="en">0.332</p>
+</div>
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">0.206</p>
+<p class="source" lang="en">0.206</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">0.148</p>
+<p class="source" lang="en">0.148</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">0.116</p>
+<p class="source" lang="en">0.116</p>
+</div>
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">0.100</p>
+<p class="source" lang="en">0.100</p>
+</div>
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">四种不同配置下的评估结果。得分以比例表示。</p>
+<p class="source" lang="en">Evaluation results across four different configurations. Scores are proportions.</p>
+</div>
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">在航空领域，最佳的表现是通过将“think”工具与优化后的提示词结合来实现，该提示词提供了在分析客户请求时应采用的推理方法的示例。以下是优化后的提示词的示例：</p>
+<p class="source" lang="en">The best performance in the airline domain was achieved by pairing the “think” tool with an optimized prompt that gives examples of the type of reasoning approaches to use when analyzing customer requests. Below is an example of the optimized prompt:</p>
+</div>
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">## 使用 think 工具
+
+在采取任何行动或在收到工具结果后回应用户之前，将 think 工具作为临时记录工具来：
+- 列出适用于当前请求的具体规则
+- 检查是否收集了所有必要信息
+- 确认计划中的操作符合所有政策
+- 根据工具结果进行修正以确保正确性
+
+以下是可以在 think 工具中进行的修正示例：
+&lt;think_tool_example_1&gt; 用户希望取消航班 ABC123 - 需要验证：用户 ID、预订 ID、取消原因
+- 检查取消规则：* 是否在预订后的 24 小时内？* 如果不是，则检查机票类别和保险情况
+- 确认没有航班段被飞行或已结束
+- 计划：收集缺失信息、验证规则、获取确认 &lt;/think_tool_example_1&gt;
+&lt;think_tool_example_2&gt; 用户希望预订 3 张去纽约市的机票，每张携带 2 件行李
+- 需要用户 ID 来检查：* 行李限额的会员等级 * 个人资料中存在的支付方式
+- 行李计算：* 经济舱 × 3 名乘客 * 如果是常规会员：每人 1 件免费行李 → 3 件额外行李 = $150 * 如果是银牌会员：每人 2 件免费行李 → 0 件额外行李 = $0 * 如果是金牌会员：每人 3 件免费行李 → 0 件额外行李 = $0
+- 需要验证支付规则：* 最多 1 张旅行凭证、1 张信用卡、3 张礼品卡 * 所有支付方式必须存在于个人资料中 * 剩余的旅行凭证将浪费掉
+- 计划：1. 获取用户 ID 2. 验证会员等级对应的行李费用 3. 检查个人资料中的支付方式及其组合是否允许 4. 计算总费用：机票价格 + 任何行李费用 5. 获取预订的明确确认 &lt;/think_tool_example_2&gt;</p>
+<p class="source" lang="en">## Using the think tool Before taking any action or responding to the user after receiving tool results, use the think tool as a scratchpad to: - List the specific rules that apply to the current request - Check if all required information is collected - Verify that the planned action complies with all policies - Iterate over tool results for correctness Here are some examples of what to iterate over inside the think tool: &lt;think_tool_example_1&gt; User wants to cancel flight ABC123 - Need to verify: user ID, reservation ID, reason - Check cancellation rules: * Is it within 24h of booking? * If not, check ticket class and insurance - Verify no segments flown or are in the past - Plan: collect missing info, verify rules, get confirmation &lt;/think_tool_example_1&gt; &lt;think_tool_example_2&gt; User wants to book 3 tickets to NYC with 2 checked bags each - Need user ID to check: * Membership tier for baggage allowance * Which payments methods exist in profile - Baggage calculation: * Economy class × 3 passengers * If regular member: 1 free bag each → 3 extra bags = $150 * If silver member: 2 free bags each → 0 extra bags = $0 * If gold member: 3 free bags each → 0 extra bags = $0 - Payment rules to verify: * Max 1 travel certificate, 1 credit card, 3 gift cards * All payment methods must be in profile * Travel certificate remainder goes to waste - Plan: 1. Get user ID 2. Verify membership level for bag fees 3. Check which payment methods in profile and if their combination is allowed 4. Calculate total: ticket price + any bag fees 5. Get explicit confirmation for booking &lt;/think_tool_example_2&gt;</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">特别有趣的是不同方法之间的对比。使用带有优化提示的“思考”工具在长时间思考模式下取得了显著更好的结果（其表现与未使用提示的“思考”工具相当）。单独使用“思考”工具（没有提示）也提升了性能，但仍不如优化后的方法。</p>
+<p class="source" lang="en">What&#39;s particularly interesting is how the different approaches compared. Using the “think” tool with the optimized prompt achieved significantly better results over extended thinking mode (which showed similar performance to the unprompted “think” tool). Using the &quot;think&quot; tool alone (without prompting) improved performance over baseline, but still fell short of the optimized approach.</p>
+</div>
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">“think”工具与优化后的提示词结合使用，取得了显著更好的性能，这可能是因为评估基准中航空政策部分具有较高复杂性，模型从“思考”方法的示例中获得了最大收益。</p>
+<p class="source" lang="en">The combination of the &quot;think&quot; tool with optimized prompting delivered the strongest performance by a significant margin, likely due to the high complexity of the airline policy part of the benchmark, where the model benefitted the most from being given examples of how to “think.”</p>
+</div>
+<div class="pair" id="p-64">
+<p class="target" lang="zh-CN">在零售领域，我们还测试了多种配置，以了解每种方法的具体影响</p>
+<p class="source" lang="en">In the retail domain, we also tested various configurations to understand the specific impact of each approach</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F5819616b4cc109d30f1a7d47ec8a32a6b839637b-7638x4513.jpg&amp;w=3840&amp;q=75" alt="Line graph showing the performance of Claude 3.7 Sonnet on the &quot;retail&quot; domain of the Tau-Bench eval" loading="lazy">
+<div class="pair" id="p-65">
+<p class="target" lang="zh-CN">Claude 3.7 Sonnet在Tau-Bench评估的“零售”领域中的表现</p>
+<p class="source" lang="en">Claude 3.7 Sonnet&#39;s performance on the &quot;Retail&quot; domain of the Tau-Bench eval</p>
+</div>
+<div class="pair" id="p-66">
+<p class="target" lang="zh-CN">配置</p>
+<p class="source" lang="en">Configuration</p>
+</div>
+<div class="pair" id="p-67">
+<p class="target" lang="zh-CN">k=1</p>
+<p class="source" lang="en">k=1</p>
+</div>
+<div class="pair" id="p-68">
+<p class="target" lang="zh-CN">k=2</p>
+<p class="source" lang="en">k=2</p>
+</div>
+<div class="pair" id="p-69">
+<p class="target" lang="zh-CN">k=3</p>
+<p class="source" lang="en">k=3</p>
+</div>
+<div class="pair" id="p-70">
+<p class="target" lang="zh-CN">k=4</p>
+<p class="source" lang="en">k=4</p>
+</div>
+<div class="pair" id="p-71">
+<p class="target" lang="zh-CN">k=5</p>
+<p class="source" lang="en">k=5</p>
+</div>
+<div class="pair" id="p-72">
+<p class="target" lang="zh-CN">“思考” + 无提示</p>
+<p class="source" lang="en">&quot;Think&quot; + no prompt</p>
+</div>
+<div class="pair" id="p-73">
+<p class="target" lang="zh-CN">0.812</p>
+<p class="source" lang="en">0.812</p>
+</div>
+<div class="pair" id="p-74">
+<p class="target" lang="zh-CN">0.735</p>
+<p class="source" lang="en">0.735</p>
+</div>
+<div class="pair" id="p-75">
+<p class="target" lang="zh-CN">0.685</p>
+<p class="source" lang="en">0.685</p>
+</div>
+<div class="pair" id="p-76">
+<p class="target" lang="zh-CN">0.650</p>
+<p class="source" lang="en">0.650</p>
+</div>
+<div class="pair" id="p-77">
+<p class="target" lang="zh-CN">0.626</p>
+<p class="source" lang="en">0.626</p>
+</div>
+<div class="pair" id="p-78">
+<p class="target" lang="zh-CN">扩展思维</p>
+<p class="source" lang="en">Extended thinking</p>
+</div>
+<div class="pair" id="p-79">
+<p class="target" lang="zh-CN">0.770</p>
+<p class="source" lang="en">0.770</p>
+</div>
+<div class="pair" id="p-80">
+<p class="target" lang="zh-CN">0.681</p>
+<p class="source" lang="en">0.681</p>
+</div>
+<div class="pair" id="p-81">
+<p class="target" lang="zh-CN">0.623</p>
+<p class="source" lang="en">0.623</p>
+</div>
+<div class="pair" id="p-82">
+<p class="target" lang="zh-CN">0.581</p>
+<p class="source" lang="en">0.581</p>
+</div>
+<div class="pair" id="p-83">
+<p class="target" lang="zh-CN">0.548</p>
+<p class="source" lang="en">0.548</p>
+</div>
+<div class="pair" id="p-84">
+<p class="target" lang="zh-CN">基线</p>
+<p class="source" lang="en">Baseline</p>
+</div>
+<div class="pair" id="p-85">
+<p class="target" lang="zh-CN">0.783</p>
+<p class="source" lang="en">0.783</p>
+</div>
+<div class="pair" id="p-86">
+<p class="target" lang="zh-CN">0.695</p>
+<p class="source" lang="en">0.695</p>
+</div>
+<div class="pair" id="p-87">
+<p class="target" lang="zh-CN">0.643</p>
+<p class="source" lang="en">0.643</p>
+</div>
+<div class="pair" id="p-88">
+<p class="target" lang="zh-CN">0.607</p>
+<p class="source" lang="en">0.607</p>
+</div>
+<div class="pair" id="p-89">
+<p class="target" lang="zh-CN">0.583</p>
+<p class="source" lang="en">0.583</p>
+</div>
+<div class="pair" id="p-90">
+<p class="target" lang="zh-CN">三种不同配置下的评估结果。得分以比例表示。</p>
+<p class="source" lang="en">Evaluation results across three different configurations. Scores are proportions.</p>
+</div>
+<div class="pair" id="p-91">
+<p class="target" lang="zh-CN">“思考”工具即使没有额外提示，也获得了0.812的最高通过分数。与航空领域相比，零售政策明显更容易理解，而Claude仅通过有空间进行思考，便能够有所改进，无需进一步指导。</p>
+<p class="source" lang="en">The &quot;think&quot; tool achieved the highest pass^1 score of 0.812 even without additional prompting. The retail policy is noticeably easier to navigate compared to the airline domain, and Claude was able to improve just by having a space to think without further guidance.</p>
+</div>
+<div class="pair" id="p-92">
+<p class="target" lang="zh-CN">τ测试分析的关键发现</p>
+<p class="source" lang="en">Key Insights from τ-Bench Analysis</p>
+</div>
+<div class="pair" id="p-93">
+<p class="target" lang="zh-CN">我们的详细分析揭示了几种模式，可以帮助您有效实施“思考”工具。</p>
+<p class="source" lang="en">Our detailed analysis revealed several patterns that can help you implement the &quot;think&quot; tool effectively:</p>
+</div>
+<div class="pair" id="p-94">
+<p class="target" lang="zh-CN">在复杂的领域里，提示技术非常重要。仅仅提供“思考”工具可能会稍微提高性能，但将其与优化后的提示结合使用则能在复杂领域取得显著更好的效果。不过，对于较简单的领域来说，简单地拥有“思考”工具就足够了。</p>
+<p class="source" lang="en">Prompting matters significantly on difficult domains. Simply making the &quot;think&quot; tool available might improve performance somewhat, but pairing it with optimized prompting yielded dramatically better results for difficult domains. However, easier domains may benefit from simply having access to “think.”</p>
+</div>
+<div class="pair" id="p-95">
+<p class="target" lang="zh-CN">试验中的一致性得到了改善。使用“think”这一方法带来的改进在k=5时仍然保持，这表明该工具帮助Claude更有效地处理边缘情况和特殊场景。</p>
+<p class="source" lang="en">Improved consistency across trials. The improvements from using “think” were maintained for pass^k up to k=5, indicating that the tool helped Claude handle edge cases and unusual scenarios more effectively.</p>
+</div>
+<div class="pair" id="p-96">
+<p class="target" lang="zh-CN">SWE-Bench测试中的表现</p>
+<p class="source" lang="en">Performance on SWE-Bench</p>
+</div>
+<div class="pair" id="p-97">
+<p class="target" lang="zh-CN">在评估 Claude 3.7 Sonnet 时，我们的 SWE-bench 环境中也添加了类似的“思考”工具，这有助于达到 0.623 的顶尖分数。调整后的“思考”工具定义如下：</p>
+<p class="source" lang="en">A similar “think” tool was added to our SWE-bench setup when evaluating Claude 3.7 Sonnet, contributing to the achieved state-of-the-art score of 0.623. The adapted “think” tool definition is given below:</p>
+</div>
+<div class="pair" id="p-98">
+<p class="target" lang="zh-CN">{ &quot;name&quot;: &quot;think&quot;, &quot;description&quot;: &quot;使用该工具来思考问题。它不会获取新信息或对代码库进行任何修改，只是记录下你的想法。在需要复杂推理或头脑风暴时使用它。例如，如果你在代码库中发现了一个bug的来源，调用此工具来头脑风暴几种独特的修复方法，并评估哪些更改最有可能最简单且有效。或者，如果你得到了一些测试结果，调用此工具来头脑风暴修复失败测试的方法。&quot;, &quot;input_schema&quot;: { &quot;type&quot;: &quot;object&quot;, &quot;properties&quot;: { &quot;thought&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;你的想法。&quot; } }, &quot;required&quot;: [&quot;thought&quot;] } }</p>
+<p class="source" lang="en">{ &quot;name&quot;: &quot;think&quot;, &quot;description&quot;: &quot;Use the tool to think about something. It will not obtain new information or make any changes to the repository, but just log the thought. Use it when complex reasoning or brainstorming is needed. For example, if you explore the repo and discover the source of a bug, call this tool to brainstorm several unique ways of fixing the bug, and assess which change(s) are likely to be simplest and most effective. Alternatively, if you receive some test results, call this tool to brainstorm ways to fix the failing tests.&quot;, &quot;input_schema&quot;: { &quot;type&quot;: &quot;object&quot;, &quot;properties&quot;: { &quot;thought&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;Your thoughts.&quot; } }, &quot;required&quot;: [&quot;thought&quot;] } }</p>
+</div>
+<div class="pair" id="p-99">
+<p class="target" lang="zh-CN">我们的实验表明（使用“think”工具的样本为30个，不使用者为144个），使用该工具带来的独立效果平均使性能提高了1.6%（Welch的t检验：t(38.89) = 6.71，p &lt; .001，d = 1.47）。</p>
+<p class="source" lang="en">Our experiments (n=30 samples with &quot;think&quot; tool, n=144 samples without) showed the isolated effects of including this tool improved performance by 1.6% on average (Welch&#39;s t-test: t(38.89) = 6.71, p &lt; .001, d = 1.47).</p>
+</div>
+<div class="pair" id="p-100">
+<p class="target" lang="zh-CN">何时使用 &quot;think&quot; 工具</p>
+<p class="source" lang="en">When to use the &quot;think&quot; tool</p>
+</div>
+<div class="pair" id="p-101">
+<p class="target" lang="zh-CN">根据这些评估结果，我们发现了 Claude 从“思考”工具中获得最大好处的特定场景：</p>
+<p class="source" lang="en">Based on these evaluation results, we&#39;ve identified specific scenarios where Claude benefits most from the &quot;think&quot; tool:</p>
+</div>
+<div class="pair" id="p-102">
+<p class="target" lang="zh-CN">工具输出分析。当 Claude 在采取行动前需要仔细处理之前工具调用的输出，并且可能需要在其处理方式上回退时；</p>
+<p class="source" lang="en">Tool output analysis. When Claude needs to carefully process the output of previous tool calls before acting and might need to backtrack in its approach;</p>
+</div>
+<div class="pair" id="p-103">
+<p class="target" lang="zh-CN">政策密集的环境。当 Claude 需要遵循详细的指南并验证合规性时；</p>
+<p class="source" lang="en">Policy-heavy environments. When Claude needs to follow detailed guidelines and verify compliance; and</p>
+</div>
+<div class="pair" id="p-104">
+<p class="target" lang="zh-CN">顺序决策制定。当每个行动都基于之前的行动进行，且错误代价高昂时（常见于多步骤领域）。</p>
+<p class="source" lang="en">Sequential decision making. When each action builds on previous ones and mistakes are costly (often found in multi-step domains).</p>
+</div>
+<div class="pair" id="p-105">
+<p class="target" lang="zh-CN">实施最佳实践</p>
+<p class="source" lang="en">Implementation best practices</p>
+</div>
+<div class="pair" id="p-106">
+<p class="target" lang="zh-CN">为了充分利用 Claude 的 “think” 工具，根据我们的 τ-bench 实验，我们建议采用以下实施方法。</p>
+<p class="source" lang="en">To get the most out of the &quot;think&quot; tool with Claude, we recommend the following implementation practices based on our τ-bench experiments.</p>
+</div>
+<div class="pair" id="p-107">
+<p class="target" lang="zh-CN">1. 使用特定领域示例的战略性提示</p>
+<p class="source" lang="en">1. Strategic prompting with domain-specific examples</p>
+</div>
+<div class="pair" id="p-108">
+<p class="target" lang="zh-CN">最有效的做法是在明确说明何时以及如何使用“think”工具时，比如用于 τ-bench 航空领域的工具。针对具体使用场景提供示例，可以显著提升模型使用“think”工具的效果。</p>
+<p class="source" lang="en">The most effective approach is to provide clear instructions on when and how to use the &quot;think&quot; tool, such as the one used for the τ-bench airline domain. Providing examples tailored to your specific use case significantly improves how effectively the model uses the &quot;think&quot; tool:</p>
+</div>
+<div class="pair" id="p-109">
+<p class="target" lang="zh-CN">推理过程中期望的详细程度；</p>
+<p class="source" lang="en">The level of detail expected in the reasoning process;</p>
+</div>
+<div class="pair" id="p-110">
+<p class="target" lang="zh-CN">如何将复杂的指令分解为可执行的步骤；</p>
+<p class="source" lang="en">How to break down complex instructions into actionable steps;</p>
+</div>
+<div class="pair" id="p-111">
+<p class="target" lang="zh-CN">用于处理常见场景的决策树；以及</p>
+<p class="source" lang="en">Decision trees for handling common scenarios; and</p>
+</div>
+<div class="pair" id="p-112">
+<p class="target" lang="zh-CN">如何检查是否收集了所有必要信息。</p>
+<p class="source" lang="en">How to check if all necessary information has been collected.</p>
+</div>
+<div class="pair" id="p-113">
+<p class="target" lang="zh-CN">2. 在系统提示中添加复杂的指导说明</p>
+<p class="source" lang="en">2. Place complex guidance in the system prompt</p>
+</div>
+<div class="pair" id="p-114">
+<p class="target" lang="zh-CN">我们发现，当提示长且复杂时，在系统提示中包含关于“思考”工具的说明比直接放在工具描述中更有效。这种方法能提供更广泛的背景信息，帮助模型更好地将思考过程融入其整体行为中。</p>
+<p class="source" lang="en">We found that, when they were long and/or complex, including instructions about the &quot;think&quot; tool in the system prompt was more effective than placing them in the tool description itself. This approach provides broader context and helps the model better integrate the thinking process into its overall behavior.</p>
+</div>
+<div class="pair" id="p-115">
+<p class="target" lang="zh-CN">何时不使用 “think” 工具</p>
+<p class="source" lang="en">When not to use the &quot;think&quot; tool</p>
+</div>
+<div class="pair" id="p-116">
+<p class="target" lang="zh-CN">虽然“think”工具可以带来显著的改进，但它并不适用于所有工具使用场景，并且会导致提示信息长度和输出令牌数量增加。具体来说，我们发现“think”工具在以下场景中没有带来任何改进：</p>
+<p class="source" lang="en">Whereas the “think” tool can offer substantial improvements, it is not applicable to all tool use use cases, and does come at the cost of increased prompt length and output tokens. Specifically, we have found the “think” tool does not offer any improvements in the following use cases:</p>
+</div>
+<div class="pair" id="p-117">
+<p class="target" lang="zh-CN">非顺序工具调用。如果 Claude 只需要进行一次工具调用或多次并行调用来完成任务，添加“思考”功能可能不会带来任何改进。</p>
+<p class="source" lang="en">Non-sequential tool calls. If Claude only needs to make a single tool call or multiple parallel calls to complete a task, there is unlikely to be any improvements from adding in “think.”</p>
+</div>
+<div class="pair" id="p-118">
+<p class="target" lang="zh-CN">简单的指令遵循。当 Claude 需要遵守的约束条件不多，且其默认行为已经足够好时，额外的“思考”行为不太可能带来好处。</p>
+<p class="source" lang="en">Simple instruction following. When there are not many constraints to which Claude needs to adhere, and its default behaviour is good enough, there are unlikely to be gains from additional “think”-ing.</p>
+</div>
+<div class="pair" id="p-119">
+<p class="target" lang="zh-CN">入门指南</p>
+<p class="source" lang="en">Getting started</p>
+</div>
+<div class="pair" id="p-120">
+<p class="target" lang="zh-CN">“think”工具是您Claude实现中的一个简单添加，只需几步操作就能带来显著的改进：</p>
+<p class="source" lang="en">The &quot;think&quot; tool is a straightforward addition to your Claude implementation that can yield meaningful improvements in just a few steps:</p>
+</div>
+<div class="pair" id="p-121">
+<p class="target" lang="zh-CN">使用代理工具使用场景进行测试。从具有挑战性的用例开始——那些 Claude 在长工具调用链中难以满足政策合规要求或进行复杂推理的用例。</p>
+<p class="source" lang="en">Test with agentic tool use scenarios. Start with challenging use cases—ones where Claude currently struggles with policy compliance or complex reasoning in long tool call chains.</p>
+</div>
+<div class="pair" id="p-122">
+<p class="target" lang="zh-CN">添加工具定义。实现一个针对您领域定制的“思考”工具。它需要的代码很少，但能实现更有序的推理过程。同时，考虑在系统提示中提供关于何时以及如何使用该工具的说明，并包含与您领域相关的示例。</p>
+<p class="source" lang="en">Add the tool definition. Implement a &quot;think&quot; tool customized to your domain. It requires minimal code but enables more structured reasoning. Also consider including instructions on when and how to use the tool, with examples relevant to your domain to the system prompt.</p>
+</div>
+<div class="pair" id="p-123">
+<p class="target" lang="zh-CN">监控并改进。观察 Claude 在实际使用该工具时的表现，调整你的提示词以鼓励更有效的思考模式。</p>
+<p class="source" lang="en">Monitor and refine. Watch how Claude uses the tool in practice, and adjust your prompts to encourage more effective thinking patterns.</p>
+</div>
+<div class="pair" id="p-124">
+<p class="target" lang="zh-CN">最棒的是，使用这个工具对性能影响很小。除非 Claude 决定使用它，否则它不会改变外部行为，也不会干扰你现有的工具或工作流程。</p>
+<p class="source" lang="en">The best part is that adding this tool has minimal downside in terms of performance outcomes. It doesn&#39;t change external behavior unless Claude decides to use it, and doesn&#39;t interfere with your existing tools or workflows.</p>
+</div>
+<div class="pair" id="p-125">
+<p class="target" lang="zh-CN">结论</p>
+<p class="source" lang="en">Conclusion</p>
+</div>
+<div class="pair" id="p-126">
+<p class="target" lang="zh-CN">我们的研究表明，“Think”工具能够显著提升 Claude 3.7 Sonnet在需要遵循政策和进行长链工具调用推理的复杂任务中的表现。虽然“Think”不是适用于所有情况的通用解决方案，但在正确使用的情况下能带来显著优势，且实施难度极低。</p>
+<p class="source" lang="en">Our research has demonstrated that the &quot;think&quot; tool can significantly enhance Claude 3.7 Sonnet&#39;s performance1 on complex tasks requiring policy adherence and reasoning in long chains of tool calls. “Think” is not a one-size-fits-all solution, but it offers substantial benefits for the correct use cases, all with minimal implementation complexity.</p>
+</div>
+<div class="pair" id="p-127">
+<p class="target" lang="zh-CN">我们期待看到您如何利用“think”工具，与 Claude 一起构建更强大、更可靠且更透明的 AI 系统。</p>
+<p class="source" lang="en">We look forward to seeing how you&#39;ll use the &quot;think&quot; tool to build more capable, reliable, and transparent AI systems with Claude.</p>
+</div>
+<div class="pair" id="p-128">
+<p class="target" lang="zh-CN">脚注</p>
+<p class="source" lang="en">Footnotes</p>
+</div>
+<div class="pair" id="p-129">
+<p class="target" lang="zh-CN">01虽然我们的 τ-Bench 测试重点在于使用“think”工具提升 Claude 3.7 Sonnet 的性能，但实验表明 Claude 3.5 Sonnet（新版本）在相同的配置下也能获得性能提升，这说明这种改进也适用于其他 Claude 模型。</p>
+<p class="source" lang="en">01 While our τ-Bench results focused on the improvement of Claude 3.7 Sonnet with the “think” tool, our experiments show Claude 3.5 Sonnet (New) is also able to achieve performance gains with the same configuration as 3.7 Sonnet, indicating that this improvement generalizes to other Claude models as well.</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://www.anthropic.com/research/claude-think-tool" target="_blank" rel="noopener noreferrer">https://www.anthropic.com/research/claude-think-tool</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/claude-code-best-practices-for-agentic-coding.html">← Claude Code: Best practices for agentic coding</a><a href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html">Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet →</a></nav>
+  <footer class="footer">本站为公开 AI 工程博客的非官方中英对照归档。中文译文仅作辅助阅读，请以英文原文为准；文章内容版权归原作者所有。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

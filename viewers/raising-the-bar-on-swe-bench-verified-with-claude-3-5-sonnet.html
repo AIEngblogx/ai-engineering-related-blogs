@@ -1,0 +1,791 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">01</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">02</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">11</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">12</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">19</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">21</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">24</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">25</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item current" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html" aria-current="page"><span class="num">26</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">27</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">28</span>Introducing Contextual Retrieval</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">01</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">02</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">11</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">12</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">19</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">21</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">24</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">25</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item current" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html" aria-current="page"><span class="num">26</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">27</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">28</span>Introducing Contextual Retrieval</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</h1>
+  <p class="subline">原文：<a href="https://www.anthropic.com/research/swe-bench-sonnet" target="_blank" rel="noopener noreferrer">https://www.anthropic.com/research/swe-bench-sonnet</a> · 2025-01-06 · Anthropic Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">我们最新的模型——升级版的 Claude 3.5 Sonnet——在软件工程评估工具 SWE-bench Verified 上的得分达到了 49%，超过了之前最先进模型的 45% 成绩。本文介绍了我们围绕该模型构建的“agent”，旨在帮助开发者充分利用 Claude 3.5 Sonnet 的最佳性能。</p>
+<p class="source" lang="en">Our latest model, the upgraded Claude 3.5 Sonnet, achieved 49% on SWE-bench Verified, a software engineering evaluation, beating the previous state-of-the-art model&#39;s 45%. This post explains the &quot;agent&quot; we built around the model, and is intended to help developers get the best possible performance out of Claude 3.5 Sonnet.</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学2026年2月5日量化代理式编程中的基础设施噪声评估
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringFeb 5, 2026Quantifying infrastructure noise in agentic coding evals</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">工程学</p>
+<p class="source" lang="en">Engineering</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">2026年2月5日</p>
+<p class="source" lang="en">Feb 5, 2026</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">SWE-bench 是一个人工智能评估基准，用于评估模型完成实际软件工程任务的能力。具体来说，它测试模型如何解决来自热门开源 Python 仓库的 GitHub 问题。在基准测试中的每个任务中，人工智能模型都会得到一个 Python 环境设置以及问题解决前该仓库的本地副本。然后，模型需要理解、修改并测试代码，之后才提交其解决方案。</p>
+<p class="source" lang="en">SWE-bench is an AI evaluation benchmark that assesses a model&#39;s ability to complete real-world software engineering tasks. Specifically, it tests how the model can resolve GitHub issues from popular open-source Python repositories. For each task in the benchmark, the AI model is given a set up Python environment and the checkout (a local working copy) of the repository from just before the issue was resolved. The model then needs to understand, modify, and test the code before submitting its proposed solution.</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">每个解决方案都会根据关闭原始 GitHub 问题的拉取请求中的真实单元测试进行评分。这些测试旨在验证 AI 模型是否能够实现与原始人类作者相同的功能。</p>
+<p class="source" lang="en">Each solution is graded against the real unit tests from the pull request that closed the original GitHub issue. This tests whether the AI model was able to achieve the same functionality as the original human author of the PR.</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">SWE-bench 不仅仅单独评估人工智能模型，而是评估整个“代理”系统。在这里，“代理”指的是人工智能模型与围绕它的软件框架的组合。这个框架负责生成输入到模型中的提示、解析模型的输出以采取行动，以及管理交互循环，其中模型之前的行为结果被纳入下一个提示中。即使使用相同的底层人工智能模型，代理在 SWE-bench 上的表现也会因这个框架的不同而有很大差异。</p>
+<p class="source" lang="en">SWE-bench doesn&#39;t just evaluate the AI model in isolation, but rather an entire &quot;agent&quot; system. In this context, an &quot;agent&quot; refers to the combination of an AI model and the software scaffolding around it. This scaffolding is responsible for generating the prompts that go into the model, parsing the model&#39;s output to take action, and managing the interaction loop where the result of the model&#39;s previous action is incorporated into its next prompt. The performance of an agent on SWE-bench can vary significantly based on this scaffolding, even when using the same underlying AI model.</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">还有许多其他用于评估大语言模型编程能力的基准测试，但 SWE-bench 因多种原因而越来越受欢迎。</p>
+<p class="source" lang="en">There are many other benchmarks for the coding abilities of Large Language Models, but SWE-bench has gained in popularity for several reasons:</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">它使用实际项目中的真实工程任务，而不是竞赛或面试式问题；</p>
+<p class="source" lang="en">It uses real engineering tasks from actual projects, rather than competition- or interview-style questions;</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">它还没有达到饱和状态——还有很大的改进空间。目前还没有模型在 SWE-bench Verified 上完成 50% 以上。不过，截至撰写本文时，更新的 Claude 3.5 Sonnet 已经完成了 49%。</p>
+<p class="source" lang="en">It is not yet saturated—there’s plenty of room for improvement. No model has yet crossed 50% completion on SWE-bench Verified (though the updated Claude 3.5 Sonnet is, at the time of writing, at 49%);</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">它衡量的是整个“代理”，而非孤立的模型。开源开发者和初创企业通过优化框架，显著提升了同一模型的性能，取得了显著成功。</p>
+<p class="source" lang="en">It measures an entire &quot;agent&quot;, rather than a model in isolation. Open-source developers and startups have had great success in optimizing scaffoldings to greatly improve the performance around the same model.</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">请注意，原始的 SWE-bench 数据集中包含一些任务，如果没有 GitHub 问题之外的额外上下文，就无法解决（例如，需要返回特定的错误信息）。SWE-bench-Verified 是 SWE-bench 中的 500 个问题子集，经过人工审核以确保可解决，因此能更清晰地衡量编码代理的性能。这就是我们在本文中会引用的基准测试。</p>
+<p class="source" lang="en">Note that the original SWE-bench dataset contains some tasks that are impossible to solve without additional context outside of the GitHub issue (for example, about specific error messages to return). SWE-bench-Verified is a 500 problem subset of SWE-bench that has been reviewed by humans to make sure they are solvable, and thus provides the most clear measure of coding agents&#39; performance. This is the benchmark to which we’ll refer in this post.</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">实现最先进的水平</p>
+<p class="source" lang="en">Achieving state-of-the-art</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">工具使用代理</p>
+<p class="source" lang="en">Tool Using Agent</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">我们为优化后的 Claude 3.5 Sonnet 创建智能体框架的设计理念是，尽可能让语言模型自己拥有更多的控制权，同时保持框架的简洁性。该智能体包含提示词、用于执行 bash 命令的 Bash 工具，以及用于查看和编辑文件和目录的编辑工具。我们会持续进行样本输入，直到模型认为完成或超出其 200k 上下文长度限制为止。这种框架让模型能够自行判断如何解决问题，而不是被固定为某种特定的模式或工作流程。</p>
+<p class="source" lang="en">Our design philosophy when creating the agent scaffold optimized for updated Claude 3.5 Sonnet was to give as much control as possible to the language model itself, and keep the scaffolding minimal. The agent has a prompt, a Bash Tool for executing bash commands, and an Edit Tool, for viewing and editing files and directories. We continue to sample until the model decides that it is finished, or exceeds its 200k context length. This scaffold allows the model to use its own judgment of how to pursue the problem, rather than be hardcoded into a particular pattern or workflow.</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">提示框提出了一种建议性的方法，但长度适中且内容不过于详细，适合这项任务。模型可以自由选择每一步的推进方式，而不是遵循严格的、明确的过渡步骤。如果你不介意字数限制，明确鼓励模型生成较长的回答可能会更有帮助。</p>
+<p class="source" lang="en">The prompt outlines a suggested approach for the model, but it’s not overly long or too detailed for this task. The model is free to choose how it moves from step to step, rather than having strict and discrete transitions. If you are not token-sensitive, it can help to explicitly encourage the model to produce a long response.</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">以下代码展示了我们代理框架中的提示词：</p>
+<p class="source" lang="en">The following code shows the prompt from our agent scaffold:</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">&lt;uploaded_files&gt; {location} &lt;/uploaded_files&gt; 我已在 {location} 目录中上传了一个 Python 代码仓库（不在 /tmp/inputs 中）。请参考以下 PR 描述：&lt;pr_description&gt; {pr_description} &lt;/pr_description&gt; 你能帮助我对仓库进行必要的修改，以满足 &lt;pr_description&gt; 中指定的要求吗？我已经对 &lt;pr_description&gt; 中提到的所有测试文件进行了修改。这意味着你无需以任何方式修改测试逻辑或测试内容！你的任务是对 {location} 目录中的非测试文件进行最小修改，以确保 &lt;pr_description&gt; 得到满足。按照以下步骤解决此问题：1. 首先，探索仓库结构有助于熟悉其结构。2. 创建一个脚本来复现错误，并使用 BashTool 通过 `python &lt;filename.py&gt;` 执行该脚本以确认错误。3. 修改仓库的源代码以解决问题。4. 重新运行你的复现脚本，确认错误已解决！5. 考虑边缘情况，确保你的修复也能处理这些情况。你的思考应全面，即使很长也没关系。</p>
+<p class="source" lang="en">&lt;uploaded_files&gt; {location} &lt;/uploaded_files&gt; I&#39;ve uploaded a python code repository in the directory {location} (not in /tmp/inputs). Consider the following PR description: &lt;pr_description&gt; {pr_description} &lt;/pr_description&gt; Can you help me implement the necessary changes to the repository so that the requirements specified in the &lt;pr_description&gt; are met? I&#39;ve already taken care of all changes to any of the test files described in the &lt;pr_description&gt;. This means you DON&#39;T have to modify the testing logic or any of the tests in any way! Your task is to make the minimal changes to non-tests files in the {location} directory to ensure the &lt;pr_description&gt; is satisfied. Follow these steps to resolve the issue: 1. As a first step, it might be a good idea to explore the repo to familiarize yourself with its structure. 2. Create a script to reproduce the error and execute it with `python &lt;filename.py&gt;` using the BashTool, to confirm the error 3. Edit the sourcecode of the repo to resolve the issue 4. Rerun your reproduce script and confirm that the error is fixed! 5. Think about edgecases and make sure your fix handles them as well Your thinking should be thorough and so it&#39;s fine if it&#39;s very long.</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">该模型的第一种工具执行 Bash命令。其架构很简单，只需要提供要在环境中运行的命令即可。不过，该工具的说明更为重要，它包含了更详细的指导，包括输入转义、无法使用互联网以及如何在后台运行命令。</p>
+<p class="source" lang="en">The model&#39;s first tool executes Bash commands. The schema is simple, taking only the command to be run in the environment. However, the description of the tool carries more weight. It includes more detailed instructions for the model, including escaping inputs, lack of internet access, and how to run commands in the background.</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">接下来，我们展示 Bash 工具的规范说明：</p>
+<p class="source" lang="en">Next, we show the spec for the Bash Tool:</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">{ &quot;name&quot;: &quot;bash&quot;, &quot;description&quot;: &quot;在 bash shell中运行命令\n * 调用此工具时，\&quot;command\&quot;参数中的内容不需要进行 XML 转义处理。\n * 通过此工具无法访问互联网。\n * 可以通过 apt 和 pip 访问常见的 Linux 和 Python 包的镜像。\n * 状态在命令调用和用户讨论中保持持久。\n * 要查看文件的特定行范围，例如第 10-25 行，请尝试 &#39;sed -n 10,25p /path/to/the/file&#39;。\n * 请避免运行可能产生大量输出的命令。\n * 请将长期运行的命令在后台执行，例如 &#39;sleep 10 &amp;&#39; 或在后台启动服务器。&quot;, &quot;input_schema&quot;: { &quot;type&quot;: &quot;object&quot;, &quot;properties&quot;: { &quot;command&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;要运行的 bash 命令。&quot; } }, &quot;required&quot;: [&quot;command&quot;] } } }</p>
+<p class="source" lang="en">{ &quot;name&quot;: &quot;bash&quot;, &quot;description&quot;: &quot;Run commands in a bash shell\n * When invoking this tool, the contents of the \&quot;command\&quot; parameter does NOT need to be XML-escaped.\n * You don&#39;t have access to the internet via this tool.\n * You do have access to a mirror of common linux and python packages via apt and pip.\n * State is persistent across command calls and discussions with the user.\n * To inspect a particular line range of a file, e.g. lines 10-25, try &#39;sed -n 10,25p /path/to/the/file&#39;.\n * Please avoid commands that may produce a very large amount of output.\n * Please run long lived commands in the background, e.g. &#39;sleep 10 &amp;&#39; or start a server in the background.&quot;, &quot;input_schema&quot;: { &quot;type&quot;: &quot;object&quot;, &quot;properties&quot;: { &quot;command&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;The bash command to run.&quot; } }, &quot;required&quot;: [&quot;command&quot;] } }</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">模型的第二个工具（编辑工具）要复杂得多，包含了模型查看、创建和编辑文件所需的一切功能。同样，我们的工具描述中也有关于如何使用该工具的详细信息。</p>
+<p class="source" lang="en">The model&#39;s second tool (the Edit Tool) is much more complex, and contains everything the model needs for viewing, creating, and editing files. Again, our tool description contains detailed information for the model about how to use the tool.</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">我们对这些工具的描述和规格进行了大量工作，涵盖了各种代理任务。我们进行了测试，以发现模型可能误解规格或使用工具时存在的潜在问题，然后修改描述以避免这些问题。我们认为，应该像为人类设计工具界面那样，更加重视为模型设计工具界面的工作。</p>
+<p class="source" lang="en">We put a lot of effort into the descriptions and specs for these tools across a wide variety of agentic tasks. We tested them to uncover any ways that the model might misunderstand the spec, or the possible pitfalls of using the tools, then edited the descriptions to preempt these problems. We believe that much more attention should go into designing tool interfaces for models, in the same way that a large amount of attention goes into designing tool interfaces for humans.</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">以下代码展示了我们编辑工具的说明：</p>
+<p class="source" lang="en">The following code shows the description for our Edit Tool:</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">{ &quot;name&quot;: &quot;str_replace_editor&quot;, &quot;description&quot;: &quot;自定义编辑工具，用于查看、创建和编辑文件\n * 状态在命令调用和与用户的讨论中保持持久\n * 如果 `path` 是文件，则 `view` 会显示 `cat -n` 的结果。如果 `path` 是目录，则 `view` 会列出最多2层深度的非隐藏文件和目录\n * 如果指定的 `path` 已经存在为文件，则无法使用 `create` 命令\n * 如果 `command` 生成了长输出，该输出会被截断并标记为 `&lt;response clipped&gt;` \n * `undo_edit` 命令会撤销对 `path` 上文件的最后一次编辑\n \n 关于使用 `str_replace` 命令的注意事项：\n * `old_str` 参数应完全匹配原始文件中的连续一行或多行。注意空格问题!\n * 如果 `old_str` 参数在文件中不是唯一的，替换操作将不会执行。确保 `old_str` 中包含足够的上下文使其唯一\n * `new_str` 参数应包含应替换 `old_str` 的编辑后的行&quot;, ...</p>
+<p class="source" lang="en">{ &quot;name&quot;: &quot;str_replace_editor&quot;, &quot;description&quot;: &quot;Custom editing tool for viewing, creating and editing files\n * State is persistent across command calls and discussions with the user\n * If `path` is a file, `view` displays the result of applying `cat -n`. If `path` is a directory, `view` lists non-hidden files and directories up to 2 levels deep\n * The `create` command cannot be used if the specified `path` already exists as a file\n * If a `command` generates a long output, it will be truncated and marked with `&lt;response clipped&gt;` \n * The `undo_edit` command will revert the last edit made to the file at `path`\n \n Notes for using the `str_replace` command:\n * The `old_str` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespaces!\n * If the `old_str` parameter is not unique in the file, the replacement will not be performed. Make sure to include enough context in `old_str` to make it unique\n * The `new_str` parameter should contain the edited lines that should replace the `old_str`&quot;, ...</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">我们提升性能的一种方法是让工具更加“无错误”。例如，有时在智能体移出根目录后，模型可能会出错，导致相对文件路径错误。为了防止这种情况，我们干脆让工具始终要求使用绝对路径。</p>
+<p class="source" lang="en">One way we improved performance was to &quot;error-proof&quot; our tools. For instance, sometimes models could mess up relative file paths after the agent had moved out of the root directory. To prevent this, we simply made the tool always require an absolute path.</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">我们尝试了多种不同的策略来指定对现有文件的编辑操作，其中字符串替换方法的效果最为可靠。在这种方法中，模型会指定在给定文件中用 `new_str` 替换 `old_str`。只有当 `old_str` 恰好匹配一次时，替换才会发生。如果匹配次数多于或少于一次，模型会显示相应的错误信息，以便用户重新尝试。</p>
+<p class="source" lang="en">We experimented with several different strategies for specifying edits to existing files and had the highest reliability with string replacement, where the model specifies `old_str` to replace with `new_str` in the given file. The replacement will only occur if there is exactly one match of `old_str`. If there are more or fewer matches, the model is shown an appropriate error message for it to retry.</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">我们的编辑工具的规范说明如下所示：</p>
+<p class="source" lang="en">The spec for our Edit Tool is shown below:</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">... &quot;input_schema&quot;: { &quot;type&quot;: &quot;object&quot;, &quot;properties&quot;: { &quot;command&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;enum&quot;: [&quot;view&quot;, &quot;create&quot;, &quot;str_replace&quot;, &quot;insert&quot;, &quot;undo_edit&quot;], &quot;description&quot;: &quot;要执行的命令。允许的选项有：`view`、`create`、`str_replace`、`insert`、`undo_edit`。&quot; }, &quot;file_text&quot;: { &quot;description&quot;: &quot;`create` 命令的必需参数，包含要创建的文件内容。&quot;, &quot;type&quot;: &quot;string&quot; }, &quot;insert_line&quot;: { &quot;description&quot;: &quot;`insert` 命令的必需参数。`new_str` 将插入到 `path` 的 `insert_line` 行之后。&quot;, &quot;type&quot;: &quot;integer&quot; }, &quot;new_str&quot;: { &quot;description&quot;: &quot;`str_replace` 命令的必需参数，包含新的字符串。`insert` 命令的必需参数，包含要插入的字符串。&quot;, &quot;type&quot;: &quot;string&quot; }, &quot;old_str&quot;: { &quot;description&quot;: &quot;`str_replace` 命令的必需参数，包含 `path` 中需要替换的字符串。&quot;, &quot;type&quot;: &quot;string&quot; }, &quot;path&quot;: { &quot;description&quot;: &quot;文件或目录的绝对路径，例如 `/repo/file.py` 或 `/repo`。&quot;, &quot;type&quot;: &quot;string&quot; }, &quot;view_range&quot;: { &quot;description&quot;: &quot;当 `path` 指向一个文件时，`view` 命令的可选参数。如果未提供，则显示整个文件。如果提供，则显示指定行号范围内的行，例如 [11, 12] 将显示第11行和第12行。索引从1开始。设置 `[start_line, -1]` 显示从 `start_line` 到文件末尾的所有行。&quot;, &quot;items&quot;: { &quot;type&quot;: &quot;integer&quot; }, &quot;type&quot;: &quot;array&quot; } }, &quot;required&quot;: [&quot;command&quot;, &quot;path&quot;] } }</p>
+<p class="source" lang="en">... &quot;input_schema&quot;: { &quot;type&quot;: &quot;object&quot;, &quot;properties&quot;: { &quot;command&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;enum&quot;: [&quot;view&quot;, &quot;create&quot;, &quot;str_replace&quot;, &quot;insert&quot;, &quot;undo_edit&quot;], &quot;description&quot;: &quot;The commands to run. Allowed options are: `view`, `create`, `str_replace`, `insert`, `undo_edit`.&quot; }, &quot;file_text&quot;: { &quot;description&quot;: &quot;Required parameter of `create` command, with the content of the file to be created.&quot;, &quot;type&quot;: &quot;string&quot; }, &quot;insert_line&quot;: { &quot;description&quot;: &quot;Required parameter of `insert` command. The `new_str` will be inserted AFTER the line `insert_line` of `path`.&quot;, &quot;type&quot;: &quot;integer&quot; }, &quot;new_str&quot;: { &quot;description&quot;: &quot;Required parameter of `str_replace` command containing the new string. Required parameter of `insert` command containing the string to insert.&quot;, &quot;type&quot;: &quot;string&quot; }, &quot;old_str&quot;: { &quot;description&quot;: &quot;Required parameter of `str_replace` command containing the string in `path` to replace.&quot;, &quot;type&quot;: &quot;string&quot; }, &quot;path&quot;: { &quot;description&quot;: &quot;Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`.&quot;, &quot;type&quot;: &quot;string&quot; }, &quot;view_range&quot;: { &quot;description&quot;: &quot;Optional parameter of `view` command when `path` points to a file. If none is given, the full file is shown. If provided, the file will be shown in the indicated line number range, e.g. [11, 12] will show lines 11 and 12. Indexing at 1 to start. Setting `[start_line, -1]` shows all lines from `start_line` to the end of the file.&quot;, &quot;items&quot;: { &quot;type&quot;: &quot;integer&quot; }, &quot;type&quot;: &quot;array&quot; } }, &quot;required&quot;: [&quot;command&quot;, &quot;path&quot;] } }</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">结果</p>
+<p class="source" lang="en">Results</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">一般来说，升级后的 Claude 3.5 Sonnet 在推理、编程和数学能力方面都优于之前的模型及最先进的模型。它还展现了更好的代理能力：工具和框架有助于充分发挥这些提升后的能力。</p>
+<p class="source" lang="en">In general, the upgraded Claude 3.5 Sonnet demonstrates higher reasoning, coding, and mathematical abilities than our prior models, and the previous state-of-the-art model. It also demonstrates improved agentic capabilities: the tools and scaffolding help put those improved abilities to their best use.</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">模型</p>
+<p class="source" lang="en">Model</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">Claude 3.5 Sonnet（新版本）</p>
+<p class="source" lang="en">Claude 3.5 Sonnet (new)</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">之前的先进技术</p>
+<p class="source" lang="en">Previous SOTA</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">Claude 3.5 Sonnet（旧版本）</p>
+<p class="source" lang="en">Claude 3.5 Sonnet (old)</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">Claude 3 Opus</p>
+<p class="source" lang="en">Claude 3 Opus</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">SWE-bench 验证分数</p>
+<p class="source" lang="en">SWE-bench Verified score</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">49%</p>
+<p class="source" lang="en">49%</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">45%</p>
+<p class="source" lang="en">45%</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">33%</p>
+<p class="source" lang="en">33%</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">22%</p>
+<p class="source" lang="en">22%</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">SWE-bench 评分已针对部分模型得到验证，所有模型均使用此智能体框架。</p>
+<p class="source" lang="en">Scores on SWE-bench Verified for some of our models, all using this agent scaffold.</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">代理行为的示例</p>
+<p class="source" lang="en">Examples of agent behavior</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">为了运行基准测试，我们使用 SWE-Agent 框架作为我们智能体代码的基础。在下面的日志中，我们将智能体的文本输出、工具调用和工具响应分别表示为思考、行动和观察，尽管我们没有限制模型的固定顺序。</p>
+<p class="source" lang="en">For running the benchmark, we used the SWE-Agent framework as a foundation for our agent code. In our logs below, we render the agent&#39;s text output, tool calls, and tool responses as THOUGHT, ACTION, and OBSERVATION, even though we don’t constrain the model to a fixed ordering.</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">下面的代码块将展示 Sonnet 3.5 解决 SWE-bench 问题的典型案例。</p>
+<p class="source" lang="en">The code blocks below will walk through a typical case of the Sonnet 3.5 solving a SWE-bench problem.</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">在这个第一个块中，你可以看到模型最初提示的一部分内容，其中 `{pr_description}` 被替换为来自 SWE-bench 任务的实际值。重要的是，这个任务包含了重现问题的步骤，这将为模型提供一个有价值的起点来进行调查。</p>
+<p class="source" lang="en">In this first block, you can see part of the initial prompt given to the model, with `{pr_description}` filled in with the real value from a SWE-bench task. Importantly, this task contains steps to reproduce the issue, which will give the model a valuable starting point to investigate.</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">&lt;uploaded_files&gt; /repo &lt;/uploaded_files&gt; 我已将 Python 代码仓库上传到 /repo 目录中（不在 /tmp/inputs 中）。请参考以下 PR 描述：&lt;pr_description&gt; linear_model.RidgeClassifierCV 的 Parameter store_cv_values 问题 #### 描述 sklearn.linear_model.RidgeClassifierCV 的 Parameter store_cv_values 错误 #### 可复现的步骤/代码 import numpy as np from sklearn import linear_model as lm #测试数据库 n = 100 x = np.random.randn(n, 30) y = np.random.normal(size = n) rr = lm.RidgeClassifierCV(alphas = np.arange(0.1, 1000, 0.1), normalize = True, store_cv_values = True).fit(x, y) #### 预期结果 预期得到常规的岭回归模型输出，并将交叉验证预测作为属性保存。 #### 实际结果 TypeError: __init__() 收到了意外的关键字参数 &#39;store_cv_values&#39; lm.RidgeClassifierCV 实际上没有 store_cv_values 参数，尽管某些属性依赖于它。</p>
+<p class="source" lang="en">&lt;uploaded_files&gt; /repo &lt;/uploaded_files&gt; I&#39;ve uploaded a python code repository in the directory /repo (not in /tmp/inputs). Consider the following PR description: &lt;pr_description&gt; linear_model.RidgeClassifierCV&#39;s Parameter store_cv_values issue #### Description Parameter store_cv_values error on sklearn.linear_model.RidgeClassifierCV #### Steps/Code to Reproduce import numpy as np from sklearn import linear_model as lm #test database n = 100 x = np.random.randn(n, 30) y = np.random.normal(size = n) rr = lm.RidgeClassifierCV(alphas = np.arange(0.1, 1000, 0.1), normalize = True, store_cv_values = True).fit(x, y) #### Expected Results Expected to get the usual ridge regression model output, keeping the cross validation predictions as attribute. #### Actual Results TypeError: __init__() got an unexpected keyword argument &#39;store_cv_values&#39; lm.RidgeClassifierCV actually has no parameter store_cv_values, even though some attributes depends on it.</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">该模型做出回应，首先使用编辑工具来查看仓库结构。你可以在“THOUGHT”和“ACTION”部分看到模型的文本输出和工具调用参数，在“OBSERVATION”部分还可以看到部分工具的输出：</p>
+<p class="source" lang="en">The model responds and first uses the Edit Tool to view the repository structure. You can see the model&#39;s text output and tool call arguments under THOUGHT and ACTION, and part of the tool&#39;s output under OBSERVATION:</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">想法：我将帮助您实施更改以符合 PR 描述。让我们按照您列出的步骤进行。1. 首先，让我们探索仓库结构：ACTION (str_replace_editor)：命令：查看路径：/repo 观察结果：以下是 /repo 目录中深度为2层内的文件和目录，不包括隐藏项：/repo /repo/PULL_REQUEST_TEMPLATE.md /repo/ISSUE_TEMPLATE.md /repo/sklearn /repo/sklearn/decomposition /repo/sklearn/kernel_ridge.py /repo/sklearn/model_selection /repo/sklearn/covariance /repo/sklearn/cluster /repo/sklearn/base.py /repo/sklearn/dummy.py /repo/sklearn/naive_bayes.py ...</p>
+<p class="source" lang="en">THOUGHT: I&#39;ll help you implement the changes to satisfy the PR description. Let&#39;s follow the steps you outlined. 1. First, let&#39;s explore the repo structure: ACTION (str_replace_editor): command: view path: /repo OBSERVATION: Here&#39;s the files and directories up to 2 levels deep in /repo, excluding hidden items: /repo /repo/PULL_REQUEST_TEMPLATE.md /repo/ISSUE_TEMPLATE.md /repo/sklearn /repo/sklearn/decomposition /repo/sklearn/kernel_ridge.py /repo/sklearn/model_selection /repo/sklearn/covariance /repo/sklearn/cluster /repo/sklearn/base.py /repo/sklearn/dummy.py /repo/sklearn/naive_bayes.py ...</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">现在模型对仓库结构有了更好的理解，它使用编辑工具创建了一个新脚本，用来复现问题并测试修复方案：</p>
+<p class="source" lang="en">Now that the model has a better understanding of the repository structure, it uses the Edit Tool to create a new script that it will use to reproduce the issue and test its fix:</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">思考：根据仓库结构，我们需要修改 `sklearn/linear_model` 目录中的 Ridge Classifier。让我们创建一个脚本来复现错误：动作（str_replace_editor）：命令：创建路径：/repo/reproduce_error.py 文件文本：import numpy as np from sklearn import linear_model as lm #测试数据库 n = 100 x = np.random.randn(n, 30) y = np.random.normal(size = n) rr = lm.RidgeClassifierCV(alphas=np.arange(0.1, 1000, 0.1), normalize=True, store_cv_values=True).fit(x, y) 观察结果：文件已成功创建在：/repo/reproduce_error.py</p>
+<p class="source" lang="en">THOUGHT: Based on the repository structure, we&#39;ll need to modify the Ridge Classifier in the `sklearn/linear_model` directory. Let&#39;s create a script to reproduce the error: ACTION (str_replace_editor): command: create path: /repo/reproduce_error.py file_text: import numpy as np from sklearn import linear_model as lm #test database n = 100 x = np.random.randn(n, 30) y = np.random.normal(size = n) rr = lm.RidgeClassifierCV(alphas=np.arange(0.1, 1000, 0.1), normalize=True, store_cv_values=True).fit(x, y) OBSERVATION: File created successfully at: /repo/reproduce_error.py</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">该模型随后使用 Bash 工具来执行它编写的脚本，并成功复现了任务中的问题。</p>
+<p class="source" lang="en">The model then uses the Bash Tool to execute the script it wrote, and successfully reproduces the issue from the task:</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">思考：让我们验证是否可以重现错误：操作（bash）：命令：python3 /repo/reproduce_error.py 观察：回溯信息（最近调用最后）：文件 /repo/reproduce_error.py，第10行，在 &lt;module&gt; 中 store_cv_values=True）。fit(x, y) TypeError：__init__() 收到了意外的关键字参数 &#39;store_cv_values&#39;</p>
+<p class="source" lang="en">THOUGHT: Let&#39;s verify that we can reproduce the error: ACTION (bash): command: python3 /repo/reproduce_error.py OBSERVATION: Traceback (most recent call last): File &quot;/repo/reproduce_error.py&quot;, line 10, in &lt;module&gt; store_cv_values=True).fit(x, y) TypeError: __init__() got an unexpected keyword argument &#39;store_cv_values&#39;</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">从现在开始，模型将使用编辑工具修改仓库中的源代码，然后重新运行脚本，以验证该修改是否解决了问题。</p>
+<p class="source" lang="en">From here on, the model uses the Edit Tool to change the source code in the repository and reruns its script to verify whether the change has resolved the issue:</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">思考：这个错误是可以复现的。查看代码后，我发现问题是 `RidgeClassifierCV` 类虽然从 `_BaseRidgeCV` 继承，但未能将 `store_cv_values` 参数从其构造函数传递给基类的构造函数。让我们修复这个问题：操作（str_replace_editor）：命令：str_replace 路径：/repo/sklearn/linear_model/ridge.py 旧字符串：def __init__(self, alphas=(0.1, 1.0, 10.0), fit_intercept=True, normalize=False, scoring=None, cv=None, class_weight=None): super(RidgeClassifierCV, self).__init__( alphas=alphas, fit_intercept=fit_intercept, normalize=normalize, scoring=scoring, cv=cv) self.class_weight = class_weight 新字符串：def __init__(self, alphas=(0.1, 1.0, 10.0), fit_intercept=True, normalize=False, scoring=None, cv=None, class_weight=None, store_cv_values=False): super(RidgeClassifierCV, self).__init__( alphas=alphas, fit_intercept=fit_intercept, normalize=normalize, scoring=scoring, cv=cv, store_cv_values=store_cv_values) self.class_weight = class_weight</p>
+<p class="source" lang="en">THOUGHT: The error is reproducible. Looking at the code, I can see that the issue is that while the `RidgeClassifierCV` class inherits from `_BaseRidgeCV`, it fails to pass the `store_cv_values` parameter from its constructor through to the base class constructor. Let&#39;s fix this: ACTION (str_replace_editor): command: str_replace path: /repo/sklearn/linear_model/ridge.py old_str: def __init__(self, alphas=(0.1, 1.0, 10.0), fit_intercept=True, normalize=False, scoring=None, cv=None, class_weight=None): super(RidgeClassifierCV, self).__init__( alphas=alphas, fit_intercept=fit_intercept, normalize=normalize, scoring=scoring, cv=cv) self.class_weight = class_weight new_str: def __init__(self, alphas=(0.1, 1.0, 10.0), fit_intercept=True, normalize=False, scoring=None, cv=None, class_weight=None, store_cv_values=False): super(RidgeClassifierCV, self).__init__( alphas=alphas, fit_intercept=fit_intercept, normalize=normalize, scoring=scoring, cv=cv, store_cv_values=store_cv_values) self.class_weight = class_weight</p>
+</div>
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">在这个具体例子中，模型工作了12步之后才决定可以提交。随后任务的测试成功进行，证明模型的解决方案能够解决问题。有些任务需要超过100次迭代后，模型才提交解决方案；而在其他任务中，模型则不断尝试，直到上下文用完为止。</p>
+<p class="source" lang="en">In this particular example, the model worked for 12 steps before deciding that it was ready to submit. The task&#39;s tests then ran successfully, verifying that the model&#39;s solution addressed the problem. Some tasks took more than 100 turns before the model submitted its solution; in others, the model kept trying until it ran out of context.</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">通过对比更新后的 Claude 3.5 Sonnet 与旧模型的尝试结果，发现更新后的 3.5 Sonnet 更频繁地自我修正，并且能够尝试多种不同的解决方案，而不是反复犯同样的错误。</p>
+<p class="source" lang="en">From reviewing attempts from the updated Claude 3.5 Sonnet compared to older models, updated 3.5 Sonnet self-corrects more often. It also shows an ability to try several different solutions, rather than getting stuck making the same mistake over and over.</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">&lt;text&gt;
+挑战
+&lt;/text&gt;</p>
+<p class="source" lang="en">Challenges</p>
+</div>
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">SWE-bench Verified 是一种强大的评估方法，但相比简单的单次评估来说，其运行过程更为复杂。我们在使用它时遇到了一些挑战，这些挑战其他 AI 开发者也可能遇到。</p>
+<p class="source" lang="en">SWE-bench Verified is a powerful evaluation, but it’s also more complex to run than simple, single-turn evals. These are some of the challenges that we faced in using it—challenges that other AI developers might also encounter.</p>
+</div>
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">持续时间长且token成本高。上述示例来自一个在12步内成功完成的案例。然而，许多成功运行的情况需要模型经过数百次迭代才能解决，且涉及超过10万个token。更新的Claude 3.5 Sonnet则非常坚韧：只要给予足够的时间，它通常就能找到解决问题的方法，但代价却很高；</p>
+<p class="source" lang="en">Duration and high token costs. The examples above are from a case that was successfully completed in 12 steps. However, many successful runs took hundreds of turns for the model to resolve, and &gt;100k tokens. The updated Claude 3.5 Sonnet is tenacious: it can often find its way around a problem given enough time, but that can be expensive;</p>
+</div>
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">评分。在检查失败任务时，我们发现有些情况下模型表现正确，但存在环境设置问题，或者安装补丁被应用两次的问题。解决这些系统问题对于准确评估人工智能代理的性能至关重要。</p>
+<p class="source" lang="en">Grading. While inspecting failed tasks, we found cases where the model behaved correctly, but there were environment setup issues, or problems with install patches being applied twice. Resolving these systems issues is crucial for getting an accurate picture of an AI agent&#39;s performance.</p>
+</div>
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">隐藏测试。由于模型无法看到用于评估的测试，它常常“认为”自己成功了，而实际上却是失败。部分失败是因为模型在错误的抽象层次上解决了问题（只是临时补丁，而非深层重构）。其他失败则显得不那么公平：它们确实解决了问题，但不符合原始任务中的单元测试。</p>
+<p class="source" lang="en">Hidden tests. Because the model cannot see the tests it&#39;s being graded against, it often “thinks” that it has succeeded when the task actually is a failure. Some of these failures are because the model solved the problem at the wrong level of abstraction (applying a bandaid instead of a deeper refactor). Other failures feel a little less fair: they solve the problem, but do not match the unit tests from the original task.</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">多模态。尽管更新的 Claude 3.5 Sonnet 具有出色的视觉和多模态能力，但我们没有实现它查看存储在文件系统中或作为 URL 引用的文件的功能。这使得某些任务（尤其是来自 Matplotlib 的任务）的调试变得特别困难，也容易导致模型幻觉。对于开发者来说，这里肯定有容易改进的地方——SWE-bench 也推出了一个专注于多模态任务的新评估。我们期待在不久的将来看到开发者使用 Claude 在这项评估中获得更高的分数。</p>
+<p class="source" lang="en">Multimodal. Despite the updated Claude 3.5 Sonnet having excellent vision and multimodal capabilities, we did not implement a way for it to view files saved to the filesystem or referenced as URLs. This made debugging certain tasks (especially those from Matplotlib) especially difficult, and also prone to model hallucinations. There is definitely low-hanging fruit here for developers to improve upon—and SWE-bench has launched a new evaluation focused on multi-modal tasks. We look forward to seeing developers achieve higher scores on this eval with Claude in the near future.</p>
+</div>
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">升级后的 Claude 3.5 Sonnet在SWE-bench Verified测试中获得了49%的得分，超过了之前的最先进水平（45%），而且使用了简单的提示和两个通用工具。我们相信，使用新版的 Claude 3.5 Sonnet进行开发的开发者会很快找到新的、更好的方法来提高SWE-bench分数，超越我们最初展示的效果。</p>
+<p class="source" lang="en">The upgraded Claude 3.5 Sonnet achieved 49% on SWE-bench Verified, beating the previous state-of-the-art (45%), with a simple prompt and two general purpose tools. We feel confident that developers building with the new Claude 3.5 Sonnet will quickly find new, better ways to improve SWE-bench scores over what we&#39;ve initially demonstrated here.</p>
+</div>
+<div class="pair" id="p-64">
+<p class="target" lang="zh-CN">作者与致谢</p>
+<p class="source" lang="en">Authors &amp; acknowledgements</p>
+</div>
+<div class="pair" id="p-65">
+<p class="target" lang="zh-CN">致谢</p>
+<p class="source" lang="en">Acknowledgements</p>
+</div>
+<div class="pair" id="p-66">
+<p class="target" lang="zh-CN">Erik Schluntz优化了SWE-bench代理，并撰写了这篇博客文章。Simon Biggs、Dawn Drain和Eric Christiansen协助实现了该基准测试。Shauna Kravec、Dawn Drain、Felipe Rosso、Nova DasSarma、Ven Chandrasekaran以及许多其他人都为训练Claude 3.5 Sonnet以擅长代理式编程做出了贡献。</p>
+<p class="source" lang="en">Erik Schluntz optimized the SWE-bench agent and wrote this blog post. Simon Biggs, Dawn Drain, and Eric Christiansen helped implement the benchmark. Shauna Kravec, Dawn Drain, Felipe Rosso, Nova DasSarma, Ven Chandrasekaran, and many others contributed to training Claude 3.5 Sonnet to be excellent at agentic coding.</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://www.anthropic.com/research/swe-bench-sonnet" target="_blank" rel="noopener noreferrer">https://www.anthropic.com/research/swe-bench-sonnet</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html">← The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a><a href="../viewers/building-effective-agents.html">Building effective agents →</a></nav>
+  <footer class="footer">本站为公开 AI 工程博客的非官方中英对照归档。中文译文仅作辅助阅读，请以英文原文为准；文章内容版权归原作者所有。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

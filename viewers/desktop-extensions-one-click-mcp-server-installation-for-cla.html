@@ -1,0 +1,1027 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Desktop Extensions: One-click MCP server installation for Claude Desktop · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Desktop Extensions: One-click MCP server installation for Claude Desktop</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">01</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">02</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">11</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">12</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">19</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item current" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html" aria-current="page"><span class="num">21</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">24</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">25</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">26</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">27</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">28</span>Introducing Contextual Retrieval</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">01</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">02</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">11</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">12</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">19</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item current" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html" aria-current="page"><span class="num">21</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">24</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">25</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">26</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">27</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">28</span>Introducing Contextual Retrieval</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Desktop Extensions: One-click MCP server installation for Claude Desktop</h1>
+  <p class="subline">原文：<a href="https://www.anthropic.com/research/desktop-extensions" target="_blank" rel="noopener noreferrer">https://www.anthropic.com/research/desktop-extensions</a> · 2025-06-26 · Anthropic Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">文件扩展名更新</p>
+<p class="source" lang="en">File extension update</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">Claude 桌面扩展现在使用 .mcpb（MCP 包）文件扩展名，而不是 .dxt。现有的 .dxt 扩展仍然可以正常使用，但我们建议开发者今后使用 .mcpb 来创建新扩展。所有功能都没有变化，这仅仅是一个命名规范上的更新。</p>
+<p class="source" lang="en">Claude Desktop Extensions now use the .mcpb (MCP Bundle) file extension instead of .dxt. Existing .dxt extensions will continue to work, but we recommend developers use .mcpb for new extensions going forward. All functionality remains the same - this is purely a naming convention update.</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">去年我们发布模型上下文协议（MCP）时，看到开发者们构建了出色的本地服务器，让 Claude能够访问从文件系统到数据库的各种资源。但我们发现同样的反馈：安装过程过于复杂。用户需要开发工具，必须手动编辑配置文件，还经常遇到依赖问题。</p>
+<p class="source" lang="en">When we released the Model Context Protocol (MCP) last year, we saw developers build amazing local servers that gave Claude access to everything from file systems to databases. But we kept hearing the same feedback: installation was too complex. Users needed developer tools, had to manually edit configuration files, and often got stuck on dependency issues.</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">&lt;text&gt;
+今天，我们将介绍桌面扩展——这是一种新的包装格式，让安装 MCP 服务器变得像点击按钮一样简单。
+&lt;/text&gt;</p>
+<p class="source" lang="en">Today, we&#39;re introducing Desktop Extensions—a new packaging format that makes installing MCP servers as simple as clicking a button.</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">解决 MCP 安装问题</p>
+<p class="source" lang="en">Addressing the MCP installation problem</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">本地 MCP 服务器为 Claude 桌面用户提供了强大的功能。它们能够与本地应用程序互动、访问私有数据，并与开发工具集成——同时数据仍保留在用户机器上。然而，当前的安装过程带来了很大的障碍。</p>
+<p class="source" lang="en">Local MCP servers unlock powerful capabilities for Claude Desktop users. They can interact with local applications, access private data, and integrate with development tools—all while keeping data on the user&#39;s machine. However, the current installation process creates significant barriers:</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">开发工具需求：用户需要安装 Node.js、Python或其他运行时环境</p>
+<p class="source" lang="en">Developer tools required: Users need Node.js, Python, or other runtimes installed</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">手动配置：每台服务器都需要编辑 JSON 配置文件</p>
+<p class="source" lang="en">Manual configuration: Each server requires editing JSON configuration files</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">依赖关系管理：用户必须解决软件包冲突和版本不匹配问题</p>
+<p class="source" lang="en">Dependency management: Users must resolve package conflicts and version mismatches</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">没有发现机制：要找到有用的 MCP 服务器，需要搜索 GitHub</p>
+<p class="source" lang="en">No discovery mechanism: Finding useful MCP servers requires searching GitHub</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">更新复杂性：保持服务器最新意味着需要手动重新安装</p>
+<p class="source" lang="en">Update complexity: Keeping servers current means manual reinstallation</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">这些障碍意味着，尽管 MCP 服务器功能强大，但对非技术用户来说仍然难以使用。</p>
+<p class="source" lang="en">These friction points meant that MCP servers, despite their power, remained largely inaccessible to non-technical users.</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">介绍桌面扩展功能</p>
+<p class="source" lang="en">Introducing Desktop Extensions</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">桌面扩展文件（.mcpb文件）通过将整个MCP服务器及所有依赖项整合到一个可安装包中，从而解决了这些问题。这对用户来说带来了以下变化：</p>
+<p class="source" lang="en">Desktop Extensions (.mcpb files) solve these problems by bundling an entire MCP server—including all dependencies—into a single installable package. Here&#39;s what changes for users:</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">&lt;text&gt;
+之前：
+&lt;/text&gt;</p>
+<p class="source" lang="en">Before:</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN"># 首先安装 Node.js，执行 npm install -g @example/mcp-server # 手动编辑 ~/.claude/claude_desktop_config.json 文件 # 重启 Claude Desktop 程序 # 希望它能正常工作</p>
+<p class="source" lang="en"># Install Node.js first npm install -g @example/mcp-server # Edit ~/.claude/claude_desktop_config.json manually # Restart Claude Desktop # Hope it works</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">之后：</p>
+<p class="source" lang="en">After:</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">下载 .mcpb 文件</p>
+<p class="source" lang="en">Download a .mcpb file</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">双击以使用 Claude 桌面打开</p>
+<p class="source" lang="en">Double-click to open with Claude Desktop</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">点击“安装”</p>
+<p class="source" lang="en">Click &quot;Install&quot;</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">就是这样。没有终端，没有配置文件，也没有依赖冲突。</p>
+<p class="source" lang="en">That&#39;s it. No terminal, no configuration files, no dependency conflicts.</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">架构概述</p>
+<p class="source" lang="en">Architecture overview</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">桌面扩展是一个压缩包，其中包含本地 MCP 服务器以及 manifest.json 文件，后者描述了 Claude 桌面及其他支持桌面扩展的应用程序所需了解的所有信息。</p>
+<p class="source" lang="en">A Desktop Extension is a zip archive containing the local MCP server as well as a manifest.json, which describes everything Claude Desktop and other apps supporting desktop extensions need to know.</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">extension.mcpb (ZIP 压缩包) ├── manifest.json # 扩展模块的元数据与配置 ├── server/ # MCP 服务器实现 │ └── [服务器文件] ├── dependencies/ # 所有必需的包/库 └── icon.png # 可选：扩展模块图标 # 示例：Node.js 扩展模块 extension.mcpb ├── manifest.json # 必需：扩展模块的元数据与配置 ├── server/ # 服务器文件 │ └── index.js # 主入口点 ├── node_modules/ # 打包的依赖项 ├── package.json # 可选：NPM 包定义 └── icon.png # 可选：扩展模块图标 # 示例：Python 扩展模块 extension.mcpb (ZIP 文件) ├── manifest.json # 必需：扩展模块的元数据与配置 ├── server/ # 服务器文件 │ ├── main.py # 主入口点 │ └── utils.py # 附加模块 ├── lib/ # 打包的 Python 包 ├── requirements.txt # 可选：Python 依赖列表 └── icon.png # 可选：扩展模块图标</p>
+<p class="source" lang="en">extension.mcpb (ZIP archive) ├── manifest.json # Extension metadata and configuration ├── server/ # MCP server implementation │ └── [server files] ├── dependencies/ # All required packages/libraries └── icon.png # Optional: Extension icon # Example: Node.js Extension extension.mcpb ├── manifest.json # Required: Extension metadata and configuration ├── server/ # Server files │ └── index.js # Main entry point ├── node_modules/ # Bundled dependencies ├── package.json # Optional: NPM package definition └── icon.png # Optional: Extension icon # Example: Python Extension extension.mcpb (ZIP file) ├── manifest.json # Required: Extension metadata and configuration ├── server/ # Server files │ ├── main.py # Main entry point │ └── utils.py # Additional modules ├── lib/ # Bundled Python packages ├── requirements.txt # Optional: Python dependencies list └── icon.png # Optional: Extension icon</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">桌面扩展中唯一需要的文件是 manifest.json。Claude Desktop会处理所有复杂情况。</p>
+<p class="source" lang="en">The only required file in a Desktop Extension is a manifest.json. Claude Desktop handles all the complexity:</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">内置运行时环境：我们随 Claude Desktop 提供 Node.js，无需依赖外部库</p>
+<p class="source" lang="en">Built-in runtime: We ship Node.js with Claude Desktop, eliminating external dependencies</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">自动更新：扩展程序在有新版本时会自动更新</p>
+<p class="source" lang="en">Automatic updates: Extensions update automatically when new versions are available</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">保护机密信息：如 API 密钥这样的敏感配置信息存储在操作系统密钥链中</p>
+<p class="source" lang="en">Secure secrets: Sensitive configuration like API keys are stored in the OS keychain</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">清单中包含人类可读的信息（如名称、描述或作者），功能声明（工具、提示词），用户配置以及运行要求。大多数字段都是可选的，因此最小版本相当简短，不过实际上，我们期望所有三种支持的扩展类型（Node.js、Python和经典二进制文件/可执行文件）都包含相关文件。</p>
+<p class="source" lang="en">The manifest contains human-readable information (like the name, description, or author), a declaration of features (tools, prompts), user configuration, and runtime requirements. Most fields are optional, so the minimal version is quite short, although in practice, we expect all three supported extension types (Node.js, Python, and classic binaries/executables) to include files:</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">{ &quot;mcpb_version&quot;: &quot;0.1&quot;, // 本清单遵循的 MCPB 规范版本 &quot;name&quot;: &quot;my-extension&quot;, // 机器可识别名称（用于 CLI 和 API） &quot;version&quot;: &quot;1.0.0&quot;, // 扩展的语义版本号 &quot;description&quot;: &quot;一个简单的 MCP 扩展&quot;, // 扩展的功能简要说明 &quot;author&quot;: { // 作者信息（必填） &quot;name&quot;: &quot;扩展作者&quot; // 作者姓名（必填字段） }, &quot;server&quot;: { // 服务器配置（必填） &quot;type&quot;: &quot;node&quot;, // 服务器类型：&quot;node&quot;、&quot;python&quot; 或 &quot;binary&quot; &quot;entry_point&quot;: &quot;server/index.js&quot;, // 主服务器文件的路径 &quot;mcp_config&quot;: { // MCP 服务器配置 &quot;command&quot;: &quot;node&quot;, // 运行服务器的命令 &quot;args&quot;: [ // 传递给命令的参数 &quot;${__dirname}/server/index.js&quot; // ${__dirname} 会被替换为扩展的目录 ] } } }</p>
+<p class="source" lang="en">{ &quot;mcpb_version&quot;: &quot;0.1&quot;, // MCPB spec version this manifest conforms to &quot;name&quot;: &quot;my-extension&quot;, // Machine-readable name (used for CLI, APIs) &quot;version&quot;: &quot;1.0.0&quot;, // Semantic version of your extension &quot;description&quot;: &quot;A simple MCP extension&quot;, // Brief description of what the extension does &quot;author&quot;: { // Author information (required) &quot;name&quot;: &quot;Extension Author&quot; // Author&#39;s name (required field) }, &quot;server&quot;: { // Server configuration (required) &quot;type&quot;: &quot;node&quot;, // Server type: &quot;node&quot;, &quot;python&quot;, or &quot;binary&quot; &quot;entry_point&quot;: &quot;server/index.js&quot;, // Path to the main server file &quot;mcp_config&quot;: { // MCP server configuration &quot;command&quot;: &quot;node&quot;, // Command to run the server &quot;args&quot;: [ // Arguments passed to the command &quot;${__dirname}/server/index.js&quot; // ${__dirname} is replaced with the extension&#39;s directory ] } } }</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">在清单规范中提供了多种便利选项，旨在简化本地 MCP 服务器的安装和配置。服务器配置对象可以这样定义，既能容纳以模板字面量形式呈现的用户自定义配置，也能包含平台特定的覆盖设置。扩展开发者可以详细定义他们希望从用户处收集哪种配置。</p>
+<p class="source" lang="en">There are a number of convenience options available in the manifest spec that aim to make the installation and configuration of local MCP servers easier. The server configuration object can be defined in a way that makes room both for user-defined configuration in the form of template literals as well as platform-specific overrides. Extension developers can define, in detail, what kind of configuration they want to collect from users.</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">让我们来看一个具体的例子，说明manifest如何帮助配置。在下面的manifest中，开发者声明用户需要提供api_key。Claude不会启用扩展，直到用户提供该值；它会自动将该值保存在操作系统的秘密存储中；在启动服务器时，它会透明地将${user_config.api_key}替换为用户提供的实际值。同样，$__dirname也会被替换为扩展文件解压目录的完整路径。</p>
+<p class="source" lang="en">Let’s take a look at a concrete example of how the manifest aids with configuration. In the manifest below, the developer declares that the user needs to supply an api_key. Claude will not enable the extension until the user has supplied that value, keep it automatically in the operating system’s secret vault, and transparently replace the ${user_config.api_key} with the user-supplied value when launching the server. Similarly, ${__dirname} will be replaced with the full path to the extension’s unpacked directory.</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">{ &quot;mcpb_version&quot;: &quot;0.1&quot;, &quot;name&quot;: &quot;我的扩展&quot;, &quot;version&quot;: &quot;1.0.0&quot;, &quot;description&quot;: &quot;一个简单的 MCP 扩展&quot;, &quot;author&quot;: { &quot;name&quot;: &quot;扩展作者&quot; }, &quot;server&quot;: { &quot;type&quot;: &quot;node&quot;, &quot;entry_point&quot;: &quot;server/index.js&quot;, &quot;mcp_config&quot;: { &quot;command&quot;: &quot;node&quot;, &quot;args&quot;: [&quot;${__dirname}/server/index.js&quot;], &quot;env&quot;: { &quot;API_KEY&quot;: &quot;${user_config.api_key}&quot; } } }, &quot;user_config&quot;: { &quot;api_key&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;title&quot;: &quot;API 密钥&quot;, &quot;description&quot;: &quot;用于认证的 API 密钥&quot;, &quot;sensitive&quot;: true, &quot;required&quot;: true } } }</p>
+<p class="source" lang="en">{ &quot;mcpb_version&quot;: &quot;0.1&quot;, &quot;name&quot;: &quot;my-extension&quot;, &quot;version&quot;: &quot;1.0.0&quot;, &quot;description&quot;: &quot;A simple MCP extension&quot;, &quot;author&quot;: { &quot;name&quot;: &quot;Extension Author&quot; }, &quot;server&quot;: { &quot;type&quot;: &quot;node&quot;, &quot;entry_point&quot;: &quot;server/index.js&quot;, &quot;mcp_config&quot;: { &quot;command&quot;: &quot;node&quot;, &quot;args&quot;: [&quot;${__dirname}/server/index.js&quot;], &quot;env&quot;: { &quot;API_KEY&quot;: &quot;${user_config.api_key}&quot; } } }, &quot;user_config&quot;: { &quot;api_key&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;title&quot;: &quot;API Key&quot;, &quot;description&quot;: &quot;Your API key for authentication&quot;, &quot;sensitive&quot;: true, &quot;required&quot;: true } } }</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">包含大部分可选字段的完整的 manifest.json 可能如下所示：</p>
+<p class="source" lang="en">A full manifest.json with most of the optional fields might look like this:</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">{ &quot;mcpb_version&quot;: &quot;0.1&quot;, &quot;name&quot;: &quot;我的 MCP 扩展&quot;, &quot;display_name&quot;: &quot;我的很棒的 MCP 扩展&quot;, &quot;version&quot;: &quot;1.0.0&quot;, &quot;description&quot;: &quot;此扩展的功能简要说明&quot;, &quot;long_description&quot;: &quot;详细的说明，可包含多段内容，解释扩展的功能、使用场景和特性。支持基本 markdown 格式。&quot;, &quot;author&quot;: { &quot;name&quot;: &quot;你的名字&quot;, &quot;email&quot;: &quot;yourname@example.com&quot;, &quot;url&quot;: &quot;https://your-website.com&quot; }, &quot;repository&quot;: { &quot;type&quot;: &quot;git&quot;, &quot;url&quot;: &quot;https://github.com/your-username/my-mcp-extension&quot; }, &quot;homepage&quot;: &quot;https://example.com/my-extension&quot;, &quot;documentation&quot;: &quot;https://docs.example.com/my-extension&quot;, &quot;support&quot;: &quot;https://github.com/your-username/my-extension/issues&quot;, &quot;icon&quot;: &quot;icon.png&quot;, &quot;screenshots&quot;: [ &quot;assets/screenshots/screenshot1.png&quot;, &quot;assets/screenshots/screenshot2.png&quot; ], &quot;server&quot;: { &quot;type&quot;: &quot;node&quot;, &quot;entry_point&quot;: &quot;server/index.js&quot;, &quot;mcp_config&quot;: { &quot;command&quot;: &quot;node&quot;, &quot;args&quot;: [&quot;${__dirname}/server/index.js&quot;], &quot;env&quot;: { &quot;ALLOWED_DIRECTORIES&quot;: &quot;${user_config.allowed_directories}&quot; } } }, &quot;tools&quot;: [ { &quot;name&quot;: &quot;search_files&quot;, &quot;description&quot;: &quot;在目录中搜索文件&quot; } ], &quot;prompts&quot;: [ { &quot;name&quot;: &quot;poetry&quot;, &quot;description&quot;: &quot;让大语言模型创作诗歌&quot;, &quot;arguments&quot;: [&quot;topic&quot;], &quot;text&quot;: &quot;就以下主题创作一首创意诗歌：${arguments.topic}&quot; } ], &quot;tools_generated&quot;: true, &quot;keywords&quot;: [&quot;api&quot;, &quot;automation&quot;, &quot;productivity&quot;], &quot;license&quot;: &quot;MIT&quot;, &quot;compatibility&quot;: { &quot;claude_desktop&quot;: &quot;&gt;=1.0.0&quot;, &quot;platforms&quot;: [&quot;darwin&quot;, &quot;win32&quot;, &quot;linux&quot;], &quot;runtimes&quot;: { &quot;node&quot;: &quot;&gt;=16.0.0&quot; } }, &quot;user_config&quot;: { &quot;allowed_directories&quot;: { &quot;type&quot;: &quot;directory&quot;, &quot;title&quot;: &quot;允许目录&quot;, &quot;description&quot;: &quot;服务器可以访问的目录&quot;, &quot;multiple&quot;: true, &quot;required&quot;: true, &quot;default&quot;: [&quot;${HOME}/Desktop&quot;] }, &quot;api_key&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;title&quot;: &quot;API 密钥&quot;, &quot;description&quot;: &quot;用于身份验证的 API 密钥&quot;, &quot;sensitive&quot;: true, &quot;required&quot;: false }, &quot;max_file_size&quot;: { &quot;type&quot;: &quot;number&quot;, &quot;title&quot;: &quot;最大文件大小（MB）&quot;, &quot;description&quot;: &quot;要处理的文件最大大小&quot;, &quot;default&quot;: 10, &quot;min&quot;: 1, &quot;max&quot;: 100 } } }</p>
+<p class="source" lang="en">{ &quot;mcpb_version&quot;: &quot;0.1&quot;, &quot;name&quot;: &quot;My MCP Extension&quot;, &quot;display_name&quot;: &quot;My Awesome MCP Extension&quot;, &quot;version&quot;: &quot;1.0.0&quot;, &quot;description&quot;: &quot;A brief description of what this extension does&quot;, &quot;long_description&quot;: &quot;A detailed description that can include multiple paragraphs explaining the extension&#39;s functionality, use cases, and features. It supports basic markdown.&quot;, &quot;author&quot;: { &quot;name&quot;: &quot;Your Name&quot;, &quot;email&quot;: &quot;yourname@example.com&quot;, &quot;url&quot;: &quot;https://your-website.com&quot; }, &quot;repository&quot;: { &quot;type&quot;: &quot;git&quot;, &quot;url&quot;: &quot;https://github.com/your-username/my-mcp-extension&quot; }, &quot;homepage&quot;: &quot;https://example.com/my-extension&quot;, &quot;documentation&quot;: &quot;https://docs.example.com/my-extension&quot;, &quot;support&quot;: &quot;https://github.com/your-username/my-extension/issues&quot;, &quot;icon&quot;: &quot;icon.png&quot;, &quot;screenshots&quot;: [ &quot;assets/screenshots/screenshot1.png&quot;, &quot;assets/screenshots/screenshot2.png&quot; ], &quot;server&quot;: { &quot;type&quot;: &quot;node&quot;, &quot;entry_point&quot;: &quot;server/index.js&quot;, &quot;mcp_config&quot;: { &quot;command&quot;: &quot;node&quot;, &quot;args&quot;: [&quot;${__dirname}/server/index.js&quot;], &quot;env&quot;: { &quot;ALLOWED_DIRECTORIES&quot;: &quot;${user_config.allowed_directories}&quot; } } }, &quot;tools&quot;: [ { &quot;name&quot;: &quot;search_files&quot;, &quot;description&quot;: &quot;Search for files in a directory&quot; } ], &quot;prompts&quot;: [ { &quot;name&quot;: &quot;poetry&quot;, &quot;description&quot;: &quot;Have the LLM write poetry&quot;, &quot;arguments&quot;: [&quot;topic&quot;], &quot;text&quot;: &quot;Write a creative poem about the following topic: ${arguments.topic}&quot; } ], &quot;tools_generated&quot;: true, &quot;keywords&quot;: [&quot;api&quot;, &quot;automation&quot;, &quot;productivity&quot;], &quot;license&quot;: &quot;MIT&quot;, &quot;compatibility&quot;: { &quot;claude_desktop&quot;: &quot;&gt;=1.0.0&quot;, &quot;platforms&quot;: [&quot;darwin&quot;, &quot;win32&quot;, &quot;linux&quot;], &quot;runtimes&quot;: { &quot;node&quot;: &quot;&gt;=16.0.0&quot; } }, &quot;user_config&quot;: { &quot;allowed_directories&quot;: { &quot;type&quot;: &quot;directory&quot;, &quot;title&quot;: &quot;Allowed Directories&quot;, &quot;description&quot;: &quot;Directories the server can access&quot;, &quot;multiple&quot;: true, &quot;required&quot;: true, &quot;default&quot;: [&quot;${HOME}/Desktop&quot;] }, &quot;api_key&quot;: { &quot;type&quot;: &quot;string&quot;, &quot;title&quot;: &quot;API Key&quot;, &quot;description&quot;: &quot;Your API key for authentication&quot;, &quot;sensitive&quot;: true, &quot;required&quot;: false }, &quot;max_file_size&quot;: { &quot;type&quot;: &quot;number&quot;, &quot;title&quot;: &quot;Maximum File Size (MB)&quot;, &quot;description&quot;: &quot;Maximum file size to process&quot;, &quot;default&quot;: 10, &quot;min&quot;: 1, &quot;max&quot;: 100 } } }</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">要查看扩展和清单文件，请参考 MCPB 仓库中的示例。</p>
+<p class="source" lang="en">To see an extension and manifest, please refer to the examples in the MCPB repository.</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">manifest.json中所有必填和可选字段的完整规范，可在我们开源工具链中找到。</p>
+<p class="source" lang="en">The full specification for all required and optional fields in the manifest.json can be found as part of our open-source toolchain.</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">构建你的第一个扩展功能</p>
+<p class="source" lang="en">Building your first extension</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">让我们来演示如何将现有的 MCP 服务器包装为桌面扩展。我们将以一个简单的文件系统服务器为例。</p>
+<p class="source" lang="en">Let&#39;s walk through packaging an existing MCP server as a Desktop Extension. We&#39;ll use a simple file system server as an example.</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">步骤 1：创建清单</p>
+<p class="source" lang="en">Step 1: Create the manifest</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">首先，为您的服务器初始化一个配置文件：</p>
+<p class="source" lang="en">First, initialize a manifest for your server:</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">&lt;text&gt;
+npx @anthropic-ai/mcpb init
+&lt;/text&gt;</p>
+<p class="source" lang="en">npx @anthropic-ai/mcpb init</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">这个交互式工具会询问您的服务器信息，并生成完整的 manifest.json。如果您想快速获得最基本的 manifest.json，可以使用带有 --yes 参数的命令来运行。</p>
+<p class="source" lang="en">This interactive tool asks about your server and generates a complete manifest.json. If you want to speed-run your way to the most basic manifest.json, you can run the command with a --yes parameter.</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">步骤 2：处理用户配置</p>
+<p class="source" lang="en">Step 2: Handle user configuration</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">如果您的服务器需要用户输入（如 API 密钥或允许的目录），请在清单中声明：</p>
+<p class="source" lang="en">If your server needs user input (like API keys or allowed directories), declare it in the manifest:</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">&quot;user_config&quot;: { &quot;allowed_directories&quot;: { &quot;type&quot;: &quot;directory&quot;, &quot;title&quot;: &quot;允许的目录&quot;, &quot;description&quot;: &quot;服务器可以访问的目录&quot;, &quot;multiple&quot;: true, &quot;required&quot;: true, &quot;default&quot;: [&quot;${HOME}/Documents&quot;] } }</p>
+<p class="source" lang="en">&quot;user_config&quot;: { &quot;allowed_directories&quot;: { &quot;type&quot;: &quot;directory&quot;, &quot;title&quot;: &quot;Allowed Directories&quot;, &quot;description&quot;: &quot;Directories the server can access&quot;, &quot;multiple&quot;: true, &quot;required&quot;: true, &quot;default&quot;: [&quot;${HOME}/Documents&quot;] } }</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">Claude Desktop将会：</p>
+<p class="source" lang="en">Claude Desktop will:</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">显示用户友好的配置界面</p>
+<p class="source" lang="en">Display a user-friendly configuration UI</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">在启用扩展功能之前，先验证输入数据</p>
+<p class="source" lang="en">Validate inputs before enabling the extension</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">安全存储敏感数据</p>
+<p class="source" lang="en">Securely store sensitive values</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">根据开发者的配置，将配置作为参数或环境变量传递给服务器。</p>
+<p class="source" lang="en">Pass configuration to your server either as arguments or environment variables, depending on developer configuration</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">在下面的示例中，我们将用户配置作为环境变量传递，但也可以作为参数传递。</p>
+<p class="source" lang="en">In the example below, we’re passing the user configuration as an environment variable, but it could also be an argument.</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">{&quot;server&quot;: { &quot;type&quot;: &quot;node&quot;, &quot;entry_point&quot;: &quot;server/index.js&quot;, &quot;mcp_config&quot;: { &quot;command&quot;: &quot;node&quot;, &quot;args&quot;: [&quot;${__dirname}/server/index.js&quot;], &quot;env&quot;: { &quot;ALLOWED_DIRECTORIES&quot;: &quot;${user_config.allowed_directories}&quot; } } }}</p>
+<p class="source" lang="en">&quot;server&quot;: { &quot;type&quot;: &quot;node&quot;, &quot;entry_point&quot;: &quot;server/index.js&quot;, &quot;mcp_config&quot;: { &quot;command&quot;: &quot;node&quot;, &quot;args&quot;: [&quot;${__dirname}/server/index.js&quot;], &quot;env&quot;: { &quot;ALLOWED_DIRECTORIES&quot;: &quot;${user_config.allowed_directories}&quot; } } }</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">步骤 3：打包扩展程序</p>
+<p class="source" lang="en">Step 3: Package the extension</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">将所有内容打包成一个 .mcpb 文件：</p>
+<p class="source" lang="en">Bundle everything into a .mcpb file:</p>
+</div>
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">&lt;text&gt;
+npx @anthropic-ai/mcpb 打包
+&lt;/text&gt;</p>
+<p class="source" lang="en">npx @anthropic-ai/mcpb pack</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">这条命令：</p>
+<p class="source" lang="en">This command:</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">验证您的清单</p>
+<p class="source" lang="en">Validates your manifest</p>
+</div>
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">生成 .mcpb 归档文件</p>
+<p class="source" lang="en">Generates the .mcpb archive</p>
+</div>
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">步骤 4：本地测试</p>
+<p class="source" lang="en">Step 4: Test locally</p>
+</div>
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">将 .mcpb 文件拖到 Claude Desktop 的设置窗口中。你会看到：</p>
+<p class="source" lang="en">Drag your .mcpb file into Claude Desktop&#39;s Settings window. You&#39;ll see:</p>
+</div>
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">关于您的扩展的人类可理解信息</p>
+<p class="source" lang="en">Human-readable information about your extension</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">所需的权限和配置</p>
+<p class="source" lang="en">Required permissions and configuration</p>
+</div>
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">一个简单的“安装”按钮</p>
+<p class="source" lang="en">A simple &quot;Install&quot; button</p>
+</div>
+<div class="pair" id="p-64">
+<p class="target" lang="zh-CN">高级功能</p>
+<p class="source" lang="en">Advanced features</p>
+</div>
+<div class="pair" id="p-65">
+<p class="target" lang="zh-CN">跨平台支持</p>
+<p class="source" lang="en">Cross-platform support</p>
+</div>
+<div class="pair" id="p-66">
+<p class="target" lang="zh-CN">扩展功能可以适应不同的操作系统：</p>
+<p class="source" lang="en">Extensions can adapt to different operating systems:</p>
+</div>
+<div class="pair" id="p-67">
+<p class="target" lang="zh-CN">{&quot;server&quot;: { &quot;type&quot;: &quot;node&quot;, &quot;entry_point&quot;: &quot;server/index.js&quot;, &quot;mcp_config&quot;: { &quot;command&quot;: &quot;node&quot;, &quot;args&quot;: [&quot;${__dirname}/server/index.js&quot;], &quot;platforms&quot;: { &quot;win32&quot;: { &quot;command&quot;: &quot;node.exe&quot;, &quot;env&quot;: { &quot;TEMP_DIR&quot;: &quot;${TEMP}&quot; } }, &quot;darwin&quot;: { &quot;env&quot;: { &quot;TEMP_DIR&quot;: &quot;${TMPDIR}&quot; } } } } }</p>
+<p class="source" lang="en">&quot;server&quot;: { &quot;type&quot;: &quot;node&quot;, &quot;entry_point&quot;: &quot;server/index.js&quot;, &quot;mcp_config&quot;: { &quot;command&quot;: &quot;node&quot;, &quot;args&quot;: [&quot;${__dirname}/server/index.js&quot;], &quot;platforms&quot;: { &quot;win32&quot;: { &quot;command&quot;: &quot;node.exe&quot;, &quot;env&quot;: { &quot;TEMP_DIR&quot;: &quot;${TEMP}&quot; } }, &quot;darwin&quot;: { &quot;env&quot;: { &quot;TEMP_DIR&quot;: &quot;${TMPDIR}&quot; } } } } }</p>
+</div>
+<div class="pair" id="p-68">
+<p class="target" lang="zh-CN">动态配置</p>
+<p class="source" lang="en">Dynamic configuration</p>
+</div>
+<div class="pair" id="p-69">
+<p class="target" lang="zh-CN">使用模板字面量来处理运行时值：</p>
+<p class="source" lang="en">Use template literals for runtime values:</p>
+</div>
+<div class="pair" id="p-70">
+<p class="target" lang="zh-CN">&lt;text&gt;
+${__dirname}: 扩展功能的安装目录
+&lt;/text&gt;</p>
+<p class="source" lang="en">${__dirname}: Extension&#39;s installation directory</p>
+</div>
+<div class="pair" id="p-71">
+<p class="target" lang="zh-CN">&lt;text&gt;
+${user_config.key}: 用户提供的配置
+&lt;/text&gt;</p>
+<p class="source" lang="en">${user_config.key}: User-provided configuration</p>
+</div>
+<div class="pair" id="p-72">
+<p class="target" lang="zh-CN">&lt;text&gt;
+${HOME}, ${TEMP}: 系统环境变量
+&lt;/text&gt;</p>
+<p class="source" lang="en">${HOME}, ${TEMP}: System environment variables</p>
+</div>
+<div class="pair" id="p-73">
+<p class="target" lang="zh-CN">功能声明</p>
+<p class="source" lang="en">Feature declaration</p>
+</div>
+<div class="pair" id="p-74">
+<p class="target" lang="zh-CN">帮助用户提前了解功能特性：</p>
+<p class="source" lang="en">Help users understand capabilities upfront:</p>
+</div>
+<div class="pair" id="p-75">
+<p class="target" lang="zh-CN">&quot;工具&quot;: [ { &quot;name&quot;: &quot;read_file&quot;, &quot;description&quot;: &quot;读取文件内容&quot; } ], &quot;提示词&quot;: [ { &quot;name&quot;: &quot;code_review&quot;, &quot;description&quot;: &quot;审查代码以符合最佳实践&quot;, &quot;arguments&quot;: [&quot;file_path&quot;] } ]</p>
+<p class="source" lang="en">&quot;tools&quot;: [ { &quot;name&quot;: &quot;read_file&quot;, &quot;description&quot;: &quot;Read contents of a file&quot; } ], &quot;prompts&quot;: [ { &quot;name&quot;: &quot;code_review&quot;, &quot;description&quot;: &quot;Review code for best practices&quot;, &quot;arguments&quot;: [&quot;file_path&quot;] } ]</p>
+</div>
+<div class="pair" id="p-76">
+<p class="target" lang="zh-CN">扩展目录</p>
+<p class="source" lang="en">The extension directory</p>
+</div>
+<div class="pair" id="p-77">
+<p class="target" lang="zh-CN">我们将以一个内置在 Claude 桌面中的扩展目录开始推出。用户可以轻松浏览、搜索并安装扩展——无需在 GitHub 上搜索或审查代码。</p>
+<p class="source" lang="en">We&#39;re launching with a curated directory of extensions built into Claude Desktop. Users can browse, search, and install with one click—no searching GitHub or vetting code.</p>
+</div>
+<div class="pair" id="p-78">
+<p class="target" lang="zh-CN">虽然我们预计 macOS 和 Windows 版 Claude 的桌面扩展规范及实现方式会随着时间的推移而发展，但我们期待看到各种扩展方式如何以创新的方式提升 Claude 的功能。</p>
+<p class="source" lang="en">While we expect both the Desktop Extension specification and the implementation in Claude for macOS and Windows to evolve over time, we look forward to seeing the many ways in which extensions can be used to expand the capabilities of Claude in creative ways.</p>
+</div>
+<div class="pair" id="p-79">
+<p class="target" lang="zh-CN">提交您的扩展文件：</p>
+<p class="source" lang="en">To submit your extension:</p>
+</div>
+<div class="pair" id="p-80">
+<p class="target" lang="zh-CN">确保它符合提交表格中的规定要求</p>
+<p class="source" lang="en">Ensure it follows the guidelines found in the submission form</p>
+</div>
+<div class="pair" id="p-81">
+<p class="target" lang="zh-CN">在 Windows 和 macOS 上进行测试</p>
+<p class="source" lang="en">Test across Windows and macOS</p>
+</div>
+<div class="pair" id="p-82">
+<p class="target" lang="zh-CN">提交您的扩展内容</p>
+<p class="source" lang="en">Submit your extension</p>
+</div>
+<div class="pair" id="p-83">
+<p class="target" lang="zh-CN">我们的团队会审查质量和安全性</p>
+<p class="source" lang="en">Our team reviews for quality and security</p>
+</div>
+<div class="pair" id="p-84">
+<p class="target" lang="zh-CN">构建开放生态系统</p>
+<p class="source" lang="en">Building an open ecosystem</p>
+</div>
+<div class="pair" id="p-85">
+<p class="target" lang="zh-CN">我们致力于 MCP 服务器开放生态系统，认为其能够被多种应用程序和服务广泛采用，从而惠及整个社区。基于这一承诺，我们正在开源桌面扩展规范、工具链，以及 Claude 在 macOS 和 Windows 上用于实现桌面扩展支持的架构和关键功能。我们希望 MCPB 格式不仅能让本地 MCP 服务器对 Claude 更加可移植，也能适用于其他人工智能桌面应用。</p>
+<p class="source" lang="en">We are committed to the open ecosystem around MCP servers and believe that its ability to be universally adopted by multiple applications and services has benefitted the community. In line with this commitment, we’re open-sourcing the Desktop Extension specification, toolchain, and the schemas and key functions used by Claude for macOS and Windows to implement its own support of Desktop Extensions. It is our hope that the MCPB format doesn’t just make local MCP servers more portable for Claude, but other AI desktop applications, too.</p>
+</div>
+<div class="pair" id="p-86">
+<p class="target" lang="zh-CN">我们正在开源：</p>
+<p class="source" lang="en">We&#39;re open-sourcing:</p>
+</div>
+<div class="pair" id="p-87">
+<p class="target" lang="zh-CN">完整的 MCPB 规范</p>
+<p class="source" lang="en">The complete MCPB specification</p>
+</div>
+<div class="pair" id="p-88">
+<p class="target" lang="zh-CN">包装和验证工具</p>
+<p class="source" lang="en">Packaging and validation tools</p>
+</div>
+<div class="pair" id="p-89">
+<p class="target" lang="zh-CN">参考实现代码</p>
+<p class="source" lang="en">Reference implementation code</p>
+</div>
+<div class="pair" id="p-90">
+<p class="target" lang="zh-CN">TypeScript 类型与模式</p>
+<p class="source" lang="en">TypeScript types and schemas</p>
+</div>
+<div class="pair" id="p-91">
+<p class="target" lang="zh-CN">这意味着：</p>
+<p class="source" lang="en">This means:</p>
+</div>
+<div class="pair" id="p-92">
+<p class="target" lang="zh-CN">对于 MCP 服务器开发者：只需打包一次，在支持 MCPB 的任何地方运行即可。</p>
+<p class="source" lang="en">For MCP server developers: Package once, run anywhere that supports MCPB</p>
+</div>
+<div class="pair" id="p-93">
+<p class="target" lang="zh-CN">对于应用开发者：无需从头开始构建，即可添加扩展支持</p>
+<p class="source" lang="en">For app developers: Add extension support without building from scratch</p>
+</div>
+<div class="pair" id="p-94">
+<p class="target" lang="zh-CN">对于用户：所有支持 MCP 的应用程序都能提供一致的体验</p>
+<p class="source" lang="en">For users: Consistent experience across all MCP-enabled applications</p>
+</div>
+<div class="pair" id="p-95">
+<p class="target" lang="zh-CN">规范与工具链特意被标记为 0.1 版本，因为我们期待与更多社区合作，不断改进和改变格式。我们期待收到您的反馈。</p>
+<p class="source" lang="en">The specification and toolchain is on purpose versioned as 0.1, as we are looking forward to working with the greater community on evolving and changing the format. We look forward to hearing from you.</p>
+</div>
+<div class="pair" id="p-96">
+<p class="target" lang="zh-CN">安全和企业方面的考虑</p>
+<p class="source" lang="en">Security and enterprise considerations</p>
+</div>
+<div class="pair" id="p-97">
+<p class="target" lang="zh-CN">我们明白扩展功能会引入新的安全考虑因素，尤其是对企业而言。在桌面扩展功能的预览版本中，我们已加入了多项保护措施：</p>
+<p class="source" lang="en">We understand that extensions introduce new security considerations, particularly for enterprises. We&#39;ve built in several safeguards with the preview release of Desktop Extensions:</p>
+</div>
+<div class="pair" id="p-98">
+<p class="target" lang="zh-CN">对于用户</p>
+<p class="source" lang="en">For users</p>
+</div>
+<div class="pair" id="p-99">
+<p class="target" lang="zh-CN">敏感数据仍保留在操作系统密钥链中</p>
+<p class="source" lang="en">Sensitive data stays in the OS keychain</p>
+</div>
+<div class="pair" id="p-100">
+<p class="target" lang="zh-CN">自动更新</p>
+<p class="source" lang="en">Automatic updates</p>
+</div>
+<div class="pair" id="p-101">
+<p class="target" lang="zh-CN">能够审查已安装的扩展程序</p>
+<p class="source" lang="en">Ability to audit what extensions are installed</p>
+</div>
+<div class="pair" id="p-102">
+<p class="target" lang="zh-CN">对于企业而言</p>
+<p class="source" lang="en">For enterprises</p>
+</div>
+<div class="pair" id="p-103">
+<p class="target" lang="zh-CN">组策略（Windows）和 MDM（macOS）支持</p>
+<p class="source" lang="en">Group Policy (Windows) and MDM (macOS) support</p>
+</div>
+<div class="pair" id="p-104">
+<p class="target" lang="zh-CN">能够预安装已批准的扩展组件</p>
+<p class="source" lang="en">Ability to pre-install approved extensions</p>
+</div>
+<div class="pair" id="p-105">
+<p class="target" lang="zh-CN">排除块列表中的特定扩展或发布者</p>
+<p class="source" lang="en">Blocklist specific extensions or publishers</p>
+</div>
+<div class="pair" id="p-106">
+<p class="target" lang="zh-CN">完全禁用扩展目录</p>
+<p class="source" lang="en">Disable the extension directory entirely</p>
+</div>
+<div class="pair" id="p-107">
+<p class="target" lang="zh-CN">部署私有扩展目录</p>
+<p class="source" lang="en">Deploy private extension directories</p>
+</div>
+<div class="pair" id="p-108">
+<p class="target" lang="zh-CN">有关如何在您的组织内管理扩展组件的信息，请参阅我们的文档。</p>
+<p class="source" lang="en">For more information about how to manage extensions within your organization, see our documentation.</p>
+</div>
+<div class="pair" id="p-109">
+<p class="target" lang="zh-CN">入门指南</p>
+<p class="source" lang="en">Getting started</p>
+</div>
+<div class="pair" id="p-110">
+<p class="target" lang="zh-CN">准备好构建你自己的扩展程序了吗？以下是开始的方法：</p>
+<p class="source" lang="en">Ready to build your own extension? Here&#39;s how to start:</p>
+</div>
+<div class="pair" id="p-111">
+<p class="target" lang="zh-CN">对于 MCP 服务器开发者：请查看我们的开发者文档——或者直接在本地 MCP 服务器目录中运行以下命令开始使用：</p>
+<p class="source" lang="en">For MCP server developers: Review our developer documentation – or dive right in by running the following commands in your local MCP servers’ directory:</p>
+</div>
+<div class="pair" id="p-112">
+<p class="target" lang="zh-CN">npm install -g @anthropic-ai/mcpb mcpb init mcpb pack</p>
+<p class="source" lang="en">npm install -g @anthropic-ai/mcpb mcpb init mcpb pack</p>
+</div>
+<div class="pair" id="p-113">
+<p class="target" lang="zh-CN">对于 Claude Desktop 用户：更新到最新版本，然后在设置中查找“扩展”部分</p>
+<p class="source" lang="en">For Claude Desktop users: Update to the latest version and look for the Extensions section in Settings</p>
+</div>
+<div class="pair" id="p-114">
+<p class="target" lang="zh-CN">对于企业：请查阅我们的企业文档以了解部署选项</p>
+<p class="source" lang="en">For enterprises: Review our enterprise documentation for deployment options</p>
+</div>
+<div class="pair" id="p-115">
+<p class="target" lang="zh-CN">使用 Claude Code 构建模型</p>
+<p class="source" lang="en">Building with Claude Code</p>
+</div>
+<div class="pair" id="p-116">
+<p class="target" lang="zh-CN">在 Anthropic 内部，我们发现 Claude 非常擅长以最少的干预来构建扩展功能。如果您也想使用 Claude Code，我们建议简要说明您希望扩展功能实现的功能，然后在提示中添加以下上下文信息：</p>
+<p class="source" lang="en">Internally at Anthropic, we have found that Claude is great at building extensions with minimal intervention. If you too want to use Claude Code, we recommend that you briefly explain what you want your extension to do and then add the following context to the prompt:</p>
+</div>
+<div class="pair" id="p-117">
+<p class="target" lang="zh-CN">我想将其构建为一个桌面扩展，简称为“MCPB”。请按照以下步骤进行：1. **仔细阅读规范：** - https://github.com/anthropics/mcpb/blob/main/README.md - MCPB架构概览、功能及集成模式 - https://github.com/anthropics/mcpb/blob/main/MANIFEST.md - 完整的扩展清单结构及字段定义 - https://github.com/anthropics/mcpb/tree/main/examples - 参考实现，包括“Hello World”示例 2. **创建合适的扩展结构：** - 根据MANIFEST.md规范生成有效的manifest.json文件 - 使用@modelcontextprotocol/sdk实现MCP服务器，并正确定义工具配置 - 包含适当的错误处理和超时管理 3. **遵循最佳开发实践：** - 通过stdio传输实现正确的MCP协议通信 - 以清晰的架构、验证和一致的JSON响应来组织工具 - 利用该扩展将在本地运行的事实 - 添加适当的日志记录和调试功能 - 包含完整的文档和设置说明 4. **测试注意事项：** - 验证所有工具调用是否返回结构合理的响应 - 确认清单正确加载且主机集成正常 生成可立即测试的完整、生产级代码。注重防御性编程、清晰的错误提示，并严格遵循MCPB规范，以确保与生态系统兼容。</p>
+<p class="source" lang="en">I want to build this as a Desktop Extension, abbreviated as &quot;MCPB&quot;. Please follow these steps: 1. **Read the specifications thoroughly:** - https://github.com/anthropics/mcpb/blob/main/README.md - MCPB architecture overview, capabilities, and integration patterns - https://github.com/anthropics/mcpb/blob/main/MANIFEST.md - Complete extension manifest structure and field definitions - https://github.com/anthropics/mcpb/tree/main/examples - Reference implementations including a &quot;Hello World&quot; example 2. **Create a proper extension structure:** - Generate a valid manifest.json following the MANIFEST.md spec - Implement an MCP server using @modelcontextprotocol/sdk with proper tool definitions - Include proper error handling and timeout management 3. **Follow best development practices:** - Implement proper MCP protocol communication via stdio transport - Structure tools with clear schemas, validation, and consistent JSON responses - Make use of the fact that this extension will be running locally - Add appropriate logging and debugging capabilities - Include proper documentation and setup instructions 4. **Test considerations:** - Validate that all tool calls return properly structured responses - Verify manifest loads correctly and host integration works Generate complete, production-ready code that can be immediately tested. Focus on defensive programming, clear error messages, and following the exact MCPB specifications to ensure compatibility with the ecosystem.</p>
+</div>
+<div class="pair" id="p-118">
+<p class="target" lang="zh-CN">结论</p>
+<p class="source" lang="en">Conclusion</p>
+</div>
+<div class="pair" id="p-119">
+<p class="target" lang="zh-CN">桌面扩展功能标志着用户与本地人工智能工具互动方式的根本变化。通过消除安装障碍，我们让强大的MCP服务器能够被所有人使用，而不仅仅是开发者。</p>
+<p class="source" lang="en">Desktop Extensions represent a fundamental shift in how users interact with local AI tools. By removing installation friction, we&#39;re making powerful MCP servers accessible to everyone—not just developers.</p>
+</div>
+<div class="pair" id="p-120">
+<p class="target" lang="zh-CN">内部，我们使用桌面扩展来共享高度实验性的 MCP 服务器——有些很有趣，有些则很有用。一个团队进行了实验，以观察我们的模型在直接连接到 GameBoy 时能发挥多大的作用，这类似于我们的“Claude 玩宝可梦”研究。我们使用桌面扩展来打包一个扩展程序，该扩展程序能够打开流行的 PyBoy GameBoy 模拟器，让 Claude 能够控制它。我们认为，有很多机会可以将模型的功能与用户已经在本地机器上使用的工具、数据和应用程序相连。</p>
+<p class="source" lang="en">Internally, we’re using desktop extensions to share highly experimental MCP servers - some fun, some useful.. One team experimented to see how far our models could make it when directly connected to a GameBoy, similar to our “Claude plays Pokémon” research. We used Desktop Extensions to package a single extension that opens up the popular PyBoy GameBoy emulator and lets Claude take control. We believe that countless opportunities exist to connect the model’s capabilities to the tools, data, and applications users already have on their local machines.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Fd48f3ea1218a4b90450b9ab8134fa0e24db5a167-720x542.png&amp;w=1920&amp;q=75" alt="A desktop showing the PyBoy MCP with Super Mario Land start screen" loading="lazy">
+<div class="pair" id="p-121">
+<p class="target" lang="zh-CN">我们非常期待看到你的成果。当初让我们拥有数千个 MCP 服务器的创意，现在只需一次点击就能触达数百万用户。准备好分享你的 MCP 服务器了吗？请提交你的扩展功能以接受审核。</p>
+<p class="source" lang="en">We can&#39;t wait to see what you build. The same creativity that brought us thousands of MCP servers can now reach millions of users with just one click. Ready to share your MCP server? Submit your extension for review.</p>
+</div>
+<img src="https://www-cdn.anthropic.com/images/4zrzovbb/website/43abe7e54b56a891e74a8542944dfbd33f07f49c-1000x1000.svg" alt="Looking to learn more?" loading="lazy">
+<div class="pair" id="p-122">
+<p class="target" lang="zh-CN">想了解更多吗？</p>
+<p class="source" lang="en">Looking to learn more?</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://www.anthropic.com/research/desktop-extensions" target="_blank" rel="noopener noreferrer">https://www.anthropic.com/research/desktop-extensions</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/writing-effective-tools-for-agents-with-agents.html">← Writing effective tools for agents — with agents</a><a href="../viewers/confidential-inference-via-trusted-virtual-machines.html">Confidential Inference via Trusted Virtual Machines →</a></nav>
+  <footer class="footer">本站为公开 AI 工程博客的非官方中英对照归档。中文译文仅作辅助阅读，请以英文原文为准；文章内容版权归原作者所有。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

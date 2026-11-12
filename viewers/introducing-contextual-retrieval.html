@@ -1,0 +1,850 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Introducing Contextual Retrieval · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Introducing Contextual Retrieval</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">01</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">02</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">11</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">12</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">19</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">21</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">24</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">25</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">26</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">27</span>Building effective agents</a>
+<a class="nav-item current" href="../viewers/introducing-contextual-retrieval.html" aria-current="page"><span class="num">28</span>Introducing Contextual Retrieval</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">01</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">02</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">11</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">12</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">19</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">21</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">24</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">25</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">26</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">27</span>Building effective agents</a>
+<a class="nav-item current" href="../viewers/introducing-contextual-retrieval.html" aria-current="page"><span class="num">28</span>Introducing Contextual Retrieval</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Introducing Contextual Retrieval</h1>
+  <p class="subline">原文：<a href="https://www.anthropic.com/research/contextual-retrieval" target="_blank" rel="noopener noreferrer">https://www.anthropic.com/research/contextual-retrieval</a> · 2024-09-19 · Anthropic Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F311faf3808b25ab0b348a4ee937e7f9cae66ebb0-2000x1125.jpg&amp;w=1920&amp;q=75" alt="Introducing Contextual Retrieval" loading="lazy">
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">为了让人工智能模型在特定情境下发挥作用，它通常需要获取背景知识。例如，客户支持聊天机器人需要了解其使用的具体业务情况，而法律分析机器人则需要熟悉大量的过往案例。</p>
+<p class="source" lang="en">For an AI model to be useful in specific contexts, it often needs access to background knowledge. For example, customer support chatbots need knowledge about the specific business they&#39;re being used for, and legal analyst bots need to know about a vast array of past cases.</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">开发者通常使用检索增强生成技术来提升人工智能模型的知识水平。检索增强生成是一种从知识库中检索相关信息并将其添加到用户提示中的方法，从而显著改善模型的响应能力。然而，传统检索增强生成解决方案在编码信息时会丢失上下文，这通常导致系统无法从知识库中检索到相关信息。</p>
+<p class="source" lang="en">Developers typically enhance an AI model&#39;s knowledge using Retrieval-Augmented Generation (RAG). RAG is a method that retrieves relevant information from a knowledge base and appends it to the user&#39;s prompt, significantly enhancing the model&#39;s response. The problem is that traditional RAG solutions remove context when encoding information, which often results in the system failing to retrieve the relevant information from the knowledge base.</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">在本文中，我们介绍了一种能够显著提升 RAG 检索步骤的方法。该方法被称为“上下文检索”，采用两种子技术：上下文嵌入和上下文 BM25。该方法可以将失败检索次数减少 49%，与重新排序技术结合使用时可减少 67%。这些改进显著提升了检索准确性，从而直接提高了后续任务的性能。</p>
+<p class="source" lang="en">In this post, we outline a method that dramatically improves the retrieval step in RAG. The method is called “Contextual Retrieval” and uses two sub-techniques: Contextual Embeddings and Contextual BM25. This method can reduce the number of failed retrievals by 49% and, when combined with reranking, by 67%. These represent significant improvements in retrieval accuracy, which directly translates to better performance in downstream tasks.</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">使用我们的工具包，你可以轻松地在 Claude 上部署自己的情境检索解决方案。</p>
+<p class="source" lang="en">You can easily deploy your own Contextual Retrieval solution with Claude with our cookbook.</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">关于仅使用更长的提示词的说明</p>
+<p class="source" lang="en">A note on simply using a longer prompt</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">有时最简单的解决方案就是最好的。如果你的知识库小于200,000个词（大约500页内容），你可以直接将整个知识库包含在给模型的提示中，无需使用RAG或类似方法。</p>
+<p class="source" lang="en">Sometimes the simplest solution is the best. If your knowledge base is smaller than 200,000 tokens (about 500 pages of material), you can just include the entire knowledge base in the prompt that you give the model, with no need for RAG or similar methods.</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">几周前，我们发布了 Claude 的提示缓存功能，这使得这种方法更加快速且更具成本效益。现在，开发者可以在 API 调用之间缓存常用的提示，从而将延迟降低 2 倍以上，成本降低 90% 左右（您可以通过阅读我们的提示缓存指南来了解其工作原理）。</p>
+<p class="source" lang="en">A few weeks ago, we released prompt caching for Claude, which makes this approach significantly faster and more cost-effective. Developers can now cache frequently used prompts between API calls, reducing latency by &gt; 2x and costs by up to 90% (you can see how it works by reading our prompt caching cookbook).</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">然而，随着您的知识库不断增长，您将需要一种更可扩展的解决方案。这就是上下文检索的作用所在。</p>
+<p class="source" lang="en">However, as your knowledge base grows, you&#39;ll need a more scalable solution. That’s where Contextual Retrieval comes in.</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">RAG入门：如何扩展至更大的知识库</p>
+<p class="source" lang="en">A primer on RAG: scaling to larger knowledge bases</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">对于不适合放入上下文窗口的大型知识库，RAG是典型的解决方案。RAG通过以下步骤对知识库进行预处理来工作：</p>
+<p class="source" lang="en">For larger knowledge bases that don&#39;t fit within the context window, RAG is the typical solution. RAG works by preprocessing a knowledge base using the following steps:</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">将知识库（文档集合）分解为较小的文本片段，通常不超过几百个词符；</p>
+<p class="source" lang="en">Break down the knowledge base (the “corpus” of documents) into smaller chunks of text, usually no more than a few hundred tokens;</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">使用嵌入模型将这些片段转换为能够编码意义的向量嵌入；</p>
+<p class="source" lang="en">Use an embedding model to convert these chunks into vector embeddings that encode meaning;</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">将这些嵌入数据存储在能够按语义相似性进行搜索的向量数据库中。</p>
+<p class="source" lang="en">Store these embeddings in a vector database that allows for searching by semantic similarity.</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">在运行时，当用户向模型输入查询时，向量数据库会根据与查询的语义相似性来查找最相关的片段，然后这些最相关的片段会被添加到发送给生成模型的提示中。</p>
+<p class="source" lang="en">At runtime, when a user inputs a query to the model, the vector database is used to find the most relevant chunks based on semantic similarity to the query. Then, the most relevant chunks are added to the prompt sent to the generative model.</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">虽然嵌入模型在捕捉语义关系方面非常出色，但有时可能会错过关键的精确匹配。幸运的是，有一种较老的技术可以在这种情况下提供帮助。BM25（最佳匹配25）是一种排名函数，它使用词汇匹配来寻找精确的单词或短语匹配。对于包含独特标识符或技术术语的查询，它特别有效。</p>
+<p class="source" lang="en">While embedding models excel at capturing semantic relationships, they can miss crucial exact matches. Fortunately, there’s an older technique that can assist in these situations. BM25 (Best Matching 25) is a ranking function that uses lexical matching to find precise word or phrase matches. It&#39;s particularly effective for queries that include unique identifiers or technical terms.</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">BM25通过基于TF-IDF（词频-逆文档频率）概念来工作。TF-IDF衡量一个词在文档集合中的重要性。BM25通过考虑文档长度并对词频应用饱和函数来改进这一方法，从而帮助防止常见词主导结果。</p>
+<p class="source" lang="en">BM25 works by building upon the TF-IDF (Term Frequency-Inverse Document Frequency) concept. TF-IDF measures how important a word is to a document in a collection. BM25 refines this by considering document length and applying a saturation function to term frequency, which helps prevent common words from dominating the results.</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">以下是 BM25在语义嵌入失败时的成功方式：假设用户在技术支持数据库中查询“错误代码 TS-999”。嵌入模型可能会找到关于错误代码的一般内容，但可能错过具体的“TS-999”匹配项。BM25会寻找这个特定的文本字符串以识别相关的文档信息。</p>
+<p class="source" lang="en">Here’s how BM25 can succeed where semantic embeddings fail: Suppose a user queries &quot;Error code TS-999&quot; in a technical support database. An embedding model might find content about error codes in general, but could miss the exact &quot;TS-999&quot; match. BM25 looks for this specific text string to identify the relevant documentation.</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">RAG解决方案可以通过结合嵌入技术和BM25技术，按照以下步骤更精准地提取最相关的片段。</p>
+<p class="source" lang="en">RAG solutions can more accurately retrieve the most applicable chunks by combining the embeddings and BM25 techniques using the following steps:</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">将知识库（文档集合）分解为较小的文本块，通常不超过几百个词元；</p>
+<p class="source" lang="en">Break down the knowledge base (the &quot;corpus&quot; of documents) into smaller chunks of text, usually no more than a few hundred tokens;</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">为这些片段创建 TF-IDF 编码和语义嵌入；</p>
+<p class="source" lang="en">Create TF-IDF encodings and semantic embeddings for these chunks;</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">使用 BM25 根据完全匹配的内容来识别最重要的片段；</p>
+<p class="source" lang="en">Use BM25 to find top chunks based on exact matches;</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">使用嵌入模型来根据语义相似性找到最相关的片段；</p>
+<p class="source" lang="en">Use embeddings to find top chunks based on semantic similarity;</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">使用排名融合技术，合并并去重 (3) 和 (4) 的结果；</p>
+<p class="source" lang="en">Combine and deduplicate results from (3) and (4) using rank fusion techniques;</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">在提示词中添加前K个片段，以生成回复。</p>
+<p class="source" lang="en">Add the top-K chunks to the prompt to generate the response.</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">通过利用 BM25 和嵌入模型，传统的 RAG 系统能够提供更全面、更准确的结果，在精确的词义匹配与更广泛的语义理解之间实现平衡。</p>
+<p class="source" lang="en">By leveraging both BM25 and embedding models, traditional RAG systems can provide more comprehensive and accurate results, balancing precise term matching with broader semantic understanding.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F45603646e979c62349ce27744a940abf30200d57-3840x2160.png&amp;w=3840&amp;q=75" alt="A Standard Retrieval-Augmented Generation (RAG) system that uses both embeddings and Best Match 25 (BM25) to retrieve information. TF-IDF (term frequency-inverse document frequency) measures word importance and forms the basis for BM25." loading="lazy">
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">这种方法允许你以经济高效的方式扩展至庞大的知识库，远远超出单个提示所能容纳的范围。但这些传统的 RAG 系统有一个重大限制：它们常常会破坏上下文。</p>
+<p class="source" lang="en">This approach allows you to cost-effectively scale to enormous knowledge bases, far beyond what could fit in a single prompt. But these traditional RAG systems have a significant limitation: they often destroy context.</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">传统 RAG 中的上下文难题</p>
+<p class="source" lang="en">The context conundrum in traditional RAG</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">在传统的 RAG 中，文档通常被分割成较小的块以方便检索。虽然这种方法适用于许多场景，但当单个块缺乏足够的上下文时，就会引发问题。</p>
+<p class="source" lang="en">In traditional RAG, documents are typically split into smaller chunks for efficient retrieval. While this approach works well for many applications, it can lead to problems when individual chunks lack sufficient context.</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">例如，假设你的知识库中包含一系列财务信息（比如美国 SEC 文件），然后你收到这样一个问题：“ACME 公司 2023 年第二季度的收入增长是多少？”</p>
+<p class="source" lang="en">For example, imagine you had a collection of financial information (say, U.S. SEC filings) embedded in your knowledge base, and you received the following question: &quot;What was the revenue growth for ACME Corp in Q2 2023?&quot;</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">相关段落中可能包含这样的文本：“该公司的收入比上一季度增长了3%。”然而，单独来看这个段落并没有说明指的是哪家公司或相关的时间段，因此难以获取正确的信息或有效利用这些信息。</p>
+<p class="source" lang="en">A relevant chunk might contain the text: &quot;The company&#39;s revenue grew by 3% over the previous quarter.&quot; However, this chunk on its own doesn&#39;t specify which company it&#39;s referring to or the relevant time period, making it difficult to retrieve the right information or use the information effectively.</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">介绍情境检索技术</p>
+<p class="source" lang="en">Introducing Contextual Retrieval</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">上下文检索通过在嵌入之前添加每个块特定的解释性上下文（“上下文嵌入”）以及创建 BM25 指数（“上下文 BM25”）来解决这一问题。</p>
+<p class="source" lang="en">Contextual Retrieval solves this problem by prepending chunk-specific explanatory context to each chunk before embedding (“Contextual Embeddings”) and creating the BM25 index (“Contextual BM25”).</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">&lt;text&gt;
+让我们回到我们的 SEC 文件集合示例。以下是数据块可能被转换的示例：
+&lt;/text&gt;</p>
+<p class="source" lang="en">Let’s return to our SEC filings collection example. Here&#39;s an example of how a chunk might be transformed:</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">original_chunk = &quot;该公司收入比上一季度增长了3%。&quot; contextualized_chunk = &quot;此内容来自ACME公司2023年第二季度的SEC文件；上一季度的收入为3.14亿美元。该公司收入比上一季度增长了3%。&quot;</p>
+<p class="source" lang="en">original_chunk = &quot;The company&#39;s revenue grew by 3% over the previous quarter.&quot; contextualized_chunk = &quot;This chunk is from an SEC filing on ACME corp&#39;s performance in Q2 2023; the previous quarter&#39;s revenue was $314 million. The company&#39;s revenue grew by 3% over the previous quarter.&quot;</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">值得注意的是，过去也有其他利用上下文来提升检索效果的方法被提出。这些方法包括：向文档片段添加通用文档摘要（我们尝试后发现效果有限）、假设性文档嵌入，以及基于摘要的索引（我们评估后发现性能不佳）。这些方法与本文提出的方案不同。</p>
+<p class="source" lang="en">It is worth noting that other approaches to using context to improve retrieval have been proposed in the past. Other proposals include: adding generic document summaries to chunks (we experimented and saw very limited gains), hypothetical document embedding, and summary-based indexing (we evaluated and saw low performance). These methods differ from what is proposed in this post.</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">实施情境检索</p>
+<p class="source" lang="en">Implementing Contextual Retrieval</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">当然，手动为知识库中的数千甚至数百万个片段添加注释是一项极其繁琐的工作。为了实施情境检索，我们采用了 Claude 模型。我们编写了一个提示词，指示模型提供简洁且针对每个片段的上下文，利用整个文档的上下文来解释该片段。我们使用 Claude 3 Haiku 提示词来生成每个片段的上下文：</p>
+<p class="source" lang="en">Of course, it would be far too much work to manually annotate the thousands or even millions of chunks in a knowledge base. To implement Contextual Retrieval, we turn to Claude. We’ve written a prompt that instructs the model to provide concise, chunk-specific context that explains the chunk using the context of the overall document. We used the following Claude 3 Haiku prompt to generate context for each chunk:</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">&lt;text&gt;
+&lt;document&gt; {{WHOLE_DOCUMENT}} &lt;/document&gt; 这是我们希望放在整个文档中的片段 &lt;chunk&gt; {{CHUNK_CONTENT}} &lt;/chunk&gt; 为了改善该片段的搜索检索效果，请提供一段简短的上下文以说明其在整个文档中的位置。只需给出简短的上下文，不要添加其他内容。
+&lt;/text&gt;</p>
+<p class="source" lang="en">&lt;document&gt; {{WHOLE_DOCUMENT}} &lt;/document&gt; Here is the chunk we want to situate within the whole document &lt;chunk&gt; {{CHUNK_CONTENT}} &lt;/chunk&gt; Please give a short succinct context to situate this chunk within the overall document for the purposes of improving search retrieval of the chunk. Answer only with the succinct context and nothing else.</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">生成的上下文文本通常包含50-100个词，会被添加到数据块中，在嵌入之前以及创建BM25指数之前使用。</p>
+<p class="source" lang="en">The resulting contextual text, usually 50-100 tokens, is prepended to the chunk before embedding it and before creating the BM25 index.</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">以下是预处理流程在实际中的样子：</p>
+<p class="source" lang="en">Here’s what the preprocessing flow looks like in practice:</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F2496e7c6fedd7ffaa043895c23a4089638b0c21b-3840x2160.png&amp;w=3840&amp;q=75" alt="Contextual Retrieval is a preprocessing technique that improves retrieval accuracy." loading="lazy">
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">如果您对使用上下文检索感兴趣，可以开始使用我们的指南。</p>
+<p class="source" lang="en">If you’re interested in using Contextual Retrieval, you can get started with our cookbook.</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">使用提示缓存来降低上下文检索的成本</p>
+<p class="source" lang="en">Using Prompt Caching to reduce the costs of Contextual Retrieval</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">借助上述的特殊提示缓存功能，Claude在低成本下能够实现独特的上下文检索。通过提示缓存，您无需为每个片段都提供参考文档，只需将文档加载到缓存中一次，然后引用之前缓存的内容即可。假设每个片段包含800个token，文档大小为8k个token，上下文指令为50个token，每个片段的上下文为100个token，生成上下文化片段的一次性成本约为每百万文档令牌1.02美元。</p>
+<p class="source" lang="en">Contextual Retrieval is uniquely possible at low cost with Claude, thanks to the special prompt caching feature we mentioned above. With prompt caching, you don’t need to pass in the reference document for every chunk. You simply load the document into the cache once and then reference the previously cached content. Assuming 800 token chunks, 8k token documents, 50 token context instructions, and 100 tokens of context per chunk, the one-time cost to generate contextualized chunks is $1.02 per million document tokens.</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">我们在不同的知识领域（代码库、小说、ArXiv论文、科学论文）、嵌入模型、检索策略以及评估指标进行了实验。我们在附录 II 中提供了每个领域所使用的问题和答案的示例。</p>
+<p class="source" lang="en">We experimented across various knowledge domains (codebases, fiction, ArXiv papers, Science Papers), embedding models, retrieval strategies, and evaluation metrics. We’ve included a few examples of the questions and answers we used for each domain in Appendix II.</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">下面的图表展示了所有知识领域中的平均表现，以及表现最好的嵌入配置（Gemini Text 004）和提取的前20个片段的情况。我们采用1减去Recall@20作为评估指标，该指标衡量了在前20个片段中未能被检索到的相关文档的比例。您可以在附录中查看完整结果——我们评估的所有嵌入源组合中，上下文处理都能提升性能。</p>
+<p class="source" lang="en">The graphs below show the average performance across all knowledge domains with the top-performing embedding configuration (Gemini Text 004) and retrieving the top-20-chunks. We use 1 minus recall@20 as our evaluation metric, which measures the percentage of relevant documents that fail to be retrieved within the top 20 chunks. You can see the full results in the appendix - contextualizing improves performance in every embedding-source combination we evaluated.</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">我们的实验表明：</p>
+<p class="source" lang="en">Our experiments showed that:</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">上下文嵌入技术将前20个片段的检索失败率降低了35%（5.7% → 3.7%）。</p>
+<p class="source" lang="en">Contextual Embeddings reduced the top-20-chunk retrieval failure rate by 35% (5.7% → 3.7%).</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">将上下文嵌入和上下文 BM25 结合使用后，前 20 个片段的检索失败率降低了 49%（从 5.7% 降至 2.9%）。</p>
+<p class="source" lang="en">Combining Contextual Embeddings and Contextual BM25 reduced the top-20-chunk retrieval failure rate by 49% (5.7% → 2.9%).</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F7f8d739e491fe6b3ba0e6a9c74e4083d760b88c9-3840x2160.png&amp;w=3840&amp;q=75" alt="Combining Contextual Embedding and Contextual BM25 reduce the top-20-chunk retrieval failure rate by 49%." loading="lazy">
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">在实施上下文检索时，有一些注意事项需要牢记：</p>
+<p class="source" lang="en">When implementing Contextual Retrieval, there are a few considerations to keep in mind:</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">块边界：考虑你如何将文档分成块。块大小、块边界和块重叠的选择会影响检索性能1。</p>
+<p class="source" lang="en">Chunk boundaries: Consider how you split your documents into chunks. The choice of chunk size, chunk boundary, and chunk overlap can affect retrieval performance1.</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">嵌入模型：虽然上下文检索方法在所有我们测试的嵌入模型中都能提升性能，但某些模型可能比其他模型更能从中受益。我们发现 Gemini 和 Voyage 的嵌入效果特别显著。</p>
+<p class="source" lang="en">Embedding model: Whereas Contextual Retrieval improves performance across all embedding models we tested, some models may benefit more than others. We found Gemini and Voyage embeddings to be particularly effective.</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">自定义上下文提示词：虽然我们提供的通用提示词效果不错，但针对您特定的领域或用例定制提示词可能会取得更好的效果（例如，包含一份关键术语词汇表，这些术语可能仅在知识库的其他文档中有定义）。</p>
+<p class="source" lang="en">Custom contextualizer prompts: While the generic prompt we provided works well, you may be able to achieve even better results with prompts tailored to your specific domain or use case (for example, including a glossary of key terms that might only be defined in other documents in the knowledge base).</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">块数：在上下文窗口中添加更多块可以增加包含相关信息的机会。然而，过多的信息可能会分散模型的注意力，因此存在限制。我们尝试了使用5、10和20个块，发现使用20个块的性能最佳（比较结果见附录），但您可以在自己的应用场景中进行实验。</p>
+<p class="source" lang="en">Number of chunks: Adding more chunks into the context window increases the chances that you include the relevant information. However, more information can be distracting for models so there&#39;s a limit to this. We tried delivering 5, 10, and 20 chunks, and found using 20 to be the most performant of these options (see appendix for comparisons) but it’s worth experimenting on your use case.</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">始终进行评估：通过提供上下文化的数据并区分上下文与具体片段，可以改进响应生成效果。</p>
+<p class="source" lang="en">Always run evals: Response generation may be improved by passing it the contextualized chunk and distinguishing between what is context and what is the chunk.</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">通过重新排序进一步提升性能</p>
+<p class="source" lang="en">Further boosting performance with Reranking</p>
+</div>
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">最后一步，我们可以将上下文检索与另一种技术结合，以进一步提升性能。在传统的 RAG 中，人工智能系统会搜索其知识库以查找可能相关的信息片段。对于庞大的知识库来说，这种初始检索通常会返回大量——有时达数百个——具有不同相关性和重要性的信息片段。</p>
+<p class="source" lang="en">In a final step, we can combine Contextual Retrieval with another technique to give even more performance improvements. In traditional RAG, the AI system searches its knowledge base to find the potentially relevant information chunks. With large knowledge bases, this initial retrieval often returns a lot of chunks—sometimes hundreds—of varying relevance and importance.</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">重新排序是一种常用的过滤技术，用于确保只有最相关的部分被传递给模型。重新排序能够提供更好的响应，并减少成本和延迟，因为模型处理的信息量减少了。关键步骤包括：</p>
+<p class="source" lang="en">Reranking is a commonly used filtering technique to ensure that only the most relevant chunks are passed to the model. Reranking provides better responses and reduces cost and latency because the model is processing less information. The key steps are:</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">进行初始检索，以获取最相关的关键片段（我们使用了前 150 个）；</p>
+<p class="source" lang="en">Perform initial retrieval to get the top potentially relevant chunks (we used the top 150);</p>
+</div>
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">将前N个片段以及用户的查询通过重新排序模型进行处理；</p>
+<p class="source" lang="en">Pass the top-N chunks, along with the user&#39;s query, through the reranking model;</p>
+</div>
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">使用重排序模型，根据每个片段与提示的相关性及重要性给它们分配分数，然后选择前K个最佳片段（我们选择了前20个）；</p>
+<p class="source" lang="en">Using a reranking model, give each chunk a score based on its relevance and importance to the prompt, then select the top-K chunks (we used the top 20);</p>
+</div>
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">将前K个重要片段作为上下文传递给模型，以生成最终结果。</p>
+<p class="source" lang="en">Pass the top-K chunks into the model as context to generate the final result.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F8f82c6175a64442ceff4334b54fac2ab3436a1d1-3840x2160.png&amp;w=3840&amp;q=75" alt="Combine Contextual Retrieva and Reranking to maximize retrieval accuracy." loading="lazy">
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">性能提升</p>
+<p class="source" lang="en">Performance improvements</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">市场上有几种重新排序模型。我们使用了 Cohere 重新排序器进行测试。Voyage 也提供一种重新排序器，不过我们没有时间测试它。我们的实验表明，在多种领域中，增加重新排序步骤能进一步优化检索效果。</p>
+<p class="source" lang="en">There are several reranking models on the market. We ran our tests with the Cohere reranker. Voyage also offers a reranker, though we did not have time to test it. Our experiments showed that, across various domains, adding a reranking step further optimizes retrieval.</p>
+</div>
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">具体来说，我们发现重新排序的上下文嵌入和上下文 BM25 将前 20 个片段的检索失败率降低了 67%（从 5.7% 降至 1.9%）。</p>
+<p class="source" lang="en">Specifically, we found that Reranked Contextual Embedding and Contextual BM25 reduced the top-20-chunk retrieval failure rate by 67% (5.7% → 1.9%).</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F93a70cfbb7cca35bb8d86ea0a23bdeeb699e8e58-3840x2160.png&amp;w=3840&amp;q=75" alt="Reranked Contextual Embedding and Contextual BM25 reduces the top-20-chunk retrieval failure rate by 67%." loading="lazy">
+<div class="pair" id="p-64">
+<p class="target" lang="zh-CN">重新排序的一个重要考虑因素是其对延迟和成本的影响，尤其是在处理大量块时。由于重新排序在运行时增加了额外步骤，即使重新排序器能够并行评估所有块，也会不可避免地增加少量延迟。为了获得更好的性能而重新排序更多块，与为了降低延迟和成本而重新排序较少块之间存在固有的权衡。我们建议针对您的具体用例尝试不同的设置，以找到合适的平衡点。</p>
+<p class="source" lang="en">One important consideration with reranking is the impact on latency and cost, especially when reranking a large number of chunks. Because reranking adds an extra step at runtime, it inevitably adds a small amount of latency, even though the reranker scores all the chunks in parallel. There is an inherent trade-off between reranking more chunks for better performance vs. reranking fewer for lower latency and cost. We recommend experimenting with different settings on your specific use case to find the right balance.</p>
+</div>
+<div class="pair" id="p-65">
+<p class="target" lang="zh-CN">结论</p>
+<p class="source" lang="en">Conclusion</p>
+</div>
+<div class="pair" id="p-66">
+<p class="target" lang="zh-CN">我们进行了大量测试，比较了上述所有技术的不同组合（嵌入模型、使用 BM25、使用上下文检索、使用重新排序器以及获取的 top-K 结果总数），并且使用了多种不同的数据集类型。以下是我们的发现总结：</p>
+<p class="source" lang="en">We ran a large number of tests, comparing different combinations of all the techniques described above (embedding model, use of BM25, use of contextual retrieval, use of a reranker, and total # of top-K results retrieved), all across a variety of different dataset types. Here’s a summary of what we found:</p>
+</div>
+<div class="pair" id="p-67">
+<p class="target" lang="zh-CN">Embeddings+BM25比单独的 embeddings 更好；</p>
+<p class="source" lang="en">Embeddings+BM25 is better than embeddings on their own;</p>
+</div>
+<div class="pair" id="p-68">
+<p class="target" lang="zh-CN">Voyage 和 Gemini 是我们测试过的模型中具有最佳嵌入的；</p>
+<p class="source" lang="en">Voyage and Gemini have the best embeddings of the ones we tested;</p>
+</div>
+<div class="pair" id="p-69">
+<p class="target" lang="zh-CN">将前20个片段传递给模型比仅使用前10个或前5个片段更有效；</p>
+<p class="source" lang="en">Passing the top-20 chunks to the model is more effective than just the top-10 or top-5;</p>
+</div>
+<div class="pair" id="p-70">
+<p class="target" lang="zh-CN">向数据块添加上下文可以显著提高检索准确性；</p>
+<p class="source" lang="en">Adding context to chunks improves retrieval accuracy a lot;</p>
+</div>
+<div class="pair" id="p-71">
+<p class="target" lang="zh-CN">重新排序比不重新排序要好；</p>
+<p class="source" lang="en">Reranking is better than no reranking;</p>
+</div>
+<div class="pair" id="p-72">
+<p class="target" lang="zh-CN">所有这些优势相互叠加：为了最大化性能提升，我们可以将上下文嵌入（来自 Voyage 或 Gemini）与上下文 BM25 结合，再加上重新排序步骤，并将 20 个片段添加到提示中。</p>
+<p class="source" lang="en">All these benefits stack: to maximize performance improvements, we can combine contextual embeddings (from Voyage or Gemini) with contextual BM25, plus a reranking step, and adding the 20 chunks to the prompt.</p>
+</div>
+<div class="pair" id="p-73">
+<p class="target" lang="zh-CN">我们鼓励所有使用知识库的开发者使用我们的指南来尝试这些方法，从而提升性能水平。</p>
+<p class="source" lang="en">We encourage all developers working with knowledge bases to use our cookbook to experiment with these approaches to unlock new levels of performance.</p>
+</div>
+<div class="pair" id="p-74">
+<p class="target" lang="zh-CN">附录一</p>
+<p class="source" lang="en">Appendix I</p>
+</div>
+<div class="pair" id="p-75">
+<p class="target" lang="zh-CN">以下是不同数据集、嵌入提供商的结果分析，包括使用 BM25 与嵌入方法、上下文检索的使用情况，以及针对检索的重新排序使用情况在 20 个样本上的表现。</p>
+<p class="source" lang="en">Below is a breakdown of results across datasets, embedding providers, use of BM25 in addition to embeddings, use of contextual retrieval, and use of reranking for Retrievals @ 20.</p>
+</div>
+<div class="pair" id="p-76">
+<p class="target" lang="zh-CN">参见附录 II，其中包含了 10 和 5 时的检索结果详情，以及每个数据集的示例问题和答案。</p>
+<p class="source" lang="en">See Appendix II for the breakdowns for Retrievals @ 10 and @ 5 as well as example questions and answers for each dataset.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F646a894ec4e6120cade9951a362f685cd2ec89b2-2458x2983.png&amp;w=3840&amp;q=75" alt="1 minus recall @ 20 results across data sets and embedding providers." loading="lazy">
+<div class="pair" id="p-77">
+<p class="target" lang="zh-CN">作者与致谢</p>
+<p class="source" lang="en">Authors &amp; acknowledgements</p>
+</div>
+<div class="pair" id="p-78">
+<p class="target" lang="zh-CN">致谢</p>
+<p class="source" lang="en">Acknowledgements</p>
+</div>
+<div class="pair" id="p-79">
+<p class="target" lang="zh-CN">由丹尼尔·福特进行研究和写作。感谢Orowa Sikder、Gautam Mittal和Kenneth Lien提供的关键反馈，感谢Samuel Flamini实施烹饪食谱，感谢Lauren Polansky负责项目协调，以及Alex Albert、Susan Payne、Stuart Ritchie和Brad Abrams对这篇博客文章的贡献。</p>
+<p class="source" lang="en">Research and writing by Daniel Ford. Thanks to Orowa Sikder, Gautam Mittal, and Kenneth Lien for critical feedback, Samuel Flamini for implementing the cookbooks, Lauren Polansky for project coordination and Alex Albert, Susan Payne, Stuart Ritchie, and Brad Abrams for shaping this blog post.</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://www.anthropic.com/research/contextual-retrieval" target="_blank" rel="noopener noreferrer">https://www.anthropic.com/research/contextual-retrieval</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/building-effective-agents.html">← Building effective agents</a><span></span></nav>
+  <footer class="footer">本站为公开 AI 工程博客的非官方中英对照归档。中文译文仅作辅助阅读，请以英文原文为准；文章内容版权归原作者所有。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

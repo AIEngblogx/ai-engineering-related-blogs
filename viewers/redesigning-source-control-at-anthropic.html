@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Redesigning source control at Anthropic · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Redesigning source control at Anthropic</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">01</span>The components of agent memory</a>
+<a class="nav-item current" href="../viewers/redesigning-source-control-at-anthropic.html" aria-current="page"><span class="num">02</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">11</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">12</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">19</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">21</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">24</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">25</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">26</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">27</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">28</span>Introducing Contextual Retrieval</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">01</span>The components of agent memory</a>
+<a class="nav-item current" href="../viewers/redesigning-source-control-at-anthropic.html" aria-current="page"><span class="num">02</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">11</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">12</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">19</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">21</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">24</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">25</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">26</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">27</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">28</span>Introducing Contextual Retrieval</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Redesigning source control at Anthropic</h1>
+  <p class="subline">原文：<a href="https://www.anthropic.com/research/redesigning-source-control" target="_blank" rel="noopener noreferrer">https://www.anthropic.com/research/redesigning-source-control</a> · 2026-10-13 · Anthropic Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F797991dbd54214ea4bc68bfeba853ccd134f49ca-2000x1125.jpg&amp;w=1920&amp;q=75" alt="Redesigning source control at Anthropic" loading="lazy">
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">10月15日更新，增加了关于那些开创了我们在Scion中使用的许多技术的项目的更多细节。</p>
+<p class="source" lang="en">Updated October 15 to include more detail on the projects that pioneered many of the techniques we use in Scion.</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">&lt;text&gt;
+特点 2026年2月23日Claude 的诞生
+&lt;/text&gt;</p>
+<p class="source" lang="en">FeaturesFeb 23, 2026The making of Claude Code</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">特性</p>
+<p class="source" lang="en">Features</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">2026年2月23日</p>
+<p class="source" lang="en">Feb 23, 2026</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">在 Anthropic，编码不再是构建系统或开展研究的瓶颈。Claude能够自主地反复测试研究方案，对复杂程序进行微优化，并以我们前所未有的速度和规模构建新服务。现在，瓶颈在于为人类规模开发而建立的所有开发基础设施：源代码控制、构建和持续集成。</p>
+<p class="source" lang="en">At Anthropic, coding is no longer the bottleneck to building systems or doing research. Claude is able to autonomously iterate on research loops, micro-optimize complex programs, and build new services from the ground up at a speed and scale we haven’t seen before. The bottleneck, now, is all of the developer infrastructure built for human scale: source control, builds, and CI.</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">2026年5月，Anthropic每天平均合并约2,500次代码修改；到了9月，我们每天合并超过30,000次。我们预计这种增长速度不会很快放缓；合并代码的潜在需求几乎是无限的，我们消除每一个瓶颈都会立即导致代码量的进一步增加。</p>
+<p class="source" lang="en">In May 2026, Anthropic averaged around 2,500 code changes merged per day; as of September, we merged over 30,000 per day. We don’t expect this rate of growth to slow down anytime soon; the latent demand for merging code is practically infinite, and every bottleneck we remove immediately leads to a further increase in the amount of code we produce.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F1e2a750dba61db4a76b72eec5b0cf50b8a7f878c-3840x2160.png&amp;w=3840&amp;q=75" alt="Changes merged to our monorepo per day, from January to September 2026." loading="lazy">
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">为了支持这一发展，我们构建了内部版本控制系统 Scion，并在五个月内完全将我们的单仓库从 git 迁移过来。此外，我们在同一时期还构建了并发布了代码审查工具（称为 Antique）、代码搜索功能、功能丰富的源代码控制 IAM 系统，以及管理和处理大量已审查代码的创新方法等。在本文中，我们将重点介绍如何构建 Scion 的具体过程。这是一个有趣的案例研究：Claude 编写代码的能力不仅让我们处于这种境地，也让我们能够迅速构建出高质量、可扩展的系统来应对这一挑战。</p>
+<p class="source" lang="en">In order to support this growth, we built Scion, an in-house version control system, and fully migrated our monorepo from git in five months. We also built and shipped a code review surface (called Antique), code search, a rich source control IAM system, novel ways of managing and landing large amounts of reviewed code, and more, all in that same time period. In this post, we’ll focus on how we built Scion specifically. It makes for an interesting case study: Claude’s ability to write code was both what put us in this situation in the first place and how we were able to quickly build a high-quality, scalable system to deal with it.</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">扩展我们的单仓库</p>
+<p class="source" lang="en">Growing our monorepo</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">在探讨我们构建的内容之前，我们应该认识到我们的工作量有多么不寻常。不出所料，Anthropic 使用 Claude 来编写软件的频率远高于其他任何公司，因此我们通常最先发现为人类规模设计的工具开始出现问题的地方。版本控制就是其中一个例子。虽然我们预计短期内没有太多组织会遇到这些问题，但我们认为不久之后，使用 AI 编码工具的其他机构也会面临同样的挑战，这就是为什么我们想分享我们的成果和经验教训。</p>
+<p class="source" lang="en">Before we explore what we built, we should acknowledge how unusual our workload is. Unsurprisingly, Anthropic uses Claude to write software far more than almost any other company, so we’re often the first to see where tools built for human scale start to strain. Source control is just one example of this. While we don’t expect many organizations to have these problems in the very near term, we suspect it won’t be too long before others who use AI coding tools experience these same pressure points, which is why we wanted to share what we built and what we learned.</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">Git是一种去中心化系统：每个克隆副本都是一个完整的、自包含的存储库，可以计算差异、查看历史记录和责任归属，并且可以在完全离线状态下查看任何版本。对于绝大多数存储库来说，这种设计是正确的，这也是git成为标准的原因之一。</p>
+<p class="source" lang="en">Git is a decentralized system: every clone is a complete, self-contained repository that can compute diffs, read history and blame, and check out any revision while fully offline. For the vast majority of repositories, this is the right design, and it’s a large part of why git became the standard.</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">随着我们的单仓库规模不断扩大，它越来越无法适应那种设计架构。仅我们的主分支的历史数据就接近 100 GB，而压缩后的工作副本则超过 25 GB。除了开发者环境、代理沙箱和研究任务之外，我们每天进行约 2500 万次代码检出操作用于持续集成。如果简单地计算，那么每天产生的 git 流量将超过 600 PB。</p>
+<p class="source" lang="en">As our monorepo grows, it increasingly doesn’t fit that design space. The history of our main branch alone is almost 100 GB, and a compressed working copy is over 25 GB. We perform on the order of 25 million code checkouts per day for CI, before counting developer environments, agent sandboxes, and research jobs. Fetched naively, that would be over 600 PB of git traffic per day.</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">Git提供了用于处理仓库片段的工具，如浅层克隆、稀疏检查出和提示器远程仓库。除此之外，对于大型单仓库项目，还有标准的解决方案，比如内部 Git 镜像和保存在 blob 存储中的仓库快照（种子）。我们使用了所有这些方法——在巅峰时期，我们运行了数百个内部 Git 镜像来应对负载。这为我们赢得了时间，但随着合并频率的增加，这些镜像变得难以操作。在刷新过程中，种子与 main 分支的差距越来越大，而且需要更多的注意才能确保依赖历史信息的操作，如 diff 和 blame，在部分克隆中能够正常运行。</p>
+<p class="source" lang="en">Git offers tools for working with a slice of a repository, such as shallow clones, sparse checkouts, and promisor remotes. Beyond these, there are standard workarounds for large monorepos, like internal git mirrors and repository snapshots (seeds) kept in blob storage. We’ve used all of them—at our peak, we operated several hundred internal git mirrors to deal with the load. This bought us time, but they became harder to operate as our merge rate increased. Seeds fell further from the tip of main between refreshes, and it took more and more care to keep operations that depend on history, like diff and blame, working on partial clones.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Fff019752973f6d83d2f6ba3bf56636aced3ea82c-3840x1238.png&amp;w=3840&amp;q=75" alt="The typical setup for scaling git checkouts." loading="lazy">
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">退一步来看，我们发现像大多数公司一样，我们使用 git 作为集中式系统，拥有唯一的权威副本。但我们的几乎所有客户都是始终在线的代理和任务。使 git 适合分布式、离线工作的特性，实际上正在削弱我们随着仓库规模扩大而扩展的能力。于是我们问自己：如果从一开始就考虑到代理总是在线的情况来设计源代码控制，它会是什么样子？</p>
+<p class="source" lang="en">Taking a step back, we noticed that, like most companies, we were using git as a centralized system with one authoritative copy, but nearly all of our clients were agents and jobs that are online by definition. The properties that make git excellent for distributed, offline work were actively undermining our ability to scale as the repo grew. So we asked ourselves: if we designed source control with the fact that agents are always online in mind from the start, what would it look like?</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">代理规模源控制原则</p>
+<p class="source" lang="en">Principles for agent-scale source control</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">在代理式编码模式下，关于软件开发方式的许多常见假设正在发生变化。在构建 Scion 时，我们接受了这些变化，这使我们能够在几个核心原则上采取与 git 不同的方法。对于大型单仓库的源代码控制，已有相关技术，比如 Google 的 Piper 和 Meta 的 Sapling，因此我们能够结合这些经过实践验证的经验来构建 Scion。我们的原则如下：</p>
+<p class="source" lang="en">With agentic coding, many common assumptions about how software is developed are evolving. We embraced these changes when building Scion, which allowed us to take a fundamentally different approach than git on several core principles. Source control for huge monorepos has prior art, notably Google’s Piper and Meta’s Sapling,2 so we were able to build Scion with their hard-won lessons in mind. Our principles are:</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">客户始终在线。Git假设客户处于离线状态，需要仓库的完整副本。由于我们的几乎所有客户都是代理和任务，我们设计了Scion的客户端和协议，使其依赖一个始终可访问的服务器，并在需要时让客户端获取数据。</p>
+<p class="source" lang="en">Clients are always online. Git assumes that clients work offline and need a complete copy of the repository. Since nearly all of our clients are agents and jobs, we designed Scion’s client and protocols around a server that is always reachable, and have clients fetch data when they need it.</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">客户端-服务器不对称。在 Git 中，每个客户端都可以成为完整的服务器。在 Scion 中，服务器负责回答关于文件历史和责任归属的问题，创建提交，执行合并和变基等操作。客户端则维护一个有限的本地对象缓存，将工作副本文件存储在磁盘上，监控文件系统变化，并为用户提供与服务器交互的便捷方式。客户端自身几乎不进行计算，但作为交换，它在本地所需的数据量要少得多。</p>
+<p class="source" lang="en">Client-server asymmetry. In git, every client is capable of being a full-fledged server. In Scion, the server answers questions about file history and blame, creates commits, performs merges and rebases, and so on. The client maintains a bounded local object cache, lays out the working copy files on disk, monitors for filesystem changes, and gives users an ergonomic way to work with the server. It can compute very little on its own but, in exchange, it requires much less data locally.</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">全面的源代码控制服务可以为许多创新应用提供支持。使用 git 或 CI 作业工具时，如果需要对仓库进行查询，比如谁最后修改了哪一行代码或两次提交之间的关系，就必须维护本地副本，或者依赖供应商提供的特定 API 来提供答案。而使用 Scion 的话，客户使用的所有源代码控制查询也通过 API 暴露出来，因此在许多情况下根本不需要本地仓库。如果没有这种廉价且可编程的源代码控制访问方式，许多内部工具，比如自动化的 bisect 和 revert 流程，在大规模应用中就难以实现。</p>
+<p class="source" lang="en">A comprehensive source control service can power many novel applications. With git, a CI job or tool that needs to ask a question about the repository, such as who last changed a line or how two commits are related, has to maintain a local copy of the repo or hope that vendor-specific APIs provide the answer. With Scion, all of the source control queries the client uses are also exposed via API, so in many cases jobs don’t need a local repository at all. Many internal tools, such as our automated bisect and revert pipelines, wouldn’t be practical at scale without this cheap, programmatic access to source control.</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">所有内容都必须是水平可扩展的。在鼎盛时期，我们运行了数百个 git 镜像，这大大增加了资源负担，当仓库超出了镜像的磁盘或内存限制时，就无法再扩展了。在 Scion 中，仓库数据是分散分布的，每个组件都是独立可扩展的；甚至在服务器上也没有完整的仓库副本。没有类似 packfiles（git 中对象压缩包）的东西，因此不需要进行仓库维护。</p>
+<p class="source" lang="en">Everything must be horizontally scalable. At our peak, we ran several hundred git mirrors, which significantly strained capacity and no longer scaled once the repo outgrew the mirrors’ disks or memory limits. In Scion, the repository’s data is distributed, and every component is independently scalable; there is no fully materialized copy of the repo anywhere, even on the server. There is no equivalent of packfiles (git’s compressed bundles of objects), so no repository maintenance is needed.</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">提交必须是高效、逐步进行且无需锁定的。在 git 中，你先在本地提交，然后推送到共享工作区。在 Scion 中，所有的提交、重新整理或合并都发生在服务器上，因此没有需要推送到外部的内容，但每种操作都需要快速完成。创建提交并更新下游数据结构的成本必须与变更的大小成正比，而不是整个仓库的大小，否则服务器就无法跟上。Scion 的开发生命周期不鼓励使用引用（如分支和标签等对提交的引用），除了主引用或发布分支，因为所有服务器都必须同意的全局状态会带来巨大的扩展问题。</p>
+<p class="source" lang="en">Commits must be cheap, incremental, and lock-free. In git, you commit locally and then push to share your work. In Scion, every commit, rebase, or merge happens on the server, so there’s nothing to push, but each of those operations needs to be fast. The cost of creating a commit and updating its downstream data structures has to scale with the size of the change, not the overall size of the repo, or the server can’t keep up. The development lifecycle in Scion discourages refs (pointers to commits, such as branches and tags), except for the main ref or release branches, because global state that every server has to agree on is a looming scaling problem.</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">工作副本是可选的，并且按设计是稀疏的。由于我们的单仓库非常庞大，而且我们每天为了持续集成测试需要多次检出数千万行代码，因此我们尽可能避免检出操作。例如，Scion可以让持续集成任务直接请求服务器提供提交与其合并基之间的差异文件。对于写入操作也是如此：许多写入工作负载也可以跳过检出，完全通过API实现。Scion的协议以稀疏检出为核心，只包含客户端请求的目录；还有虚拟化检出，文件按需生成，因此当任务确实需要磁盘上的文件时，客户端只支付实际读取的内容。</p>
+<p class="source" lang="en">The working copy is optional, and sparse by design. Because our monorepo is so large, and because we check out code tens of millions of times a day for CI, we wanted to avoid checkouts whenever we could. With Scion, a CI job that needs the diff between a commit and its merge base, for example, can ask the server for it. The same goes for writes: many write workloads can also skip the checkout and function entirely via API. Scion’s protocol is centered around sparse checkouts, which only contain the directories the client asks for, and virtualized checkouts, which materialize files on demand, so when a job does need files on disk, the client only pays for what it actually reads.</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">Scion 如何运作</p>
+<p class="source" lang="en">How Scion works</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">在构建 Scion 时，了解这些原则如何在实践中融合起来非常有帮助。这些见解可以应用于其他源代码控制系统，或者更广泛地说，适用于软件开发生命周期的其他阶段。</p>
+<p class="source" lang="en">It’s helpful to understand how these principles came together in practice when building Scion. These insights can apply to other source control systems or, more broadly, to other stages of the software development lifecycle.</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">在 Scion 中，工作单元是“changeset”，即写前日志中的一条记录。changeset 包含了与 git 中的提交相似的大部分内容。不过，git 提交存储的是指向树的指针，而 changeset 则存储了相对于其第一个父文件所变化的文件列表，以及指向 blob 存储中压缩文件内容的内容地址指针。changeset 由服务器创建，并且可以立即在任意地方访问。</p>
+<p class="source" lang="en">In Scion, the unit of work is a “changeset,” an entry in a write-ahead log. A changeset stores most of what you’d expect from a commit in git. But where a git commit stores a pointer to the tree, a changeset stores a list of the files that changed relative to its first parent,1 along with content-addressed pointers to the compressed file contents in blob storage. Changesets are created server-side and are available everywhere, instantly.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F71c83868210b4b571abb068ea4cd76de749566b1-3840x2995.png&amp;w=3840&amp;q=75" alt="The shape of a changeset in Scion." loading="lazy">
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">这种结构使我们能够以非常高的吞吐量处理变更集，因为不需要处理打包文件，没有锁定或跨服务器协调，也没有需要移动的引用。Scion在技术上确实支持引用，但由于创建和获取提交都不涉及引用，移动引用就相当于在单个 Spanner 行上进行比较和交换操作，这种操作与创建变更集是分开进行的。</p>
+<p class="source" lang="en">This structure lets us accept changesets with very high throughput because there are no packfiles to accept, no locking or cross-server coordination, and no refs to move around. Scion does technically support refs, but since neither creating nor fetching commits involves them, moving one is a compare-and-swap on a single Spanner row that happens separately from creating changesets.</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">更改集仅记录所发生的变化，因此单独来看，它无法快速回答诸如谁最后编辑了某行代码或哪些提交影响了某个文件等问题。为了回答这些问题，Scion 会从更改集中构建额外的数据结构，包括用于追踪文件责任人和路径历史的专门结构，以及用于提交图的可跳过列表。我们将直接不属于更改集的所有内容称为“派生数据”，并通过一种通用机制来计算所有派生数据。每种类型的派生数据都是递归定义的，因此其在更改集中的值是由其父更改集中的值计算得出的。</p>
+<p class="source" lang="en">A changeset records only what’s changed, so on its own, it can’t quickly answer questions like who last edited a line or which commits affected a file. To answer those, Scion builds additional data structures from the changesets, including dedicated structures for file blame and path history and skip lists for the commit graph. We call everything that isn’t directly part of the changeset “derived data,” and we compute it all through one generic mechanism. Each type of derived data is defined recursively, so its value for a changeset is computed from its values for that changeset’s parents.</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">这种机制有三个优点。首先，当新的数据结构能提升某些操作效率时，我们可以轻松添加新的派生数据类型。其次，对于每种类型，我们可以选择立即计算还是推迟计算，从而避免生成不必要的数据。第三，由于客户端无法看到这些数据结构的内部实现，我们可以对其进行优化而无需更改客户端代码。随着系统的不断发展，我们多次添加了新的派生数据类型，例如用于执行复制检测或基于路径的文件搜索的新索引。</p>
+<p class="source" lang="en">This mechanism has three benefits. First, we can easily add a new type of derived data when a new data structure would make some operation faster. Second, for each type, we can choose whether to compute it eagerly or defer the work, so we avoid materializing data we don’t need. And third, because the client never sees the internals of these data structures, we can optimize them without changing the client. We’ve added new types of derived data many times as the system has grown, such as new indices for performing copy detection or path-based file search.</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">一小群 Scion 服务器提供了源控制 API，满足客户端所需的各种操作，如获取变更集、计算差异、查找合并基础以及获取 Blob 数据。所有源控制数据都是内容寻址的，因此一旦存储，数据就不会改变，任何服务器都可以缓存这些数据而无需与其他服务器进行核对。因此，这些服务器具有水平扩展能力，且需要很少的协调。它们本质上就是大型缓存，还能即时计算派生数据并将结果写回 Spanner。</p>
+<p class="source" lang="en">A small fleet of Scion servers provides source control APIs for any operation a client needs, such as getting changesets, computing diffs, finding merge bases, and fetching blobs. All source control data is content-addressed, so a piece of data never changes once it’s stored, and any server can cache it without checking with the others. As a result, the servers are horizontally scalable and require little coordination. They are essentially large caches that can also compute derived data on the fly and write the results back to Spanner.</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">Scion的许多用户不再需要维护自己的本地仓库。过去，获取和维护仓库对于需要处理源代码控制问题的CI作业或工具来说是一个巨大的维护负担，尤其是关于提交历史和责任归属的问题。在迁移初期，在我们拥有自己的客户端、仓库格式或协议之前，Scion仅能处理这些“元数据”查询。获取文件内容 và 生成工作副本则属于更耗费数据的操作，因此需要独立的设计方案。</p>
+<p class="source" lang="en">Scion’s many consumers no longer need to maintain local repositories of their own. Fetching and maintaining the repository used to be a significant maintenance burden for CI jobs or tools that needed to ask source control questions, particularly about commit ancestry and blame. Early in the migration, before we had our own client, repo format, or protocols, Scion only answered these “metadata” queries. Fetching file contents and materializing working copies are far more data-intensive operations, and they needed a design of their own.</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">Scion的客户端在几个重要方面与git的获取协议不同，因此能够采用高度可扩展的架构，所需的CPU资源比git服务器少得多。Scion的协商机制不会告诉服务器客户端已经拥有的内容，而是仅针对客户端需要的树和块文件进行操作。从根树开始，客户端会检查本地存储中缺失的树并递归请求它们，然后对块文件也重复此过程。每个请求都是针对一个不会变化的特定对象，因此任何缓存都可以响应，这种架构与传统的分层缓存非常相似。该过程也高效且可恢复，因为不会有一个巨大的多GB数据包需要响应。稀疏甚至虚拟化的下载方式不需要特殊支持，因为客户端不会请求自己不需要的树。</p>
+<p class="source" lang="en">Scion’s scn client deviates from git’s fetch protocols in several important ways and, as a result, lends itself to a highly scalable architecture that requires significantly less CPU than git servers. Scion’s negotiation doesn’t tell the server what the client already has; instead, it operates exclusively on trees and blobs the client wants. Starting from a root tree, the client checks its local store for missing trees and requests them recursively, then repeats the process for blobs. Every request is for a specific object that never changes, so any cache can answer it, and the architecture closely resembles traditional tiered caches. The process is also efficient and resumable, because there is no single multi-gigabyte packfile response. Sparse and even virtualized checkouts don’t need special support, because the client simply doesn’t ask for trees it doesn’t want.</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">在集群中，客户端通过套接字与守护进程 scion-daemon 进行通信，该守护进程负责存储整个节点的对象。我们的大多数节点都需要访问单仓库，同一节点上的任务也会使用许多相同的对象。每个守护进程都从定期更新的快照开始工作，然后仅与其所在区域的树和 blob 缓存服务器——即 scion-cache 进行通信。这些缓存服务器直接从内存中流式传输对象，以守护进程可以消耗的磁盘格式，因此不需要花费时间计算客户端缺失的对象或执行增量压缩。当缓存中缺少某个对象时，它会向权威的 scion-servers 请求，这些服务器会根据需要从 Spanner 或云存储中读取数据。</p>
+<p class="source" lang="en">In the fleet, the client talks over a socket to a daemon, scion-daemon, that stores objects for the whole node. Most of our nodes need access to the monorepo, and jobs on the same node reuse most of the same objects. Each daemon starts from a periodically refreshed snapshot, then talks only to the tree and blob cache servers in its region, called scion-cache. These cache servers stream objects directly from memory, in the disk format that the daemon will consume, so they don’t need to spend time computing the client’s missing objects or performing delta compression. When a cache is missing an object, it asks the authoritative scion-servers, which read from Spanner or cloud storage as needed.</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">该 scion-daemon、scion-cache 和 scion-server 都针对此协议发出相同的 RPC 请求，因此客户端无需了解缓存拓扑结构。理论上，任何层级都可以与任何其他层级进行通信，但我们严格实施层级划分，以隔离故障范围。我们希望避免出现区域性的 scion-cache 故障导致上游 scion-server 崩溃并导致整个系统崩溃的情况。</p>
+<p class="source" lang="en">The scion-daemon, scion-cache, and scion-server all respond to identical RPCs for this protocol, so the client doesn’t need to know the cache topology. Any tier could theoretically talk to any other, but we strictly enforce the tiering to isolate failure domains. We want to avoid a situation where a failure in a regional scion-cache overwhelms the upstream scion-servers and brings down the entire system.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Fcba1eaaa67385fd00f210badaacd147de480120b-3840x1718.png&amp;w=3840&amp;q=75" alt="Scion’s checkout architecture." loading="lazy">
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">该系统的每个层级都保持了超过99%的缓存命中率，且不需要长期存在的状态，因此如果需要扩展，操作起来非常容易。我们的 Scion 基础设施在 CPU 和内存需求方面现在比之前的 git 镜像基础设施小了200倍。CI和研究任务能够以快两个数量级的速度（以秒而非分钟为单位）查看代码，从而释放了大量资源；仅 CI 就实现了25%的 CPU资源提升。无论是客户端还是缓存都不需要进行仓库维护工作，这简化了任务的生命周期管理。</p>
+<p class="source" lang="en">Each tier of this system maintains a cache hit rate of over 99% and does not require long-lived state, so it’s easy to scale up if needed. Our Scion infrastructure footprint is now 200x smaller than our previous git mirroring infrastructure in terms of CPU and memory requirements. CI and research jobs check out code two orders of magnitude faster (in seconds rather than minutes), which frees up a sizable amount of capacity across the fleet; CI alone realized a 25% CPU capacity win. Neither clients nor caches need to perform repository maintenance, which simplifies the lifecycle management of our jobs.</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">我们从构建 Scion 中获得了什么经验</p>
+<p class="source" lang="en">What we learned building Scion</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">我们在 Claude Mythos Preview 和 Claude Tag 内部发布的同时开始开发 Scion。这两个版本同时提升了对 Scion的需求，并显著加快了我们的开发速度。</p>
+<p class="source" lang="en">We started building Scion around the same time as Claude Mythos Preview and Claude Tag became available internally. Both of these releases simultaneously amplified the need for Scion and meaningfully accelerated how quickly we could build it.</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">这里有一个特别引人注目的例子。年初时，我们主要用手写的方式编写了 git-to-Scion 数据导入管道的第一个版本作为原型。我们认为这很好——直到我们看到了 Claude Mythos Preview 的早期内部版本。我们让它重新编写整个系统，而无需额外指示，它生成了一个版本，该版本使用的内存减少了20倍，运行速度提高了4倍，同时保留了与数据导入顺序和数据结构相关的所有隐含规则。</p>
+<p class="source" lang="en">Here’s a particularly striking example. Earlier in the year, we had largely handwritten the first version of the git-to-Scion ingestion pipeline as a prototype. We thought it was good—until we got our hands on an early internal snapshot of Claude Mythos Preview. We asked it to rewrite the whole thing, and with no further instructions, it produced a version that consumed 20x less memory and was 4x faster, while preserving all of the implicit invariants around ingestion ordering and data structures.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Fdd91296719203f38229824bb9bc9e9a61c76ed67-3840x2160.png&amp;w=3840&amp;q=75" alt="Merged changes to the Scion and Antique codebases per week, from January to September 2026." loading="lazy">
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">我们在研究 Scion 的构建和运行过程中得到的经验，为构建代理级软件的样子提供了一些有趣的启示。</p>
+<p class="source" lang="en">What we learned building and operating Scion offers some interesting lessons for what building agent-scale software could look like.</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">小型团队能够快速开发变得越来越常见。一个由七人组成的团队开发了 Scion 和 Antique（我们的代码审查工具，关于这个工具我们甚至可以写一篇完整的博客文章），此外还有六七个相关系统，他们在五个月内全部迁移完成。我们完成这一切时，每天合并的代码量增加了10倍。过去，开发并部署这样的源代码控制系统需要公司多年的迭代迁移过程，还需要更多的工程师参与。我们认为，这种快速、灵活的迁移方式将在未来变得更加常见。</p>
+<p class="source" lang="en">Rapid development with a small team will become more common. A team of seven people built both Scion and Antique (our code review tool, which we could easily write a whole other blog post about), not to mention half a dozen related systems, and fully migrated to them in five months. We did all this while the volume of code merged per day increased by 10x. In the past, developing and deploying a source control system like this would have taken a company years of iterative migration, with many more engineers. We think this sort of fast, nimble migration will become more common in the future.</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">工程师的价值并不降低，但他们的工作方式正在发生变化。所有参与这个系统的工程师现在都会认为 Claude 在编写代码方面比他们更擅长。不过，我们的工程师仍然提供了对高级系统组件和设计层面权衡的宝贵理解，从而能够针对我们想要解决的问题以及所需的规模做出明智的选择。通常，工程师的角色是告诉 Claude “不”。有时，代理会违反核心系统约束以满足某种本不应被允许的模式。这在我们的迁移过程中尤为常见。例如，有多个系统试图通过线性读取提交日志而不是使用我们的代码审查工具来合并更改到主系统时进行暴力查找。Anthropic 也大量使用对抗性审查，虽然这在许多方面非常有效，但也可能过于短视，因此熟练的工程师需要引导 Claude 避免对系统的某些部分进行过度设计。例如，一次这样的审查对另一个内部服务过于保守，导致 Claude 增加了过多的验证和复杂性。我们的团队成员仍然会审查系统的每个变更请求，但他们现在会检查变更的目的，而不是逐行阅读代码。</p>
+<p class="source" lang="en">Engineers are no less valuable, but their work is changing. All of the engineers who worked on this system would now rate Claude as better at writing code than them. But our engineers still supplied the invaluable understanding of the high-level inter-system components and the design-level tradeoffs, making informed choices around the problems we wanted to solve and the scale we knew we needed to achieve. Very often, we found that the role of the engineers was to tell Claude “no.” Agents will sometimes violate core system constraints to satisfy a pattern that should never have been allowed in the first place. This was particularly common in our migration. For example, there were multiple systems that tried to brute force looking up when a change merged to main by linearly reading the commit log instead of asking our code review tool. Anthropic also makes extensive use of adversarial review, and, while this is incredibly effective in many ways, it can also be myopic, so skilled engineers needed to steer Claude away from over-engineering parts of the system in response to hypothetical concerns. For example, one such review was overly defensive about trusting another internal service, which resulted in Claude adding excessive validation and complexity. Our team members still review every change request for the system, but they now examine the intent of the change as opposed to reading every line of code.</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">我们能够显著提升优化效果和代码质量。由于 Claude 能够比我们自己更快地编写大量代码，Scion 成为我们曾经处理过的最经过充分测试且防御最完善的代码库之一。即使在时间紧迫的情况下，我们也能构建出所有非平凡基础设施和源代码控制交互的密封模拟，以及漏洞测试和复杂的速率限制机制。Claude 还偶尔能发现重要的优化点——例如，对 ancestry 查询的算法优化就忽略了我们的一个索引，这种优化原本需要专家花费数天或数周的分析和调整时间，而 Claude 却能在第二天就完成这一切。</p>
+<p class="source" lang="en">We were able to substantially improve optimization and quality. By virtue of Claude’s ability to write immense amounts of code much faster than we could ourselves, Scion is among the most well-tested and well-defended codebases we have ever worked on. Even on our tight timeline, we were able to build hermetic simulations of every non-trivial infrastructure and source control interaction we’ve ever encountered, as well as fuzzing and sophisticated rate limiting. Claude also casually found significant optimizations—for example, an algorithmic optimization to ancestry queries that missed one of our indexes—that would have taken an expert days or weeks of analysis and tuning… and then did it all again the next day.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Fc706fa6efb4b9e5cd2566cb080acbfce7218042d-3840x4684.png&amp;w=3840&amp;q=75" alt="Observed performance improvements on native Scion repos." loading="lazy">
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">我们为新的单仓库安全形式奠定了基础。在庞大的单仓库中管理安全性、安全性与合规性，与管理其规模和规模同样重要。我们从一开始就以这些目标为出发点构建了 Scion。它支持丰富的仓库访问控制功能，还能对单个目录应用权限设置，从而保护最敏感的代码，同时不失去单仓库的优势。此外，我们构建的代码审查工具能够表达复杂的审批语义约束，使人类审查员能够区分简单的注释更改和敏感的逻辑更改，从而专注于最重要的更改。</p>
+<p class="source" lang="en">We laid the groundwork for new forms of monorepo security. Managing safety, security, and compliance in a massive monorepo is as important as managing the size and scale. We built Scion with these in mind from the start. It supports rich access control on repositories, as well as the ability to apply permissions to individual directories in order to protect the most sensitive code without losing the benefits of a monorepo. Furthermore, the code review tooling we built can express complex semantic constraints on approvals, which lets us differentiate simple things like comment-only changes from sensitive logical changes, so that human reviewers can focus on the most consequential changes.</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">新的运营卓越水平成为可能。我们的团队大量使用 Claude Tag，这帮助我们监控系统的每个组件。例如，我们创建了 Slack 频道，让 Claude 专注于某个单一组件的健康状况。我们把这些 Claude 称为“超级粉丝”。我们有 scion-daemon 超级粉丝、scion-cache 超级粉丝、Antique merge queue 超级粉丝等等。它们可以访问我们的遥测数据和日志，就像经验丰富的工程师一样，除了刷新图表和寻找异常情况外，没有别的事情可做。我们还有所有系统的传统警报，但超级粉丝能够检测到微妙且新颖的问题，使得这些警报相比之下显得单一无趣。</p>
+<p class="source" lang="en">A new level of operational excellence is possible. Our team uses Claude Tag heavily, which has helped us monitor each component of the system. For example, we created Slack channels where we tasked Claude with being obsessively focused on the health of a single component. We call these Claudes “superfans.” We have a scion-daemon superfan, a scion-cache superfan, an Antique merge queue superfan, and so on. They have access to our telemetry and logs, and act like an experienced engineer who has nothing better to do than to refresh charts and look for anything strange. We also have traditional alerts for all of our systems, but our superfans can detect subtle and novel issues that make these alerts seem one-dimensional by comparison.</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">我们正在彻底重新思考我们的先验假设。这个项目促使我们认真审视那些适用于人类规模的工作流程。例如，一个合适的合并队列在智能体规模下就没有太大意义。当数百甚至数千次更改在测试进行中就能合并时，CI到底意味着什么？我们无法有效复制行业标准的全局仓库锁定机制在合并队列上，因此我们选择了在合并后和部署前进行自动测试。这确实意味着并发更改可能会冲突，但Claude通常能比人类更快解决这些冲突。</p>
+<p class="source" lang="en">We’re completely rethinking our priors. This project prompted us to take a very hard look at other workflows designed for human scale. A proper merge queue, for example, doesn’t make much sense at agent scale. What does CI even mean when hundreds or even thousands of changes can merge while tests are running? We haven’t been able to effectively replicate the industry standard of a global repository lock on the merge queue, so instead, we’ve invested in post-merge and pre-deploy automated testing. This does mean that concurrent changes can conflict, but Claude can typically fix these conflicts faster than humans can even identify them.</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">为更广泛的生态系统做出贡献</p>
+<p class="source" lang="en">Contributing to the wider ecosystem</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">我们认为 Scion 只是解决日益强大的 AI 代理所引发的扩展问题的一部分。我们分享这些细节，是为了展示团队如何应对类似挑战的方法，不过我们不认为我们的解决方案或考虑方式能适用于所有情况。</p>
+<p class="source" lang="en">We see Scion as just one part of the answer to the scaling concerns that increasingly capable AI agents have raised. We’re sharing these details as an example of how teams can tackle similar challenges, though we don’t expect our solution, or our considerations, to suit every case.</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">Scion绝对不是用于一般用途的git的合适替代品。我们在这里阐述的概念，实际上只适用于极其庞大的单仓库环境，即有数万名工程师或大量代理频繁编写代码的情况。此外，Anthropic的独特之处在于，我们用于内部用途的代币花费远远超过了其他企业实际可能愿意花费的额度。我们这样做既是为了满足自身的软件开发需求，也是为了测试Claude的能力。</p>
+<p class="source" lang="en">Scion is by no means a suitable replacement for git for general use. The concepts we’ve outlined here really only make sense for truly enormous monorepos, with either tens of thousands of engineers or swarms of agents prolifically writing code. Plus, Anthropic is unique in that our ability to spend tokens for internal use far exceeds what any other business would realistically want to spend. We do this both to address our own software development needs, and to test Claude’s capabilities.</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">实际上，很难以一种对其他组织具有广泛实用性的形式来提供 Scion。它与 git 有很大不同，意味着公司需要迁移整个开发生命周期的所有部分，并且还需要自己的代码审查、代码搜索和 CI 系统。我们内部的这些组件版本非常定制化，因此其他组织很难采用，而且我们担心试图打造一个能取悦所有人的公开版本实际上并不会很有用。</p>
+<p class="source" lang="en">Practically speaking, it’s difficult to offer Scion in a form that would be broadly useful to other organizations. It diverges significantly from git, meaning companies would need to migrate every piece of the development lifecycle, and it requires its own code review, code search, and CI. Our internal versions of these components are highly bespoke, so they would be difficult for other organizations to adopt, and we worry that attempting to build a public version that tries to please everyone wouldn’t actually be very useful.</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">不过，我们预计在接下来的6到12个月内，这类问题会变得更加常见。对于使用git的每家公司来说，独自面对类似挑战将是一种低效的资源利用方式。因此，我们认为最有效的做法就是分享我们的思路，让其他开发者能够将Scion中一些成功的机制应用到git中，同时不偏离整体模型。git服务器不必像客户端那样运作；存在一些创新的服务器架构，能够带来显著的扩展能力提升。Git平台可以提供像Scion那样的全面服务器端RPC功能，甚至可以通过标准化方式在多个git客户端之间实现交互。协商协议也不必完全像现在这样，而git中的各种稀疏和浅层特性也可以很好地组合在一起。</p>
+<p class="source" lang="en">However, we anticipate that this class of problems will become more commonplace over the next six to 12 months, and it would be an inefficient use of engineering resources for every company using git to face similar challenges alone. Given that, we think the most impactful thing we can do is to share our thinking, so that other developers can apply some of the most successful parts of Scion to git without departing from the overall model. A git server doesn’t have to work the same way as a git client does; novel server architectures exist that provide significant scaling improvements. Git platforms can provide comprehensive server-side RPCs like Scion, perhaps even in a standardized way across forges that the git client can learn to talk to. The negotiation protocol doesn’t have to look exactly like it does today, either, and the various sparse and shallow features in git can be made to compose well.</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">最后，我们想肯定的是，git社区已经花了近二十年时间来扩展平台，为数百万开发者服务。我们的贡献则更为有限：分享我们对代理式软件开发如何与这些系统互动的早期见解，以便与 GitHub、GitLab 和 OSS 社区合作，满足开发者不断变化的需求。随着软件开发生命周期与人工智能的快速发展相结合，我们共同前行。</p>
+<p class="source" lang="en">Lastly, we want to acknowledge that the git community has spent nearly two decades scaling the platform for millions of developers. Our contribution is far narrower: sharing our early view into how agentic software development interacts with these systems, so that we can partner with GitHub, GitLab, and the OSS community to support the changing needs of developers. We’re all in it together as the software development lifecycle intersects with the AI exponential.</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">脚注</p>
+<p class="source" lang="en">Footnotes</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">01将修改过的文件存储在合并的第一个父节点下是一种风格选择；实际上，在基于 trunk 的 monorepo 开发中，人们只关心主线上的提交历史或责任归属。</p>
+<p class="source" lang="en">01 Storing changed files relative to the first parent of a merge is a stylistic choice; in practice, we’ve found that people only care about history or blame for commits on the main line in trunk-based development in a monorepo.</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">&lt;text&gt;
+02具体来说，是 Sapling 的服务器组件 Mononoke。它开创了我们在 Scion 中使用的许多技术，尤其是 Bonsai 数据模型。
+&lt;/text&gt;</p>
+<p class="source" lang="en">02 Specifically, the server component of Sapling, Mononoke. It pioneered many of the techniques we use in Scion, in particular the Bonsai data model.</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">作者与致谢</p>
+<p class="source" lang="en">Authors &amp; acknowledgements</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">致谢</p>
+<p class="source" lang="en">Acknowledgements</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">由 Nick G. 和源控制团队撰写：S.G.、R.K.、Dan C.、Garrett H.、Ben L.、Colin M.、Joe P. 我们感谢 Vilas J. 和 Sergiu D. 在这一艰巨任务中对源控制团队的支持，也感谢 Amir O. 对 Antique 的早期贡献。</p>
+<p class="source" lang="en">Written by Nick G. and the source control team: S.G., R.K., Dan C., Garrett H., Ben L., Colin M., Joe P. We’re grateful to Vilas J. and Sergiu D. for supporting the source control team on this ambitious journey and Amir O. for early contributions to Antique.</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://www.anthropic.com/research/redesigning-source-control" target="_blank" rel="noopener noreferrer">https://www.anthropic.com/research/redesigning-source-control</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/the-components-of-agent-memory.html">← The components of agent memory</a><a href="../viewers/how-we-contain-claude-across-products.html">How we contain Claude across products →</a></nav>
+  <footer class="footer">本站为公开 AI 工程博客的非官方中英对照归档。中文译文仅作辅助阅读，请以英文原文为准；文章内容版权归原作者所有。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

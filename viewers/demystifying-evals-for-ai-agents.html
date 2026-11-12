@@ -1,0 +1,1440 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Demystifying evals for AI agents · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Demystifying evals for AI agents</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">01</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">02</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">11</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item current" href="../viewers/demystifying-evals-for-ai-agents.html" aria-current="page"><span class="num">12</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">19</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">21</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">24</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">25</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">26</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">27</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">28</span>Introducing Contextual Retrieval</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">01</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">02</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">11</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item current" href="../viewers/demystifying-evals-for-ai-agents.html" aria-current="page"><span class="num">12</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">19</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">21</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">24</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">25</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">26</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">27</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">28</span>Introducing Contextual Retrieval</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Demystifying evals for AI agents</h1>
+  <p class="subline">原文：<a href="https://www.anthropic.com/research/demystifying-evals-for-ai-agents" target="_blank" rel="noopener noreferrer">https://www.anthropic.com/research/demystifying-evals-for-ai-agents</a> · 2026-01-09 · Anthropic Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">好的评估能帮助团队更自信地部署 AI 代理。没有评估，很容易陷入反应式循环——只在生产环境中发现问题，而一次故障修复又引发更多问题。评估能在问题和行为变化影响用户之前将其显现出来，其价值会在代理的整个生命周期中不断累积。</p>
+<p class="source" lang="en">Good evaluations help teams ship AI agents more confidently. Without them, it’s easy to get stuck in reactive loops—catching issues only in production, where fixing one failure creates others. Evals make problems and behavioral changes visible before they affect users, and their value compounds over the lifecycle of an agent.</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">正如我们在《构建有效的智能代理》中所述，智能代理需要在多次交互中运作：调用工具、修改状态以及根据中间结果进行调整。这些使AI代理具有实用性的能力——自主性、智能和灵活性——也使其更难评估。</p>
+<p class="source" lang="en">As we described in Building effective agents, agents operate over many turns: calling tools, modifying state, and adapting based on intermediate results. These same capabilities that make AI agents useful—autonomy, intelligence, and flexibility—also make them harder to evaluate.</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">通过我们的内部工作以及与处于代理开发前沿的客户合作，我们学会了如何设计更严谨、更有用的代理评估方法。这些有效方法适用于多种代理架构和实际部署场景。</p>
+<p class="source" lang="en">Through our internal work and with customers at the frontier of agent development, we’ve learned how to design more rigorous and useful evals for agents. Here&#39;s what&#39;s worked across a range of agent architectures and use cases in real-world deployment.</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">评估的结构</p>
+<p class="source" lang="en">The structure of an evaluation</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">评估（“eval”）是针对人工智能系统的测试：给人工智能系统输入数据，然后应用评分逻辑来评价其输出结果，以衡量性能。在本文中，我们重点讨论可以在没有真实用户的情况下在开发过程中进行的自动化评估。</p>
+<p class="source" lang="en">An evaluation (“eval”) is a test for an AI system: give an AI an input, then apply grading logic to its output to measure success. In this post, we focus on automated evals that can be run during development without real users.</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">单轮评估很简单：一个提示、一个回复和评分逻辑。对于早期的大型语言模型，单轮、非代理式评估是主要的评估方式。随着人工智能能力的提升，多轮评估变得越来越常见。</p>
+<p class="source" lang="en">Single-turn evaluations are straightforward: a prompt, a response, and grading logic. For earlier LLMs, single-turn, non-agentic evals were the main evaluation method. As AI capabilities have advanced, multi-turn evaluations have become increasingly common.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Fbd42e7b2f3e9bb5218142796d3ede4816588dec0-4584x2834.png&amp;w=3840&amp;q=75" alt="In a simple eval, an agent processes a prompt, and a grader checks if the output matches expectations. For a more complex multi-turn eval, a coding agent receives tools, a task (building an MCP server in this case), and an environment, executes an &quot;agent loop&quot; (tool calls and reasoning), and updates the environment with the implementation. Grading then uses unit tests to verify the working MCP server." loading="lazy">
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">智能体评估更加复杂。智能体在多次交互中使用各种工具，改变环境中的状态并不断调整——这意味着错误可能会传播并加剧。前沿模型还能找到创新的解决方案，超越静态评估的局限。例如，Opus 4.5通过发现政策中的漏洞，解决了关于预订航班的𝜏2-bench问题。按照原评估标准，它“未能通过”，但实际上为用户提出了更好的解决方案。</p>
+<p class="source" lang="en">Agent evaluations are even more complex. Agents use tools across many turns, modifying state in the environment and adapting as they go—which means mistakes can propagate and compound. Frontier models can also find creative solutions that surpass the limits of static evals. For instance, Opus 4.5 solved a 𝜏2-bench problem about booking a flight by discovering a loophole in the policy. It “failed” the evaluation as written, but actually came up with a better solution for the user.</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">&lt;text&gt;
+在构建智能体评估时，我们使用以下定义：
+&lt;/text&gt;</p>
+<p class="source" lang="en">When building agent evaluations, we use the following definitions:</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">任务（也称为问题或测试案例）是指具有明确输入和成功标准的单一测试。</p>
+<p class="source" lang="en">A task (a.k.a problem or test case) is a single test with defined inputs and success criteria.</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">每个任务尝试都是一个试验。由于模型输出在多次运行之间会有所不同，我们进行多次试验以得到更一致的结果。</p>
+<p class="source" lang="en">Each attempt at a task is a trial. Because model outputs vary between runs, we run multiple trials to produce more consistent results.</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">评分器是一种用于评估智能体表现某些方面的逻辑。一个任务可能包含多个评分器，每个评分器又包含多个断言（有时称为检查）。</p>
+<p class="source" lang="en">A grader is logic that scores some aspect of the agent’s performance. A task can have multiple graders, each containing multiple assertions (sometimes called checks).</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">记录（也称为轨迹或路径）是试验的完整记录，包括输出、工具调用、推理过程、中间结果以及任何其他交互。对于 Anthropic API，这就是在评估运行结束时得到的完整消息数组——包含评估过程中对 API 的所有调用以及所有返回的响应。</p>
+<p class="source" lang="en">A transcript (also called a trace or trajectory) is the complete record of a trial, including outputs, tool calls, reasoning, intermediate results, and any other interactions. For the Anthropic API, this is the full messages array at the end of an eval run - containing all the calls to the API and all of the returned responses during the evaluation.</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">结果是指试验结束时环境中的最终状态。航班预订代理可能在记录的最后说“您的航班已预订”，但结果则是该预订是否存在于环境的 SQL 数据库中。</p>
+<p class="source" lang="en">The outcome is the final state in the environment at the end of the trial. A flight-booking agent might say “Your flight has been booked” at the end of the transcript, but the outcome is whether a reservation exists in the environment’s SQL database.</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">评估框架是一种能够全程运行评估任务的基础设施。它提供指令和工具，同时执行任务，记录所有步骤，对输出结果进行评分，并汇总最终结果。</p>
+<p class="source" lang="en">An evaluation harness is the infrastructure that runs evals end-to-end. It provides instructions and tools, runs tasks concurrently, records all the steps, grades outputs, and aggregates results.</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">代理框架（或支架）是使模型能够作为代理运行的系统：它处理输入数据、协调工具调用，并返回结果。当我们评估“代理”时，实际上是在评估框架与模型协同工作的情况。例如，Claude Code 就是一个灵活的代理框架，我们通过 Agent SDK 使用其核心原语来构建我们的长期运行代理框架。</p>
+<p class="source" lang="en">An agent harness (or scaffold) is the system that enables a model to act as an agent: it processes inputs, orchestrates tool calls, and returns results. When we evaluate “an agent,” we’re evaluating the harness and the model working together. For example, Claude Code is a flexible agent harness, and we used its core primitives through the Agent SDK to build our long-running agent harness.</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">评估套件是一组旨在衡量特定能力或行为的任务。该套件中的任务通常具有共同的目标。例如，客户支持评估套件可能会测试退款、取消和升级服务等。</p>
+<p class="source" lang="en">An evaluation suite is a collection of tasks designed to measure specific capabilities or behaviors. Tasks in a suite typically share a broad goal. For instance, a customer support eval suite might test refunds, cancellations, and escalations.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F0205b36f9639fc27f2f6566f73cb56b06f59d555-4584x2580.png&amp;w=3840&amp;q=75" alt="Components of evaluations for agents." loading="lazy">
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">为什么要进行评估？</p>
+<p class="source" lang="en">Why build evaluations?</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">当团队刚开始构建智能体时，通过手动测试、内部试用和直觉判断，他们可以取得惊人的进展。更严格的评估似乎会成为阻碍发布的额外负担。但在早期原型阶段之后，一旦智能体投入生产并开始扩展，没有严格评估的构建工作就会变得难以进行。</p>
+<p class="source" lang="en">When teams first start building agents, they can get surprisingly far through a combination of manual testing, dogfooding, and intuition. More rigorous evaluation may even seem like overhead that slows down shipping. But after the early prototyping stages, once an agent is in production and has started scaling, building without evals starts to break down.</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">用户报告说修改后智能体表现更差，而团队却无法确认情况，只能猜测和检查，这时往往就是崩溃的临界点。在没有测试的情况下，调试是被动的：等待用户投诉，手动复现问题，修复漏洞，然后希望其他问题不再出现。团队无法区分真正的问题与偶然现象，也无法在发布前通过数百种场景自动测试修改效果或衡量改进情况。</p>
+<p class="source" lang="en">The breaking point often comes when users report the agent feels worse after changes, and the team is “flying blind” with no way to verify except to guess and check. Absent evals, debugging is reactive: wait for complaints, reproduce manually, fix the bug, and hope nothing else regressed. Teams can&#39;t distinguish real regressions from noise, automatically test changes against hundreds of scenarios before shipping, or measure improvements.</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">我们已经多次看到这种发展过程。例如，Claude Code最初基于Anthropic员工和外部用户的反馈进行快速迭代。后来，我们加入了评估环节——首先针对简洁性和文件编辑等具体领域，随后则针对过度设计等更复杂的现象。这些评估有助于识别问题、指导改进，并促进研究产品之间的合作。结合生产监控、A/B测试、用户研究等手段，评估为Claude Code的持续改进提供了依据。</p>
+<p class="source" lang="en">We’ve seen this progression play out many times. For instance, Claude Code started with fast iteration based on feedback from Anthropic employees and external users. Later, we added evals—first for narrow areas like concision and file edits, and then for more complex behaviors like over-engineering. These evals helped identify issues, guide improvements, and focus research-product collaborations. Combined with production monitoring, A/B tests, user research, and more, evals provide signals to continue improving Claude Code as it scales.</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">编写评估内容在智能体生命周期的任何阶段都很有用。在初期，评估内容促使产品团队明确智能体的成功标准，而在后期则有助于保持一致的质量标准。</p>
+<p class="source" lang="en">Writing evals is useful at any stage in the agent lifecycle. Early on, evals force product teams to specify what success means for the agent, while later they help uphold a consistent quality bar.</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">Descript的智能代理可以帮助用户编辑视频，因此他们围绕编辑流程的三个关键维度制定了评估标准：不破坏内容，按照要求操作，并且操作得当。该代理从手动评分方式发展成为由产品团队定义标准并定期进行人工校准的LLM评分系统，现在还定期运行两个独立的测试套件用于质量基准测试和回归测试。Bolt AI团队在已经拥有广泛使用的智能代理之后，后来开始制定评估标准。在3个月内，他们建立了评估系统，该系统运行智能代理并通过静态分析对输出进行评分，使用浏览器代理来测试应用程序，并采用LLM评分员来评估诸如遵循指令等行为。</p>
+<p class="source" lang="en">Descript’s agent helps users edit videos, so they built evals around three dimensions of a successful editing workflow: don’t break things, do what I asked, and do it well. They evolved from manual grading to LLM graders with criteria defined by the product team and periodic human calibration, and now regularly run two separate suites for quality benchmarking and regression testing. The Bolt AI team started building evals later, after they already had a widely used agent. In 3 months, they built an eval system that runs their agent and grades outputs with static analysis, uses browser agents to test apps, and employs LLM judges for behaviors like instruction following.</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">一些团队在开发开始时就进行评估；其他团队则在规模扩大时进行一次评估，因为评估会成为改进智能体的瓶颈。在智能体开发初期进行评估特别有用，可以明确定义预期行为。两位工程师阅读相同的初始规范时，可能会对人工智能如何处理边缘情况有不同理解。评估套件可以解决这种模糊性。无论何时进行评估，它们都能帮助加快开发进程。</p>
+<p class="source" lang="en">Some teams create evals at the start of development; others add them once at scale when evals become a bottleneck for improving the agent. Evals are especially useful at the start of agent development to explicitly encode expected behavior. Two engineers reading the same initial spec could come away with different interpretations on how the AI should handle edge cases. An eval suite resolves this ambiguity. Regardless of when they’re created, evals help accelerate development.</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">评估也决定了你能够快速采用新模型的速度。当更强大的模型出现时，没有评估的团队需要花费数周时间进行测试，而拥有评估的竞争对手则能迅速了解模型的优势，调整提示词，并在几天内完成升级。</p>
+<p class="source" lang="en">Evals also shape how quickly you can adopt new models. When more powerful models come out, teams without evals face weeks of testing while competitors with evals can quickly determine the model’s strengths, tune their prompts, and upgrade in days.</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">一旦有评估数据存在，就可以免费获得基准测试和回归测试：延迟、令牌使用量、任务成本以及错误率都可以在固定的任务集上被追踪。评估数据还可以成为产品团队和研究团队之间最高带宽的沟通渠道，从而定义出研究人员可以优化的指标。显然，评估数据带来的好处不仅限于追踪回归和改进情况，其累积价值很容易被忽视，因为成本在初期就能看到，而收益则会在后期逐渐积累。</p>
+<p class="source" lang="en">Once evals exist, you get baselines and regression tests for free: latency, token usage, cost per task, and error rates can be tracked on a static bank of tasks. Evals can also become the highest-bandwidth communication channel between product and research teams, defining metrics researchers can optimize against. Clearly, evals have wide-ranging benefits beyond tracking regressions and improvements. Their compounding value is easy to miss given that costs are visible upfront while benefits accumulate later.</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">如何评估人工智能代理</p>
+<p class="source" lang="en">How to evaluate AI agents</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">如今，我们看到了多种常见的智能代理在大规模应用中的使用，包括编程代理、研究代理、计算机使用代理和对话代理。每种类型都可以应用于各种行业，但可以使用类似的方法进行评估。无需从零开始发明评估方法。以下部分介绍了几种代理类型的成熟技术。将这些方法作为基础，然后将其应用到你的领域。</p>
+<p class="source" lang="en">We see several common types of agents deployed at scale today, including coding agents, research agents, computer use agents, and conversational agents. Each type may be deployed across a wide variety of industries, but they can be evaluated using similar techniques. You don’t need to invent an evaluation from scratch. The sections below describe proven techniques for several agent types. Use these methods as a foundation, then extend them to your domain.</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">&lt;text&gt;
+代理的评估器类型
+&lt;/text&gt;</p>
+<p class="source" lang="en">Types of graders for agents</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">代理评估通常结合三种类型的评估者：基于代码的、基于模型的以及人工评估。每种评估者都会对记录或结果的一部分进行评估。有效的评估设计的关键在于选择适合该任务的合适评估者。</p>
+<p class="source" lang="en">Agent evaluations typically combine three types of graders: code-based, model-based, and human. Each grader evaluates some portion of either the transcript or the outcome. An essential component of effective evaluation design is to choose the right graders for the job.</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">基于代码的评分器</p>
+<p class="source" lang="en">Code-based graders</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">方法</p>
+<p class="source" lang="en">Methods</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">优势</p>
+<p class="source" lang="en">Strengths</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">弱点</p>
+<p class="source" lang="en">Weaknesses</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">• 字符串匹配检查（精确匹配、正则表达式、模糊匹配等）</p>
+<p class="source" lang="en">• String match checks (exact, regex, fuzzy, etc.)</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">• 二进制测试（失败通过、通过失败）</p>
+<p class="source" lang="en">• Binary tests (fail-to-pass, pass-to-pass)</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">• 静态分析（lint、类型检查、安全性检查）</p>
+<p class="source" lang="en">• Static analysis (lint, type, security)</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">• 结果验证</p>
+<p class="source" lang="en">• Outcome verification</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">• 工具调用验证（使用的工具、参数）</p>
+<p class="source" lang="en">• Tool calls verification (tools used, parameters)</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">• 文本分析（发言转述、词元使用情况）</p>
+<p class="source" lang="en">• Transcript analysis (turns taken, token usage)</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">• 快速</p>
+<p class="source" lang="en">• Fast</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">• 便宜</p>
+<p class="source" lang="en">• Cheap</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">• 目标</p>
+<p class="source" lang="en">• Objective</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">• 可复现</p>
+<p class="source" lang="en">• Reproducible</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">• 易于调试</p>
+<p class="source" lang="en">• Easy to debug</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">• 验证特定条件</p>
+<p class="source" lang="en">• Verify specific conditions</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">• 不牢固的变体，与预期的模式不完全一致</p>
+<p class="source" lang="en">• Brittle to valid variations that don’t match expected patterns exactly</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">• 缺乏细微差别</p>
+<p class="source" lang="en">• Lacking in nuance</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">• 用于评估某些更主观的任务时有限</p>
+<p class="source" lang="en">• Limited for evaluating some more subjective tasks</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">基于模型的评分器</p>
+<p class="source" lang="en">Model-based graders</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">方法</p>
+<p class="source" lang="en">Methods</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">优势</p>
+<p class="source" lang="en">Strengths</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">弱点</p>
+<p class="source" lang="en">Weaknesses</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">基于评分标准的评分</p>
+<p class="source" lang="en">Rubric-based scoring</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">自然语言断言</p>
+<p class="source" lang="en">Natural language assertions</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">成对比较</p>
+<p class="source" lang="en">Pairwise comparison</p>
+</div>
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">基于参考的评估</p>
+<p class="source" lang="en">Reference-based evaluation</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">多法官共识</p>
+<p class="source" lang="en">Multi-judge consensus</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">灵活的</p>
+<p class="source" lang="en">Flexible</p>
+</div>
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">可扩展的</p>
+<p class="source" lang="en">Scalable</p>
+</div>
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">捕捉细微差别</p>
+<p class="source" lang="en">Captures nuance</p>
+</div>
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">处理开放式任务</p>
+<p class="source" lang="en">Handles open-ended tasks</p>
+</div>
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">处理自由形式的输出</p>
+<p class="source" lang="en">Handles freeform output</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">非确定性</p>
+<p class="source" lang="en">Non-deterministic</p>
+</div>
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">比代码更昂贵</p>
+<p class="source" lang="en">More expensive than code</p>
+</div>
+<div class="pair" id="p-64">
+<p class="target" lang="zh-CN">需要通过人工评分者校准以确保准确性</p>
+<p class="source" lang="en">Requires calibration with human graders for accuracy</p>
+</div>
+<div class="pair" id="p-65">
+<p class="target" lang="zh-CN">人工评估员</p>
+<p class="source" lang="en">Human graders</p>
+</div>
+<div class="pair" id="p-66">
+<p class="target" lang="zh-CN">方法</p>
+<p class="source" lang="en">Methods</p>
+</div>
+<div class="pair" id="p-67">
+<p class="target" lang="zh-CN">优势</p>
+<p class="source" lang="en">Strengths</p>
+</div>
+<div class="pair" id="p-68">
+<p class="target" lang="zh-CN">弱点</p>
+<p class="source" lang="en">Weaknesses</p>
+</div>
+<div class="pair" id="p-69">
+<p class="target" lang="zh-CN">中小企业评估</p>
+<p class="source" lang="en">SME review</p>
+</div>
+<div class="pair" id="p-70">
+<p class="target" lang="zh-CN">众包判断</p>
+<p class="source" lang="en">Crowdsourced judgment</p>
+</div>
+<div class="pair" id="p-71">
+<p class="target" lang="zh-CN">随机抽查采样</p>
+<p class="source" lang="en">Spot-check sampling</p>
+</div>
+<div class="pair" id="p-72">
+<p class="target" lang="zh-CN">A/B测试</p>
+<p class="source" lang="en">A/B testing</p>
+</div>
+<div class="pair" id="p-73">
+<p class="target" lang="zh-CN">注释者间一致性</p>
+<p class="source" lang="en">Inter-annotator agreement</p>
+</div>
+<div class="pair" id="p-74">
+<p class="target" lang="zh-CN">黄金标准品质</p>
+<p class="source" lang="en">Gold standard quality</p>
+</div>
+<div class="pair" id="p-75">
+<p class="target" lang="zh-CN">符合专家用户的判断标准</p>
+<p class="source" lang="en">Matches expert user judgment</p>
+</div>
+<div class="pair" id="p-76">
+<p class="target" lang="zh-CN">用于校准基于模型的评分器</p>
+<p class="source" lang="en">Used to calibrate model-based graders</p>
+</div>
+<div class="pair" id="p-77">
+<p class="target" lang="zh-CN">昂贵的</p>
+<p class="source" lang="en">Expensive</p>
+</div>
+<div class="pair" id="p-78">
+<p class="target" lang="zh-CN">慢速</p>
+<p class="source" lang="en">Slow</p>
+</div>
+<div class="pair" id="p-79">
+<p class="target" lang="zh-CN">通常需要大规模访问人类专家</p>
+<p class="source" lang="en">Often requires access to human experts at scale</p>
+</div>
+<div class="pair" id="p-80">
+<p class="target" lang="zh-CN">对于每个任务，评分可以是加权式（合并评分必须达到阈值）、二进制式（所有评分者都必须通过）或混合式。</p>
+<p class="source" lang="en">For each task, scoring can be weighted (combined grader scores must hit a threshold), binary (all graders must pass), or a hybrid.</p>
+</div>
+<div class="pair" id="p-81">
+<p class="target" lang="zh-CN">能力与回归评估</p>
+<p class="source" lang="en">Capability vs. regression evals</p>
+</div>
+<div class="pair" id="p-82">
+<p class="target" lang="zh-CN">能力或“质量”评估会问：“这个智能体能做好什么？”它们应该从较低的通过率开始，针对智能体难以完成的任务，让团队有提升的空间。</p>
+<p class="source" lang="en">Capability or “quality” evals ask, “What can this agent do well?” They should start at a low pass rate, targeting tasks the agent struggles with and giving teams a hill to climb.</p>
+</div>
+<div class="pair" id="p-83">
+<p class="target" lang="zh-CN">回归评估会问：“智能体是否仍然能够完成过去所有的任务？”并且应该拥有接近100%的通过率。它们可以防止智能体退化，因为分数下降表明存在问题，需要改进。当团队通过能力评估提升能力时，进行回归评估也很重要，以确保修改不会在其它方面引发问题。</p>
+<p class="source" lang="en">Regression evals ask, “Does the agent still handle all the tasks it used to?” and should have a nearly 100% pass rate. They protect against backsliding, as a decline in score signals that something is broken and needs to be improved. As teams hill-climb on capability evals, it’s important to also run regression evals to make sure changes don’t cause issues elsewhere.</p>
+</div>
+<div class="pair" id="p-84">
+<p class="target" lang="zh-CN">在代理启动并优化之后，能够以高通过率完成的能力评估可以逐渐转变为持续运行的回归测试套件，以发现任何变化。那些曾经评估为“我们能否完成？”的任务，现在则评估为“我们是否仍能可靠地完成？”</p>
+<p class="source" lang="en">After an agent is launched and optimized, capability evals with high pass rates can “graduate” to become a regression suite that is run continuously to catch any drift. Tasks that once measured “Can we do this at all?” then measure “Can we still do this reliably?”</p>
+</div>
+<div class="pair" id="p-85">
+<p class="target" lang="zh-CN">评估编码智能体</p>
+<p class="source" lang="en">Evaluating coding agents</p>
+</div>
+<div class="pair" id="p-86">
+<p class="target" lang="zh-CN">编码代理负责编写、测试和调试代码，就像人类开发者一样操作代码库并执行命令。对于现代编码代理来说，有效的评估通常依赖于明确的任务、稳定的测试环境以及针对生成代码的全面测试。</p>
+<p class="source" lang="en">Coding agents write, test, and debug code, navigating codebases and running commands much like a human developer. Effective evals for modern coding agents usually rely on well-specified tasks, stable test environments, and thorough tests for the generated code.</p>
+</div>
+<div class="pair" id="p-87">
+<p class="target" lang="zh-CN">确定性评分器非常适合编程智能体，因为软件通常很容易评估：代码能否正常运行，测试是否通过？两种常用的编程智能体评估基准——SWE-bench Verified和Terminal-Bench——都采用这种方式。SWE-bench Verified给智能体提供来自热门 Python 仓库的 GitHub 问题，并通过测试套件对解决方案进行评分；解决方案只有在修复失败测试的同时不破坏现有功能的情况下才能通过。在短短一年内，LLM在这项评估上的得分从 40% 提升到了 &gt;80%。Terminal-Bench则采用不同的方法：它测试端到端的技术任务，比如从源代码构建 Linux 内核或训练机器学习模型。</p>
+<p class="source" lang="en">Deterministic graders are natural for coding agents because software is generally straightforward to evaluate: does the code run and do the tests pass? Two widely used coding agent benchmarks, SWE-bench Verified and Terminal-Bench, follow this approach. SWE-bench Verified gives agents GitHub issues from popular Python repositories and grades solutions by running the test suite; a solution passes only if it fixes the failing tests without breaking existing ones. LLMs have progressed from 40% to &gt;80% on this eval in just one year. Terminal-Bench takes a different track: it tests end-to-end technical tasks, such as building a Linux kernel from source or training an ML model.</p>
+</div>
+<div class="pair" id="p-88">
+<p class="target" lang="zh-CN">一旦你有一组用于验证编程任务关键结果的通过或失败测试，对代码记录进行评分通常也是很有用的。例如，基于启发式算法的代码质量规则可以根据超过要求的测试标准来评估生成的代码，而具有明确评分标准的基于模型的评分器则可以评估诸如智能体如何调用工具或与用户交互等行为。</p>
+<p class="source" lang="en">Once you have a set of pass-or-fail tests for validating the key outcomes of a coding task, it’s often useful to also grade the transcript. For instance, heuristics-based code quality rules can evaluate the generated code based on more than passing tests, and model-based graders with clear rubrics can assess behaviors like how the agent calls tools or interacts with the user.</p>
+</div>
+<div class="pair" id="p-89">
+<p class="target" lang="zh-CN">示例：编码智能体的理论评估</p>
+<p class="source" lang="en">Example: Theoretical evaluation for a coding agent</p>
+</div>
+<div class="pair" id="p-90">
+<p class="target" lang="zh-CN">考虑一个编码任务，其中智能体需要修复一个认证绕过漏洞。如下面的示例 YAML 文件所示，可以使用评估器和指标来评估这个智能体。</p>
+<p class="source" lang="en">Consider a coding task where the agent must fix an authentication bypass vulnerability. As shown in the illustrative YAML file below, one could evaluate this agent using both graders and metrics.</p>
+</div>
+<div class="pair" id="p-91">
+<p class="target" lang="zh-CN">任务：id: &quot;fix-auth-bypass_1&quot; 描述：修复密码字段为空时的认证绕过问题……评估者： - 类型：确定性测试，所需：[test_empty_pw_rejected.py, test_null_pw_rejected.py] - 类型：LLM评估标准，评分标准：prompts/code_quality.md - 类型：静态分析，命令：[ruff, mypy, bandit] - 类型：状态检查，期望：security_logs: {event_type: &quot;auth_blocked&quot;} - 类型：工具调用，所需：- {tool: read_file, params: {path: &quot;src/auth/*&quot;}} - {tool: edit_file} - {tool: run_tests} 跟踪指标：- 类型：转录指标：- 执行次数 - 工具调用次数 - 总令牌数 - 类型：延迟指标：- 到达第一个令牌的时间 - 每秒输出令牌数 - 到达最后一个令牌的时间</p>
+<p class="source" lang="en">task: id: &quot;fix-auth-bypass_1&quot; desc: &quot;Fix authentication bypass when password field is empty and ...&quot; graders: - type: deterministic_tests required: [test_empty_pw_rejected.py, test_null_pw_rejected.py] - type: llm_rubric rubric: prompts/code_quality.md - type: static_analysis commands: [ruff, mypy, bandit] - type: state_check expect: security_logs: {event_type: &quot;auth_blocked&quot;} - type: tool_calls required: - {tool: read_file, params: {path: &quot;src/auth/*&quot;}} - {tool: edit_file} - {tool: run_tests} tracked_metrics: - type: transcript metrics: - n_turns - n_toolcalls - n_total_tokens - type: latency metrics: - time_to_first_token - output_tokens_per_sec - time_to_last_token</p>
+</div>
+<div class="pair" id="p-92">
+<p class="target" lang="zh-CN">请注意，此示例仅用于展示可用的评估工具的全范围。实际上，编码评估通常依赖单元测试来验证正确性，并使用 LLM 评分标准来评估代码的整体质量，只有在必要时才会添加额外的评估工具和指标。</p>
+<p class="source" lang="en">Note that this example showcases the full range of available graders for illustration. In practice, coding evaluations typically rely on unit tests for correctness verification and an LLM rubric for assessing overall code quality, with additional graders and metrics added only as needed.</p>
+</div>
+<div class="pair" id="p-93">
+<p class="target" lang="zh-CN">评估对话代理</p>
+<p class="source" lang="en">Evaluating conversational agents</p>
+</div>
+<div class="pair" id="p-94">
+<p class="target" lang="zh-CN">对话式智能体在支持、销售或辅导等领域与用户互动。与传统聊天机器人不同，它们能够保持状态、使用工具，并在对话过程中采取行动。虽然编码和研究智能体也可能涉及多次与用户的互动，但对话式智能体带来了一个独特的挑战：互动的质量本身就是评估的重点。对于对话式智能体而言，有效的评估通常依赖于可验证的最终状态结果以及能够同时衡量任务完成情况和互动质量的评估标准。与大多数其他评估方式不同，这些评估往往需要第二个大型语言模型来模拟用户行为。我们在对智能体进行对齐审核时采用这种方法，通过长时间的对抗性对话来对模型进行压力测试。</p>
+<p class="source" lang="en">Conversational agents interact with users in domains like support, sales, or coaching. Unlike traditional chatbots, they maintain state, use tools, and take actions mid-conversation. While coding and research agents can also involve many turns of interaction with the user, conversational agents present a distinct challenge: the quality of the interaction itself is part of what you&#39;re evaluating. Effective evals for conversational agents usually rely on verifiable end-state outcomes and rubrics that capture both task completion and interaction quality. Unlike most other evals, they often require a second LLM to simulate the user. We use this approach in our alignment auditing agents to stress-test models through extended, adversarial conversations.</p>
+</div>
+<div class="pair" id="p-95">
+<p class="target" lang="zh-CN">对话式智能代理的成功具有多维度特征：任务是否得到解决（状态检查），是否在 &lt;10 轮对话中完成（文本约束），以及语气是否恰当（大语言模型评分标准）？包含多维度特征的两种基准测试包括 𝜏-Bench 及其后续版本 τ2-Bench。这些测试模拟了零售支持和航空预订等领域的多轮交互，其中一个模型扮演用户角色，而智能代理则处理真实的场景。</p>
+<p class="source" lang="en">Success for conversational agents can be multidimensional: is the ticket resolved (state check), did it finish in &lt;10 turns (transcript constraint), and was the tone appropriate (LLM rubric)? Two benchmarks that incorporate multidimensionality are 𝜏-Bench and its successor, τ2-Bench. These simulate multi-turn interactions across domains like retail support and airline booking, where one model plays a user persona while the agent navigates realistic scenarios.</p>
+</div>
+<div class="pair" id="p-96">
+<p class="target" lang="zh-CN">示例：对话式智能体的理论评估</p>
+<p class="source" lang="en">Example: Theoretical evaluation for a conversational agent</p>
+</div>
+<div class="pair" id="p-97">
+<p class="target" lang="zh-CN">考虑一个支持任务，其中智能体需要处理一个不满客户的退款问题。</p>
+<p class="source" lang="en">Consider a support task where the agent must handle a refund for a frustrated customer.</p>
+</div>
+<div class="pair" id="p-98">
+<p class="target" lang="zh-CN">graders： - 类型：llm_rubric rubric：prompts/support_quality.md 断言： - “代理对客户的困扰表现出同理心” - “解决方案被清晰解释” - “代理的回应基于fetch_policy工具的结果” - 类型：state_check expect：tickets：{status：resolved} refunds：{status：processed} - 类型：tool_calls 所需： - {tool：verify_identity} - {tool：process_refund, params：{amount：&lt;=100}} - {tool：send_confirmation} - 类型：transcript max_turns：10 tracked_metrics： - 类型：transcript metrics： - n_turns - n_toolcalls - n_total_tokens - 类型：latency metrics： - time_to_first_token - output_tokens_per_sec - time_to_last_token</p>
+<p class="source" lang="en">graders: - type: llm_rubric rubric: prompts/support_quality.md assertions: - &quot;Agent showed empathy for customer&#39;s frustration&quot; - &quot;Resolution was clearly explained&quot; - &quot;Agent&#39;s response grounded in fetch_policy tool results&quot; - type: state_check expect: tickets: {status: resolved} refunds: {status: processed} - type: tool_calls required: - {tool: verify_identity} - {tool: process_refund, params: {amount: &quot;&lt;=100&quot;}} - {tool: send_confirmation} - type: transcript max_turns: 10 tracked_metrics: - type: transcript metrics: - n_turns - n_toolcalls - n_total_tokens - type: latency metrics: - time_to_first_token - output_tokens_per_sec - time_to_last_token</p>
+</div>
+<div class="pair" id="p-99">
+<p class="target" lang="zh-CN">就像我们的编码代理示例一样，这个任务展示了多种评分类型以作说明。实际上，对话代理评估通常使用基于模型的评分器来评价沟通质量和目标完成情况，因为许多任务——比如回答问题——可能存在多种“正确”的解决方案。</p>
+<p class="source" lang="en">As in our coding agent example, this task showcases multiple grader types for illustration. In practice, conversational agent evaluations typically use model-based graders to assess both communication quality and goal completion, because many tasks—like answering a question—may have multiple “correct” solutions.</p>
+</div>
+<div class="pair" id="p-100">
+<p class="target" lang="zh-CN">评估研究代理</p>
+<p class="source" lang="en">Evaluating research agents</p>
+</div>
+<div class="pair" id="p-101">
+<p class="target" lang="zh-CN">研究智能体收集、整合和分析信息，然后生成答案或报告等输出。与提供二进制通过/失败信号的单元测试不同，研究质量只能根据任务来评判。什么是“全面”、“来源可靠”甚至“正确”取决于上下文：市场调研、收购的尽职调查以及科学报告都需要不同的标准。</p>
+<p class="source" lang="en">Research agents gather, synthesize, and analyze information, then produce outputs like an answer or report. Unlike coding agents where unit tests provide binary pass/fail signals, research quality can only be judged relative to the task. What counts as “comprehensive,” “well-sourced,” or even “correct” depends on context: a market scan, due diligence for an acquisition, and a scientific report each require different standards.</p>
+</div>
+<div class="pair" id="p-102">
+<p class="target" lang="zh-CN">研究评估面临独特的挑战：专家可能在是否认为合成内容全面方面存在分歧，参考内容不断变化会导致真实数据发生变化，而更长、更开放式的输出则更容易出现错误。例如，像 BrowseComp 这样的基准测试旨在检验 AI 代理能否在开放的网络中找到有价值的信息——这些问题虽然容易验证，但很难解决。</p>
+<p class="source" lang="en">Research evals face unique challenges: experts may disagree on whether a synthesis is comprehensive, ground truth shifts as reference content changes constantly, and longer, more open-ended outputs create more room for mistakes. A benchmark like BrowseComp, for example, tests whether AI agents can find needles in haystacks across the open web—questions designed to be easy to verify but hard to solve.</p>
+</div>
+<div class="pair" id="p-103">
+<p class="target" lang="zh-CN">一种构建研究代理评估的方法是将评分类型相结合。基础性检查用于验证声明是否有相关来源支持，覆盖性检查确定良好答案必须包含的关键事实，而来源质量检查则确认所引用的来源具有权威性，而不仅仅是第一个被检索到的来源。对于答案客观正确的任务（“X公司第三季度的收入是多少？”），精确匹配即可。大型语言模型可以标记不支持的声明和覆盖不足的地方，同时还能验证开放式综合内容的连贯性和完整性。</p>
+<p class="source" lang="en">One strategy to build research agent evals is to combine grader types. Groundedness checks verify that claims are supported by retrieved sources, coverage checks define key facts a good answer must include, and source quality checks confirm the consulted sources are authoritative, rather than simply the first retrieved. For tasks with objectively correct answers (“What was Company X’s Q3 revenue?”), exact match works. An LLM can flag unsupported claims and gaps in coverage but also verify the open-ended synthesis for coherence and completeness.</p>
+</div>
+<div class="pair" id="p-104">
+<p class="target" lang="zh-CN">鉴于研究质量具有主观性，基于 LLM 的评分标准应经常根据专家人工判断进行校准，以便有效评估这些智能体。</p>
+<p class="source" lang="en">Given the subjective nature of research quality, LLM-based rubrics should be frequently calibrated against expert human judgment to grade these agents effectively.</p>
+</div>
+<div class="pair" id="p-105">
+<p class="target" lang="zh-CN">计算机使用代理</p>
+<p class="source" lang="en">Computer use agents</p>
+</div>
+<div class="pair" id="p-106">
+<p class="target" lang="zh-CN">计算机使用代理通过与人类相同的界面与软件互动——如截图、鼠标点击、键盘输入和滚动——而不是通过 API 或代码执行。它们可以使用任何具有图形用户界面的应用程序，从设计工具到传统企业软件。评估需要在真实或沙箱环境中运行代理，使其能够使用软件应用程序，并检查是否达到了预期结果。例如，WebArena 测试基于浏览器的任务，通过检查 URL 和页面状态来验证代理是否正确导航，对于修改数据的任务则通过后端状态验证（确认订单确实被提交，而不仅仅是确认确认页面出现）。OSWorld 则进一步扩展到完全的操作系统控制，通过评估脚本在任务完成后检查各种结果：文件系统状态、应用程序配置、数据库内容和 UI 元素属性。</p>
+<p class="source" lang="en">Computer use agents interact with software through the same interface as humans—screenshots, mouse clicks, keyboard inputs, and scrolling—rather than through APIs or code execution. They can use any application with a graphical user interface (GUI), from design tools to legacy enterprise software. Evaluation requires running the agent in a real or sandboxed environment where it can use software applications and checking whether it achieved the intended outcome. For instance, WebArena tests browser-based tasks, using URL and page state checks to verify the agent navigated correctly, along with backend state verification for tasks that modify data (confirming an order was actually placed, not just that the confirmation page appeared). OSWorld extends this to full operating system control, with evaluation scripts that inspect diverse artifacts after task completion: file system state, application configs, database contents, and UI element properties.</p>
+</div>
+<div class="pair" id="p-107">
+<p class="target" lang="zh-CN">浏览器使用智能代理需要在令牌效率与延迟之间取得平衡。基于 DOM 的交互速度很快，但会消耗大量令牌；而基于屏幕截图的交互则较慢，但更节省令牌。例如，当让 Claude 总结维基百科内容时，从 DOM 中提取文本更有效率；而在亚马逊上寻找新笔记本电脑保护壳时，截图更有效率（因为提取整个 DOM 会消耗大量令牌）。在我们的 Claude for Chrome 产品中，我们开发了评估机制来检验智能代理是否适用于每种场景。这使我们能够更快速、更准确地完成基于浏览器的任务。</p>
+<p class="source" lang="en">Browser use agents require a balance between token efficiency and latency. DOM-based interactions execute quickly but consume many tokens, while screenshot-based interactions are slower but more token-efficient. For example, when asking Claude to summarize Wikipedia, it is more efficient to extract the text from the DOM. When finding a new laptop case on Amazon, it is more efficient to take screenshots (as extracting the entire DOM is token-intensive). In our Claude for Chrome product, we developed evals to check that the agent was selecting the right tool for each context. This enabled us to complete browser-based tasks faster and more accurately.</p>
+</div>
+<div class="pair" id="p-108">
+<p class="target" lang="zh-CN">如何思考智能体评估中的非确定性</p>
+<p class="source" lang="en">How to think about non-determinism in evaluations for agents</p>
+</div>
+<div class="pair" id="p-109">
+<p class="target" lang="zh-CN">无论代理类型如何，代理行为在运行之间会有所不同，这使得评估结果比最初看起来更难以理解。每个任务都有自己成功率——某个任务可能达到90%，另一个则达到50——一个在某一评估运行中成功的任务可能在下一个中失败。有时，我们想要测量的是代理在某个任务上成功的概率（即试验中的比例）。</p>
+<p class="source" lang="en">Regardless of agent type, agent behavior varies between runs, which makes evaluation results harder to interpret than they first appear. Each task has its own success rate—maybe 90% on one task, 50% on another—and a task that passed on one eval run might fail on the next. Sometimes, what we want to measure is how often (what proportion of the trials) an agent succeeds for a task.</p>
+</div>
+<div class="pair" id="p-110">
+<p class="target" lang="zh-CN">两种指标有助于体现这种细微差别：</p>
+<p class="source" lang="en">Two metrics help capture this nuance:</p>
+</div>
+<div class="pair" id="p-111">
+<p class="target" lang="zh-CN">pass@k 衡量智能体在 k 次尝试中至少得到一个正确解的概率。随着 k 的增加，pass@k 分数也会上升：更多的“射门次数”意味着至少成功一次的概率更高。50%的 pass@1 分数意味着模型在第一次尝试中就能完成一半的任务。在编程中，我们通常最关注智能体能否在第一次尝试中找到解决方案——即 pass@1。在其他情况下，只要有一个解决方案有效，提出多个解决方案也是可行的。</p>
+<p class="source" lang="en">pass@k measures the likelihood that an agent gets at least one correct solution in k attempts. As k increases, pass@k score rises: more “shots on goal” means higher odds of at least 1 success. A score of 50% pass@1 means that a model succeeds at half the tasks in the eval on its first try. In coding, we’re often most interested in the agent finding the solution on the first try—pass@1. In other cases, proposing many solutions is valid as long as one works.</p>
+</div>
+<div class="pair" id="p-112">
+<p class="target" lang="zh-CN">pass^k 衡量所有 k 次尝试都成功的概率。随着 k 的增加，pass^k 会下降，因为需要在更多尝试中保持一致性变得更加困难。如果您的智能体每次尝试的成功率为 75%，并且进行 3 次尝试，则通过所有三次尝试的概率为 (0.75)³ ≈ 42%。这一指标对于面向客户的智能体尤为重要，因为用户每次都希望得到可靠的行为表现。</p>
+<p class="source" lang="en">pass^k measures the probability that all k trials succeed. As k increases, pass^k falls since demanding consistency across more trials is a harder bar to clear. If your agent has a 75% per-trial success rate and you run 3 trials, the probability of passing all three is (0.75)³ ≈ 42%. This metric especially matters for customer-facing agents where users expect reliable behavior every time.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F3ddac5be07a0773922ec9df06afec55922f8194a-4584x2580.png&amp;w=3840&amp;q=75" alt="pass@k and pass^k diverge as trials increase. At k=1, they&#39;re identical (both equal the per-trial success rate). By k=10, they tell opposite stories: pass@k approaches 100% while pass^k falls to 0%." loading="lazy">
+<div class="pair" id="p-113">
+<p class="target" lang="zh-CN">这两种指标都很有用，选择使用哪一个则取决于产品需求：对于需要一次成功就能解决问题的工具，使用 pass@k；对于需要一致性的智能体，则使用 pass^k。</p>
+<p class="source" lang="en">Both metrics are useful, and which to use depends on product requirements: pass@k for tools where one success matters, pass^k for agents where consistency is essential.</p>
+</div>
+<div class="pair" id="p-114">
+<p class="target" lang="zh-CN">从零到一：代理人优秀评估的路线图</p>
+<p class="source" lang="en">Going from zero to one: a roadmap to great evals for agents</p>
+</div>
+<div class="pair" id="p-115">
+<p class="target" lang="zh-CN">本部分提供了我们经过实际现场测试的建议，帮助您从没有评估到拥有可信任评估的情况。可以将此视为基于评估的智能体开发的路线图：尽早明确成功标准，清晰衡量成果，并持续迭代优化。</p>
+<p class="source" lang="en">This section lays out our practical, field-tested advice for going from no evals to evals you can trust. Think of this as a roadmap for eval-driven agent development: define success early, measure it clearly, and iterate continuously.</p>
+</div>
+<div class="pair" id="p-116">
+<p class="target" lang="zh-CN">收集初始评估数据集的任务</p>
+<p class="source" lang="en">Collect tasks for the initial eval dataset</p>
+</div>
+<div class="pair" id="p-117">
+<p class="target" lang="zh-CN">步骤 0. 尽早开始</p>
+<p class="source" lang="en">Step 0. Start early</p>
+</div>
+<div class="pair" id="p-118">
+<p class="target" lang="zh-CN">我们看到团队推迟构建评估，因为他们认为需要数百项任务。实际上，从真实故障中选取20-50项简单的任务就足够开始了。毕竟在早期代理开发阶段，对系统的每次修改通常都有明显的影响，这种较大的效应大小意味着较小的样本量就足够了。更成熟的代理可能需要更大、更复杂的评估来发现较小的效果，但一开始最好采用80/20原则。等待时间越长，构建评估就越困难。初期时，产品需求自然就会转化为测试案例。如果等待太久，就相当于从实际系统中反向解析成功标准。</p>
+<p class="source" lang="en">We see teams delay building evals because they think they need hundreds of tasks. In reality, 20-50 simple tasks drawn from real failures is a great start. After all, in early agent development, each change to the system often has a clear, noticeable impact, and this large effect size means small sample sizes suffice. More mature agents may need larger, more difficult evals to detect smaller effects, but it’s best to take the 80/20 approach in the beginning. Evals get harder to build the longer you wait. Early on, product requirements naturally translate into test cases. Wait too long and you&#39;re reverse-engineering success criteria from a live system.</p>
+</div>
+<div class="pair" id="p-119">
+<p class="target" lang="zh-CN">步骤 1. 从你已经手动测试的内容开始</p>
+<p class="source" lang="en">Step 1. Start with what you already test manually</p>
+</div>
+<div class="pair" id="p-120">
+<p class="target" lang="zh-CN">在开发过程中，首先进行手动检查——即在每次发布前验证的行为以及最终用户尝试的常见任务。如果已经上线，请查看你的错误追踪器和支持队列。将用户报告的故障转化为测试案例，可以确保测试套件能反映实际使用情况；按用户影响程度进行优先级排序，有助于在关键地方投入精力。</p>
+<p class="source" lang="en">Begin with the manual checks you run during development—the behaviors you verify before each release and common tasks end users try. If you&#39;re already in production, look at your bug tracker and support queue. Converting user-reported failures into test cases ensures your suite reflects actual usage; prioritizing by user impact helps you invest effort where it counts.</p>
+</div>
+<div class="pair" id="p-121">
+<p class="target" lang="zh-CN">步骤 2：编写明确的任务并提供参考解决方案</p>
+<p class="source" lang="en">Step 2: Write unambiguous tasks with reference solutions</p>
+</div>
+<div class="pair" id="p-122">
+<p class="target" lang="zh-CN">确保任务质量达标比看起来要困难。一个好的任务应该是两位领域专家都能独立得出相同通过/失败结论的任务。他们自己能否完成该任务？如果不能，就需要对任务进行改进。任务规范中的模糊性会转化为指标中的噪声。基于模型的评分标准也是如此：模糊的评分标准会导致不一致的判断。</p>
+<p class="source" lang="en">Getting task quality right is harder than it seems. A good task is one where two domain experts would independently reach the same pass/fail verdict. Could they pass the task themselves? If not, the task needs refinement. Ambiguity in task specifications becomes noise in metrics. The same applies to criteria for model-based graders: vague rubrics produce inconsistent judgments.</p>
+</div>
+<div class="pair" id="p-123">
+<p class="target" lang="zh-CN">每个任务都应由能够正确遵循指令的代理完成。这可能比较微妙。例如，审计 Terminal-Bench 发现，如果任务要求代理编写脚本，但没有指定文件路径，而测试则假设脚本的特定文件路径，那么代理可能会因自身原因失败。评分器检查的所有内容都应从任务描述中清晰可见；代理不应因模糊的规格而失败。对于前沿模型，许多试验中 0% 的通过率（即 0% pass@100）通常表明任务有问题，而不是代理能力不足，这提示我们要再次检查任务规格和评分器。对于每个任务，创建一个参考解决方案很有用：一个已知有效的输出能够通过所有评分器。这证明该任务是可以解决的，并验证评分器配置正确。</p>
+<p class="source" lang="en">Each task should be passable by an agent that follows instructions correctly. This can be subtle. For instance, auditing Terminal-Bench revealed that if a task asks the agent to write a script but doesn’t specify a filepath, and the tests assume a particular filepath for the script, the agent might fail through no fault of its own. Everything the grader checks should be clear from the task description; agents shouldn’t fail due to ambiguous specs. With frontier models, a 0% pass rate across many trials (i.e. 0% pass@100) is most often a signal of a broken task, not an incapable agent, and a sign to double-check your task specification and graders. For each task, it’s useful to create a reference solution: a known working output that passes all graders. This proves that the task is solvable and verifies graders are correctly configured.</p>
+</div>
+<div class="pair" id="p-124">
+<p class="target" lang="zh-CN">步骤 3：构建平衡的问题集</p>
+<p class="source" lang="en">Step 3: Build balanced problem sets</p>
+</div>
+<div class="pair" id="p-125">
+<p class="target" lang="zh-CN">测试行为应该发生和不应该发生的两种情况。单方面的评估会导致单方面的优化。例如，如果你只测试智能体在应该搜索时是否搜索，可能会得到一个几乎搜索所有内容的智能体。尽量避免类别不平衡的评估。我们在为 Claude.ai 的网页搜索构建评估时就亲身体会到了这一点。挑战在于防止模型在不应该搜索的时候搜索，同时保留其在适当时候进行广泛研究的能力。团队构建了涵盖两种情况的评估：模型应该搜索的查询（如查询天气）和模型应该从现有知识中回答的查询（如“谁创立了苹果公司？”）。在避免不必要的搜索和过度搜索之间找到合适的平衡很困难，需要多次调整提示和评估方法。随着更多示例问题的出现，我们继续增加评估以扩大覆盖范围。</p>
+<p class="source" lang="en">Test both the cases where a behavior should occur and where it shouldn&#39;t. One-sided evals create one-sided optimization. For instance, if you only test whether the agent searches when it should, you might end up with an agent that searches for almost everything. Try to avoid class-imbalanced evals. We learned this firsthand when building evals for web search in Claude.ai. The challenge was preventing the model from searching when it shouldn’t, while preserving its ability to do extensive research when appropriate. The team built evals covering both directions: queries where the model should search (like finding the weather) and queries where it should answer from existing knowledge (like “who founded Apple?”). Striking the right balance between undertriggering (not searching when it should) or overtriggering (searching when it shouldn’t) was difficult, and took many rounds of refinements to both the prompts and the eval. As more example problems come up, we continue to add to evals to improve our coverage.</p>
+</div>
+<div class="pair" id="p-126">
+<p class="target" lang="zh-CN">设计评估框架和评分器</p>
+<p class="source" lang="en">Design the eval harness and graders</p>
+</div>
+<div class="pair" id="p-127">
+<p class="target" lang="zh-CN">步骤 4：在稳定的环境中构建一个功能完善的评估框架</p>
+<p class="source" lang="en">Step 4: Build a robust eval harness with a stable environment</p>
+</div>
+<div class="pair" id="p-128">
+<p class="target" lang="zh-CN">在评估函数中使用的代理必须与生产环境中使用的代理大致相同，而且环境本身不应引入额外的噪声。每次试验都应通过从干净的环境开始来保持“独立性”。运行之间不必要的共享状态（如剩余文件、缓存数据、资源耗尽）可能会因基础设施的波动导致相关故障，而非代理性能问题。共享状态还可能人为地提高性能。例如，在一些内部评估中，我们发现 Claude 通过查看之前试验的 git 历史记录而在某些任务上获得了不公平的优势。如果由于环境中的相同限制（如有限的 CPU 内存）导致多个不同的试验失败，这些试验就不具有独立性，因为它们受到相同因素的影响，因此评估结果无法可靠地衡量代理性能。</p>
+<p class="source" lang="en">It’s essential that the agent in the eval functions roughly the same as the agent used in production, and that the environment itself doesn’t introduce further noise. Each trial should be “isolated” by starting from a clean environment. Unnecessary shared state between runs (leftover files, cached data, resource exhaustion) can cause correlated failures due to infrastructure flakiness rather than agent performance. Shared state can also artificially inflate performance. For example, in some internal evals we observed Claude gaining an unfair advantage on some tasks by examining the git history from previous trials. If multiple distinct trials fail because of the same limitation in the environment (like limited CPU memory), these trials are not independent because they’re affected by the same factor, and the eval results become unreliable for measuring agent performance.</p>
+</div>
+<div class="pair" id="p-129">
+<p class="target" lang="zh-CN">步骤5：精心设计评分标准</p>
+<p class="source" lang="en">Step 5: Design graders thoughtfully</p>
+</div>
+<div class="pair" id="p-130">
+<p class="target" lang="zh-CN">如上述所述，优秀的评估设计需要为智能体和任务选择最合适的评估器。我们建议尽可能使用确定性评估器，在必要时使用 LLM 评估器以获得更多灵活性，同时谨慎使用人类评估器进行额外验证。</p>
+<p class="source" lang="en">As discussed above, great eval design involves choosing the best graders for the agent and the tasks. We recommend choosing deterministic graders where possible, LLM graders where necessary or for additional flexibility, and using human graders judiciously for additional validation.</p>
+</div>
+<div class="pair" id="p-131">
+<p class="target" lang="zh-CN">通常有一种习惯是检查代理是否遵循非常具体的步骤，比如按正确顺序调用工具序列。我们发现这种方式过于僵化，会导致测试过于脆弱，因为代理经常会找到评估设计者没有预料到的有效方法。因此，为了不不必要的惩罚创造力，通常更好的做法是对代理的结果进行评分，而不是评价其使用的路径。</p>
+<p class="source" lang="en">There is a common instinct to check that agents followed very specific steps like a sequence of tool calls in the right order. We’ve found this approach too rigid and results in overly brittle tests, as agents regularly find valid approaches that eval designers didn’t anticipate. So as not to unnecessarily punish creativity, it’s often better to grade what the agent produced, not the path it took.</p>
+</div>
+<div class="pair" id="p-132">
+<p class="target" lang="zh-CN">对于包含多个环节的任务，应设置部分积分奖励。一个能够正确识别问题并验证客户但无法处理退款的支持 agent，比那些立即失败的 agent 要优秀得多。在结果中体现这种成功程度的变化非常重要。</p>
+<p class="source" lang="en">For tasks with multiple components, build in partial credit. A support agent that correctly identifies the problem and verifies the customer but fails to process a refund is meaningfully better than one that fails immediately. It’s important to represent this continuum of success in results.</p>
+</div>
+<div class="pair" id="p-133">
+<p class="target" lang="zh-CN">模型评分通常需要经过多次仔细调整以验证准确性。作为评判者的 LLM 应该与人类专家紧密配合，以确保人类评分和模型评分之间的差异很小。为了避免幻觉现象，可以给 LLM 提供一种退出机制，比如当它没有足够信息时，要求它返回“未知”值。制定清晰、结构化的评分标准来评价任务的每个维度，然后由独立的 LLM 作为评判者来评价每个维度，而不是使用同一个模型来评价所有维度，这也有帮助。一旦系统变得稳定，就可以偶尔仅依靠人类审核了。</p>
+<p class="source" lang="en">Model grading often takes careful iteration to validate accuracy. LLM-as-judge graders should be closely calibrated with human experts to gain confidence that there is little divergence between the human grading and model grading. To avoid hallucinations, give the LLM a way out, like providing an instruction to return “Unknown” when it doesn’t have enough information. It can also help to create clear, structured rubrics to grade each dimension of a task, and then grade each dimension with an isolated LLM-as-judge rather than using one to grade all dimensions. Once the system is robust, it’s sufficient to use human review only occasionally.</p>
+</div>
+<div class="pair" id="p-134">
+<p class="target" lang="zh-CN">有些评估存在细微的故障模式，即使智能体表现良好，也会得到低分，因为智能体由于评分错误、智能体约束或模糊性等原因无法完成任务。即使是专业的团队也可能忽略这些问题。例如，Opus 4.5在CORE-Bench上的初始得分为42%，直到Anthropic的研究人员发现多个问题：严格的评分机制在预期“96.124991…”时却惩罚“96.12”，任务规格模糊，以及无法精确复现的随机任务。修复了错误并使用了约束较少的框架后，Opus 4.5的得分跃升至95%。同样，METR在他们的时间范围基准测试中发现了几个配置错误的任务，要求智能体优化到指定的得分阈值，但评分要求却要超过该阈值。这导致像Claude这样的模型无法遵循指令，而忽略指定目标的模型则得到更高的得分。仔细核对任务和评分规则有助于避免这些问题。</p>
+<p class="source" lang="en">Some evaluations have subtle failure modes that result in low scores even with good agent performance, as the agent fails to solve tasks due to grading bugs, agent harness constraints, or ambiguity. Even sophisticated teams can miss these issues. For example, Opus 4.5 initially scored 42% on CORE-Bench, until an Anthropic researcher found multiple issues: rigid grading that penalized “96.12” when expecting “96.124991…”, ambiguous task specs, and stochastic tasks that were impossible to reproduce exactly. After fixing bugs and using a less constrained scaffold, Opus 4.5’s score jumped to 95%. Similarly, METR discovered several misconfigured tasks in their time horizon benchmark that asked agents to optimize to a stated score threshold, but the grading required exceeding that threshold. This penalized models like Claude for following the instructions, while models that ignored the stated goal received better scores. Carefully double-checking tasks and graders can help avoid these problems.</p>
+</div>
+<div class="pair" id="p-135">
+<p class="target" lang="zh-CN">让评分器能够抵抗绕过或破解行为。代理不应能够轻易“作弊”通过评估。任务和评分器设计应确保真正通过需要解决问题，而不是利用未预见的漏洞。</p>
+<p class="source" lang="en">Make your graders resistant to bypasses or hacks. The agent shouldn’t be able to easily “cheat” the eval. Tasks and graders should be designed so that passing genuinely requires solving the problem rather than exploiting unintended loopholes.</p>
+</div>
+<div class="pair" id="p-136">
+<p class="target" lang="zh-CN">长期维护和使用评估功能</p>
+<p class="source" lang="en">Maintain and use the eval long-term</p>
+</div>
+<div class="pair" id="p-137">
+<p class="target" lang="zh-CN">步骤 6：检查录音文本</p>
+<p class="source" lang="en">Step 6: Check the transcripts</p>
+</div>
+<div class="pair" id="p-138">
+<p class="target" lang="zh-CN">您无法知道评估者是否工作良好，除非您阅读了多次试验的记录文本和评分。在 Anthropic，我们投入了资源来使用工具查看评估记录，并且经常花时间阅读这些记录。当任务失败时，记录文本可以告诉您代理是否真的犯了错误，还是您的评估者拒绝了一个有效的解决方案。它通常还能揭示关于代理和评估行为的关键细节。</p>
+<p class="source" lang="en">You won&#39;t know if your graders are working well unless you read the transcripts and grades from many trials. At Anthropic, we invested in tooling for viewing eval transcripts and we regularly take the time to read them. When a task fails, the transcript tells you whether the agent made a genuine mistake or whether your graders rejected a valid solution. It also often surfaces key details about agent and eval behavior.</p>
+</div>
+<div class="pair" id="p-139">
+<p class="target" lang="zh-CN">失败应该看起来是公平的：很明显代理出了什么错以及原因。当分数没有提升时，我们需要确信这是由于代理的表现问题，而不是评估问题。阅读记录文本是验证评估是否真正衡量了重要指标的方法，也是代理开发中的关键技能。</p>
+<p class="source" lang="en">Failures should seem fair: it’s clear what the agent got wrong and why. When scores don’t climb, we need confidence that it’s due to agent performance and not the eval. Reading transcripts is how you verify that your eval is measuring what actually matters, and is a critical skill for agent development.</p>
+</div>
+<div class="pair" id="p-140">
+<p class="target" lang="zh-CN">步骤 7：监控能力评估的饱和情况</p>
+<p class="source" lang="en">Step 7: Monitor for capability eval saturation</p>
+</div>
+<div class="pair" id="p-141">
+<p class="target" lang="zh-CN">100%的评估可以追踪回归情况，但无法提供改进的信号。当智能体完成所有可解决的任务后，评估就会达到饱和状态，无法再取得进步。例如，SWE-Bench Verified的得分今年从30%开始上升，而前沿模型现在在80%以上时几乎达到饱和状态。随着评估达到饱和，进步也会放缓，因为只剩下最困难的任务。这可能会使结果具有欺骗性，因为较大的能力提升看起来只是分数的微小增加。例如，代码审查工具Qodo最初对Opus 4.5并不满意，因为他们的一次性编程评估无法反映更长时间、更复杂的任务中的提升。作为回应，他们开发了一种新的智能体评估框架，能够更清晰地展示进步情况。</p>
+<p class="source" lang="en">An eval at 100% tracks regressions but provides no signal for improvement. Eval saturation occurs when an agent passes all of the solvable tasks, leaving no room for improvement. For instance, SWE-Bench Verified scores started at 30% this year, and frontier models are now nearing saturation at &gt;80%. As evals approach saturation, progress will also slow, as only the most difficult tasks remain. This can make results deceptive, as large capability improvements appear as small increases in scores. For example, the code review startup Qodo was initially unimpressed by Opus 4.5 because their one-shot coding evals didn’t capture the gains on longer, more complex tasks. In response, they developed a new agentic eval framework, providing a much clearer picture of progress.</p>
+</div>
+<div class="pair" id="p-142">
+<p class="target" lang="zh-CN">通常情况下，我们不会直接接受评估分数，除非有人详细研究评估的细节并阅读相关记录。如果评分不公平、任务不明确、有效解决方案被惩罚，或者评估工具限制了模型的表现，那么就应该修改评估。</p>
+<p class="source" lang="en">As a rule, we do not take eval scores at face value until someone digs into the details of the eval and reads some transcripts. If grading is unfair, tasks are ambiguous, valid solutions are penalized, or the harness constrains the model, the eval should be revised.</p>
+</div>
+<div class="pair" id="p-143">
+<p class="target" lang="zh-CN">步骤 8：通过开放贡献和维护，长期保持评估工具的健康状态</p>
+<p class="source" lang="en">Step 8: Keep evaluation suites healthy long-term through open contribution and maintenance</p>
+</div>
+<div class="pair" id="p-144">
+<p class="target" lang="zh-CN">评估套件是一种动态存在的产物，需要持续的关注和明确的责任归属才能保持有用。</p>
+<p class="source" lang="en">An eval suite is a living artifact that needs ongoing attention and clear ownership to remain useful.</p>
+</div>
+<div class="pair" id="p-145">
+<p class="target" lang="zh-CN">在 Anthropic，我们尝试了多种评估维护方法。最有效的策略是成立专门的评估团队来负责核心基础设施，而领域专家和产品团队则承担大部分评估任务并亲自进行评估。</p>
+<p class="source" lang="en">At Anthropic, we experimented with various approaches to eval maintenance. What proved most effective was establishing dedicated evals teams to own the core infrastructure, while domain experts and product teams contribute most eval tasks and run the evaluations themselves.</p>
+</div>
+<div class="pair" id="p-146">
+<p class="target" lang="zh-CN">对于人工智能产品团队来说，对评估进行管理和迭代应该像维护单元测试一样常规。团队可能会花费数周时间开发那些在初期测试中“能运行”但未能满足预期评估所应揭示的未明确要求的AI功能。定义评估任务是进行压力测试产品需求是否足够明确以开始开发的最佳方式之一。</p>
+<p class="source" lang="en">For AI product teams, owning and iterating on evaluations should be as routine as maintaining unit tests. Teams can waste weeks on AI features that “work” in early testing but fail to meet unstated expectations that a well-designed eval would have surfaced early. Defining eval tasks is one of the best ways to stress-test whether the product requirements are concrete enough to start building.</p>
+</div>
+<div class="pair" id="p-147">
+<p class="target" lang="zh-CN">我们建议采用基于评估的开发方式：在智能体能够履行功能之前先构建评估，以定义预期能力，然后不断迭代直至智能体表现良好。实际上，我们常常构建那些目前“足够好”的功能，但期望这些功能在几个月后能展现出更多潜力。以较低的通过率开始的能力评估就能让这一点变得明显。当新模型出现时，快速运行整套评估就能揭示哪些期望得到了实现。</p>
+<p class="source" lang="en">We recommend practicing eval-driven development: build evals to define planned capabilities before agents can fulfill them, then iterate until the agent performs well. Internally, we often build features that work “well enough” today but are bets on what models can do in a few months. Capability evals that start at a low pass rate make this visible. When a new model drops, running the suite quickly reveals which bets paid off.</p>
+</div>
+<div class="pair" id="p-148">
+<p class="target" lang="zh-CN">与产品需求和用户最亲近的人，最能够定义成功的标准。利用当前模型的功能，产品经理、客户成功经理或销售人员可以使用 Claude Code 来提交评估任务作为 PR——让他们这么做吧！或者，更好的做法是，主动支持他们这样做。</p>
+<p class="source" lang="en">The people closest to product requirements and users are best positioned to define success. With current model capabilities, product managers, customer success managers, or salespeople can use Claude Code to contribute an eval task as a PR—let them! Or, even better, actively enable them.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F0db40cc0e14402222a179fc6297b9c8818e97c8a-4584x2580.png&amp;w=3840&amp;q=75" alt="The process of creating an effective evaluation." loading="lazy">
+<div class="pair" id="p-149">
+<p class="target" lang="zh-CN">如何让评估与其他方法结合，以全面理解智能体</p>
+<p class="source" lang="en">How evals fit with other methods for a holistic understanding of agents</p>
+</div>
+<div class="pair" id="p-150">
+<p class="target" lang="zh-CN">自动化评估可以在数千项任务中对智能体进行运行，而无需部署到生产环境或影响真实用户。但这只是理解智能体性能的众多方法之一。完整的评估方案包括生产监控、用户反馈、A/B测试、手动文本审查以及系统化的人工评估。</p>
+<p class="source" lang="en">Automated evaluations can be run against an agent in thousands of tasks without deploying to production or affecting real users. But this is just one of many ways to understand agent performance. A complete picture includes production monitoring, user feedback, A/B testing, manual transcript review, and systematic human evaluation.</p>
+</div>
+<div class="pair" id="p-151">
+<p class="target" lang="zh-CN">理解人工智能智能体性能的方法概述</p>
+<p class="source" lang="en">An overview of approaches for understanding AI agent performance</p>
+</div>
+<div class="pair" id="p-152">
+<p class="target" lang="zh-CN">方法</p>
+<p class="source" lang="en">Method</p>
+</div>
+<div class="pair" id="p-153">
+<p class="target" lang="zh-CN">&lt;text&gt;
+优点
+&lt;/text&gt;</p>
+<p class="source" lang="en">Pros</p>
+</div>
+<div class="pair" id="p-154">
+<p class="target" lang="zh-CN">缺点</p>
+<p class="source" lang="en">Cons</p>
+</div>
+<div class="pair" id="p-155">
+<p class="target" lang="zh-CN">自动化评估</p>
+<p class="source" lang="en">Automated evals</p>
+</div>
+<div class="pair" id="p-156">
+<p class="target" lang="zh-CN">在没有真实用户的情况下通过编程方式运行测试</p>
+<p class="source" lang="en">Running tests programmatically without real users</p>
+</div>
+<div class="pair" id="p-157">
+<p class="target" lang="zh-CN">更快的迭代</p>
+<p class="source" lang="en">Faster iteration</p>
+</div>
+<div class="pair" id="p-158">
+<p class="target" lang="zh-CN">完全可复现</p>
+<p class="source" lang="en">Fully reproducible</p>
+</div>
+<div class="pair" id="p-159">
+<p class="target" lang="zh-CN">无用户影响</p>
+<p class="source" lang="en">No user impact</p>
+</div>
+<div class="pair" id="p-160">
+<p class="target" lang="zh-CN">可以在每个提交上运行</p>
+<p class="source" lang="en">Can run on every commit</p>
+</div>
+<div class="pair" id="p-161">
+<p class="target" lang="zh-CN">在不需要生产环境部署的情况下，对大规模场景进行测试</p>
+<p class="source" lang="en">Tests scenarios at scale without requiring a prod deployment</p>
+</div>
+<div class="pair" id="p-162">
+<p class="target" lang="zh-CN">建立该系统需要更多的前期投资</p>
+<p class="source" lang="en">Requires more up-front investment to build</p>
+</div>
+<div class="pair" id="p-163">
+<p class="target" lang="zh-CN">随着产品与型号的发展，需要持续维护以避免性能下降</p>
+<p class="source" lang="en">Requires ongoing maintenance as product and model evolves to avoid drift</p>
+</div>
+<div class="pair" id="p-164">
+<p class="target" lang="zh-CN">如果不符合真实的使用模式，可能会产生虚假的信任感。</p>
+<p class="source" lang="en">Can create false confidence if it doesn’t match real usage patterns</p>
+</div>
+<div class="pair" id="p-165">
+<p class="target" lang="zh-CN">生产监控</p>
+<p class="source" lang="en">Production monitoring</p>
+</div>
+<div class="pair" id="p-166">
+<p class="target" lang="zh-CN">实时系统中的跟踪指标和错误</p>
+<p class="source" lang="en">Tracking metrics and errors in live systems</p>
+</div>
+<div class="pair" id="p-167">
+<p class="target" lang="zh-CN">揭示大规模的真实用户行为</p>
+<p class="source" lang="en">Reveals real user behavior at scale</p>
+</div>
+<div class="pair" id="p-168">
+<p class="target" lang="zh-CN">发现合成评估遗漏的问题</p>
+<p class="source" lang="en">Catches issues that synthetic evals miss</p>
+</div>
+<div class="pair" id="p-169">
+<p class="target" lang="zh-CN">提供关于智能体实际表现的真实数据</p>
+<p class="source" lang="en">Provides ground truth on how agents actually perform</p>
+</div>
+<div class="pair" id="p-170">
+<p class="target" lang="zh-CN">被动响应；问题在您意识到之前就传达到用户手中</p>
+<p class="source" lang="en">Reactive; problems reach users before you know about them</p>
+</div>
+<div class="pair" id="p-171">
+<p class="target" lang="zh-CN">信号可能很嘈杂</p>
+<p class="source" lang="en">Signals can be noisy</p>
+</div>
+<div class="pair" id="p-172">
+<p class="target" lang="zh-CN">需要投资于检测设备</p>
+<p class="source" lang="en">Requires investment in instrumentation</p>
+</div>
+<div class="pair" id="p-173">
+<p class="target" lang="zh-CN">缺乏用于评分的基准数据</p>
+<p class="source" lang="en">Lacks ground truth for grading</p>
+</div>
+<div class="pair" id="p-174">
+<p class="target" lang="zh-CN">A/B测试</p>
+<p class="source" lang="en">A/B testing</p>
+</div>
+<div class="pair" id="p-175">
+<p class="target" lang="zh-CN">对比带有真实用户流量的版本</p>
+<p class="source" lang="en">Comparing variants with real user traffic</p>
+</div>
+<div class="pair" id="p-176">
+<p class="target" lang="zh-CN">采取措施评估实际用户效果（留存率、任务完成率）</p>
+<p class="source" lang="en">Measures actual user outcomes (retention, task completion)</p>
+</div>
+<div class="pair" id="p-177">
+<p class="target" lang="zh-CN">控制混淆因素</p>
+<p class="source" lang="en">Controls for confounds</p>
+</div>
+<div class="pair" id="p-178">
+<p class="target" lang="zh-CN">可扩展且系统化的</p>
+<p class="source" lang="en">Scalable and systematic</p>
+</div>
+<div class="pair" id="p-179">
+<p class="target" lang="zh-CN">缓慢；需要几天或几周才能产生显著效果，并且需要足够的流量</p>
+<p class="source" lang="en">Slow; days or weeks to reach significance and requires sufficient traffic</p>
+</div>
+<div class="pair" id="p-180">
+<p class="target" lang="zh-CN">只有你部署的变更才会被测试</p>
+<p class="source" lang="en">Only tests changes you deploy</p>
+</div>
+<div class="pair" id="p-181">
+<p class="target" lang="zh-CN">无法彻底查看记录，对于指标变化的根本原因也缺乏足够信息。</p>
+<p class="source" lang="en">Less signal on the underlying “why” for changes in metrics without being able to thoroughly review the transcripts</p>
+</div>
+<div class="pair" id="p-182">
+<p class="target" lang="zh-CN">用户反馈</p>
+<p class="source" lang="en">User feedback</p>
+</div>
+<div class="pair" id="p-183">
+<p class="target" lang="zh-CN">如“反对”手势或错误报告这样的明确信号</p>
+<p class="source" lang="en">Explicit signals like thumbs-down or bug reports</p>
+</div>
+<div class="pair" id="p-184">
+<p class="target" lang="zh-CN">未预料到的表面问题</p>
+<p class="source" lang="en">Surfaces problems you didn&#39;t anticipate</p>
+</div>
+<div class="pair" id="p-185">
+<p class="target" lang="zh-CN">包含来自真实用户的实际示例</p>
+<p class="source" lang="en">Comes with real examples from actual human users</p>
+</div>
+<div class="pair" id="p-186">
+<p class="target" lang="zh-CN">反馈通常与产品目标相关</p>
+<p class="source" lang="en">The feedback often correlates with product goals</p>
+</div>
+<div class="pair" id="p-187">
+<p class="target" lang="zh-CN">稀疏且自我选择的</p>
+<p class="source" lang="en">Sparse and self-selected</p>
+</div>
+<div class="pair" id="p-188">
+<p class="target" lang="zh-CN">倾向于严重问题</p>
+<p class="source" lang="en">Skews toward severe issues</p>
+</div>
+<div class="pair" id="p-189">
+<p class="target" lang="zh-CN">用户很少解释为什么某件事失败了</p>
+<p class="source" lang="en">Users rarely explain why something failed</p>
+</div>
+<div class="pair" id="p-190">
+<p class="target" lang="zh-CN">非自动化</p>
+<p class="source" lang="en">Not automated</p>
+</div>
+<div class="pair" id="p-191">
+<p class="target" lang="zh-CN">主要依赖用户发现问题可能会对用户产生负面影响</p>
+<p class="source" lang="en">Relying primarily on users to catch issues can have negative user impact</p>
+</div>
+<div class="pair" id="p-192">
+<p class="target" lang="zh-CN">人工文本审核</p>
+<p class="source" lang="en">Manual transcript review</p>
+</div>
+<div class="pair" id="p-193">
+<p class="target" lang="zh-CN">人类阅读代理对话内容</p>
+<p class="source" lang="en">Humans reading through agent conversations</p>
+</div>
+<div class="pair" id="p-194">
+<p class="target" lang="zh-CN">建立对故障模式的直觉认知</p>
+<p class="source" lang="en">Builds intuition for failure modes</p>
+</div>
+<div class="pair" id="p-195">
+<p class="target" lang="zh-CN">发现自动化检查遗漏的细微质量问题</p>
+<p class="source" lang="en">Catches subtle quality issues automated checks miss</p>
+</div>
+<div class="pair" id="p-196">
+<p class="target" lang="zh-CN">有助于校准“良好”的标准，并理解细节。</p>
+<p class="source" lang="en">Helps calibrate what &quot;good&quot; looks like and grasp details</p>
+</div>
+<div class="pair" id="p-197">
+<p class="target" lang="zh-CN">耗时较长的</p>
+<p class="source" lang="en">Time-intensive</p>
+</div>
+<div class="pair" id="p-198">
+<p class="target" lang="zh-CN">无法扩展</p>
+<p class="source" lang="en">Doesn&#39;t scale</p>
+</div>
+<div class="pair" id="p-199">
+<p class="target" lang="zh-CN">覆盖范围不一致</p>
+<p class="source" lang="en">Coverage is inconsistent</p>
+</div>
+<div class="pair" id="p-200">
+<p class="target" lang="zh-CN">&lt;text&gt;
+评审员疲劳或不同评审员的影响可能会影响信号质量
+&lt;/text&gt;</p>
+<p class="source" lang="en">Reviewer fatigue or different reviewers can affect the signal quality</p>
+</div>
+<div class="pair" id="p-201">
+<p class="target" lang="zh-CN">通常只能提供定性信号，而无法得到明确的定量评分</p>
+<p class="source" lang="en">Typically only gives qualitative signal rather than clear quantitative grading</p>
+</div>
+<div class="pair" id="p-202">
+<p class="target" lang="zh-CN">系统化的人类研究</p>
+<p class="source" lang="en">Systematic human studies</p>
+</div>
+<div class="pair" id="p-203">
+<p class="target" lang="zh-CN">经过训练的评价员对智能体输出的结构化评分</p>
+<p class="source" lang="en">Structured grading of agent outputs by trained raters</p>
+</div>
+<div class="pair" id="p-204">
+<p class="target" lang="zh-CN">多个人评估者的黄金标准质量评估</p>
+<p class="source" lang="en">Gold-standard quality judgements from multiple human raters</p>
+</div>
+<div class="pair" id="p-205">
+<p class="target" lang="zh-CN">处理主观或模糊的任务</p>
+<p class="source" lang="en">Handles subjective or ambiguous tasks</p>
+</div>
+<div class="pair" id="p-206">
+<p class="target" lang="zh-CN">提供信号以改进基于模型的评分器</p>
+<p class="source" lang="en">Provides signal for improving model-based graders</p>
+</div>
+<div class="pair" id="p-207">
+<p class="target" lang="zh-CN">相对昂贵且处理周期慢</p>
+<p class="source" lang="en">Relatively expensive and slow turnaround</p>
+</div>
+<div class="pair" id="p-208">
+<p class="target" lang="zh-CN">频繁运行困难</p>
+<p class="source" lang="en">Hard to run frequently</p>
+</div>
+<div class="pair" id="p-209">
+<p class="target" lang="zh-CN">评分者之间的分歧需要协调解决</p>
+<p class="source" lang="en">Inter-rater disagreement requires reconciliation</p>
+</div>
+<div class="pair" id="p-210">
+<p class="target" lang="zh-CN">复杂的领域（如法律、金融、医疗保健）需要人类专家进行研究</p>
+<p class="source" lang="en">Complex domains (legal, finance, healthcare) require human experts to conduct studies</p>
+</div>
+<div class="pair" id="p-211">
+<p class="target" lang="zh-CN">这些方法适用于代理开发的不同阶段。自动化评估在发布前和 CI/CD 过程中特别有用，在每次代理更新和模型升级时运行，是防止质量问题的第一道防线。生产监控在发布后开始，用于检测分发偏差和意外的实际故障情况。A/B 测试在拥有足够流量后用于验证重大变更。用户反馈和文本记录审查是持续进行的实践，以填补空白：不断处理反馈，每周阅读样本文本，并根据需要深入调查。将系统化的人类研究留用于校准 LLM 评分器或评估主观输出，在这些情况下人类共识可作为参考标准。</p>
+<p class="source" lang="en">These methods map to different stages of agent development. Automated evals are especially useful pre-launch and in CI/CD, running on each agent change and model upgrade as the first line of defense against quality problems. Production monitoring kicks in post-launch to detect distribution drift and unanticipated real-world failures. A/B testing validates significant changes once you have sufficient traffic. User feedback and transcript review are ongoing practices to fill the gaps: triage feedback constantly, sample transcripts to read weekly, and dig deeper as needed. Reserve systematic human studies for calibrating LLM graders or evaluating subjective outputs where human consensus serves as the reference standard.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Fb77b8dbb7c2e57f063fbc8a087a853d5809b74b0-4584x2580.png&amp;w=3840&amp;q=75" alt="Like the Swiss Cheese Model from safety engineering, no single evaluation layer catches every issue. With multiple methods combined, failures that slip through one layer are caught by another." loading="lazy">
+<div class="pair" id="p-212">
+<p class="target" lang="zh-CN">最有效的团队会结合这些方法：使用自动化评估以实现快速迭代，通过生产监控获取真实数据，并定期进行人工审查以进行校准。</p>
+<p class="source" lang="en">The most effective teams combine these methods: automated evals for fast iteration, production monitoring for ground truth, and periodic human review for calibration.</p>
+</div>
+<div class="pair" id="p-213">
+<p class="target" lang="zh-CN">结论</p>
+<p class="source" lang="en">Conclusion</p>
+</div>
+<div class="pair" id="p-214">
+<p class="target" lang="zh-CN">没有进行评估的团队会陷入被动应对的循环——修复一个问题又引发另一个问题，无法区分真正的问题与偶然因素。而提前进行评估的团队则相反：随着失败成为测试案例，开发进程加快，测试案例能够预防问题复发，指标则取代了猜测。评估为整个团队提供了明确的目标，将“agent感觉不佳”转化为可执行的行动。价值会逐步提升，但前提是必须将评估视为核心环节，而非次要事项。</p>
+<p class="source" lang="en">Teams without evals get bogged down in reactive loops—fixing one failure, creating another, unable to distinguish real regressions from noise. Teams that invest early find the opposite: development accelerates as failures become test cases, test cases prevent regressions, and metrics replace guesswork. Evals give the whole team a clear hill to climb, turning “the agent feels worse” into something actionable. The value compounds, but only if you treat evals as a core component, not an afterthought.</p>
+</div>
+<div class="pair" id="p-215">
+<p class="target" lang="zh-CN">模式因代理类型而异，但这里描述的基本要素是恒定的。尽早开始，不要等待完美的解决方案。从你看到的失败中找出实际可行的任务。制定明确且可靠的成功标准。精心设计评估器，并结合多种类型。确保问题对模型来说足够难。通过迭代评估来提升信噪比。阅读记录文本！</p>
+<p class="source" lang="en">The patterns vary by agent type, but the fundamentals described here are constant. Start early and don’t wait for the perfect suite. Source realistic tasks from the failures you see. Define unambiguous, robust success criteria. Design graders thoughtfully and combine multiple types. Make sure the problems are hard enough for the model. Iterate on the evaluations to improve their signal-to-noise ratio. Read the transcripts!</p>
+</div>
+<div class="pair" id="p-216">
+<p class="target" lang="zh-CN">AI智能体评估仍是一个新兴且快速发展的领域。随着智能体承担更长的任务、在多智能体系统中协作以及处理越来越主观的工作，我们需要调整我们的技术方法。随着我们不断学习，我们将继续分享最佳实践。</p>
+<p class="source" lang="en">AI agent evaluation is still a nascent, fast-evolving field. As agents take on longer tasks, collaborate in multi-agent systems, and handle increasingly subjective work, we will need to adapt our techniques. We’ll keep sharing best practices as we learn more.</p>
+</div>
+<div class="pair" id="p-217">
+<p class="target" lang="zh-CN">附录：评估框架</p>
+<p class="source" lang="en">Appendix: Eval frameworks</p>
+</div>
+<div class="pair" id="p-218">
+<p class="target" lang="zh-CN">一些开源和商业框架可以帮助团队实施代理评估，而无需从零构建基础设施。正确的选择取决于您的代理类型、现有技术栈，以及您是否需要离线评估、生产级可观测性，或两者都需要。</p>
+<p class="source" lang="en">Several open-source and commercial frameworks can help teams implement agent evaluations without building infrastructure from scratch. The right choice depends on your agent type, existing stack, and whether you need offline evaluation, production observability, or both.</p>
+</div>
+<div class="pair" id="p-219">
+<p class="target" lang="zh-CN">Harbor 旨在在容器化环境中运行代理，拥有在各种云提供商上大规模运行试验的基础设施，以及用于定义任务和评估器的标准化格式。像 Terminal-Bench 2.0 这样的热门基准测试通过 Harbor 注册表提供，使得运行成熟的基准测试和自定义评估套件变得容易。</p>
+<p class="source" lang="en">Harbor is designed for running agents in containerized environments, with infrastructure for running trials at scale across cloud providers and a standardized format for defining tasks and graders. Popular benchmarks like Terminal-Bench 2.0 ship through the Harbor registry, making it easy to run established benchmarks along with custom eval suites.</p>
+</div>
+<div class="pair" id="p-220">
+<p class="target" lang="zh-CN">Braintrust 是一个平台，它将离线评估、生产可观测性以及实验跟踪相结合——非常适合那些需要在开发过程中迭代并监控生产环境质量的团队。其 `autoevals` 库包含针对事实性、相关性及其他常见维度的预构建评分器。</p>
+<p class="source" lang="en">Braintrust is a platform that combines offline evaluation with production observability and experiment tracking—useful for teams that need to both iterate during development and monitor quality in production. Its `autoevals` library includes pre-built scorers for factuality, relevance, and other common dimensions.</p>
+</div>
+<div class="pair" id="p-221">
+<p class="target" lang="zh-CN">LangSmith 提供追踪、离线及在线评估功能，以及数据集管理服务，并能与 LangChain 生态系统紧密集成。Langfuse 则作为自托管开源替代品，为有数据本地化要求的企业提供类似功能。</p>
+<p class="source" lang="en">LangSmith offers tracing, offline and online evaluations, and dataset management with tight integration into the LangChain ecosystem. Langfuse provides similar capabilities as a self-hosted open-source alternative for teams with data residency requirements.</p>
+</div>
+<div class="pair" id="p-222">
+<p class="target" lang="zh-CN">Arize提供了Phoenix，一个开源的LLM追踪、调试和离线或在线评估平台；同时提供了AX，一种SaaS服务，用于扩展Phoenix的功能，以实现规模扩展、优化和监控。</p>
+<p class="source" lang="en">Arize offers Phoenix, an open-source platform for LLM tracing, debugging, and offline or online evaluations, and AX, a SaaS offering that extends Phoenix for scale, optimization and monitoring.</p>
+</div>
+<div class="pair" id="p-223">
+<p class="target" lang="zh-CN">许多团队会结合多种工具，自己开发评估框架，或者仅使用简单的评估脚本作为起点。我们发现，虽然框架可以加速进展并实现标准化，但其效果取决于所执行的评估任务。通常最好快速选择适合工作流程的框架，然后专注于评估本身，通过迭代高质量的测试案例和评估器来提升效果。</p>
+<p class="source" lang="en">Many teams combine multiple tools, roll their own eval framework, or just use simple evaluation scripts as a starting point. We find that while frameworks can be a valuable way to accelerate progress and standardize, they’re only as good as the eval tasks you run through them. It’s often best to quickly pick a framework that fits your workflow, then invest your energy in the evals themselves by iterating on high-quality test cases and graders.</p>
+</div>
+<div class="pair" id="p-224">
+<p class="target" lang="zh-CN">作者与致谢</p>
+<p class="source" lang="en">Authors &amp; acknowledgements</p>
+</div>
+<div class="pair" id="p-225">
+<p class="target" lang="zh-CN">致谢</p>
+<p class="source" lang="en">Acknowledgements</p>
+</div>
+<div class="pair" id="p-226">
+<p class="target" lang="zh-CN">由米凯拉·格蕾丝、杰里米·哈德菲尔德、罗德里戈·奥利瓦雷斯和吉里·德·容赫共同撰写。我们也非常感谢大卫·赫希、吉安·塞加托、迈克·梅里尔、亚历克斯·肖、尼古拉斯·卡林尼、伊森·迪克森、佩德拉姆·纳维德、杰克·伊顿、艾丽莎·鲍姆、莉娜·塔夫菲克、凯伦·周、亚历山大·布里肯、萨姆·肯尼迪、罗伯特·英等人的贡献。特别感谢那些通过参与评估工作而得到我们帮助的客户和合作伙伴，包括iGent、Cognition、Bolt、Sierra、Vals.ai、Macroscope、PromptLayer、Stripe、Shopify、Terminal Bench团队等。这项工作体现了Anthropic多个团队共同努力的结果，这些团队共同推动了评估实践的发展。</p>
+<p class="source" lang="en">Written by Mikaela Grace, Jeremy Hadfield, Rodrigo Olivares, and Jiri De Jonghe. We&#39;re also grateful to David Hershey, Gian Segato, Mike Merrill, Alex Shaw, Nicholas Carlini, Ethan Dixon, Pedram Navid, Jake Eaton, Alyssa Baum, Lina Tawfik, Karen Zhou, Alexander Bricken, Sam Kennedy, Robert Ying, and others for their contributions. Special thanks to the customers and partners we have learned from through collaborating on evals, including iGent, Cognition, Bolt, Sierra, Vals.ai, Macroscope, PromptLayer, Stripe, Shopify, the Terminal Bench team, and more. This work reflects the collective efforts of several teams who helped develop the practice of evaluations at Anthropic.</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://www.anthropic.com/research/demystifying-evals-for-ai-agents" target="_blank" rel="noopener noreferrer">https://www.anthropic.com/research/demystifying-evals-for-ai-agents</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/designing-ai-resistant-technical-evaluations.html">← Designing AI-resistant technical evaluations</a><a href="../viewers/effective-harnesses-for-long-running-agents.html">Effective harnesses for long-running agents →</a></nav>
+  <footer class="footer">本站为公开 AI 工程博客的非官方中英对照归档。中文译文仅作辅助阅读，请以英文原文为准；文章内容版权归原作者所有。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

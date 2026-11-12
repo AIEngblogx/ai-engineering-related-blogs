@@ -1,0 +1,1357 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Claude Code: Best practices for agentic coding · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Claude Code: Best practices for agentic coding</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">01</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">02</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">11</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">12</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">19</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">21</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>How we built our multi-agent research system</a>
+<a class="nav-item current" href="../viewers/claude-code-best-practices-for-agentic-coding.html" aria-current="page"><span class="num">24</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">25</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">26</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">27</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">28</span>Introducing Contextual Retrieval</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">01</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">02</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">11</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">12</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">19</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">21</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>How we built our multi-agent research system</a>
+<a class="nav-item current" href="../viewers/claude-code-best-practices-for-agentic-coding.html" aria-current="page"><span class="num">24</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">25</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">26</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">27</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">28</span>Introducing Contextual Retrieval</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Claude Code: Best practices for agentic coding</h1>
+  <p class="subline">原文：<a href="https://www.anthropic.com/research/claude-code-best-practices" target="_blank" rel="noopener noreferrer">https://www.anthropic.com/research/claude-code-best-practices</a> · 2025-04-18 · Anthropic Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">Claude 代码最佳实践已经发布在文档中</p>
+<p class="source" lang="en">Claude Code best practices has moved to docs</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">这篇博客文章已不再维护。如需了解最新的 Claude Code 最佳实践，请参考官方文档 (https://code.claude.com/docs/en/best-practices)，该文档会随着 Claude Code 的更新而更新。</p>
+<p class="source" lang="en">This blog post is no longer maintained. For the most current Claude Code best practices, please refer to the official documentation (https://code.claude.com/docs/en/best-practices), which is kept up to date as Claude Code evolves.</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">我们最近发布了 Claude Code，这是一个用于代理式编程的命令行工具。作为一项研究项目而开发的 Claude Code，为 Anthropic 的工程师和研究人员提供了一种更自然的方式，将 Claude 集成到他们的编程工作流程中。</p>
+<p class="source" lang="en">We recently released Claude Code, a command line tool for agentic coding. Developed as a research project, Claude Code gives Anthropic engineers and researchers a more native way to integrate Claude into their coding workflows.</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">Claude Code 故意采用低级别、无约束的设计，提供接近原始模型访问权限，而不强制特定的工作流。这种设计理念使得它成为一个灵活、可定制、可编写脚本且安全的强大工具。尽管功能强大，但这种灵活性对于初次使用代理式编码工具的工程师来说需要学习过程——至少在他们形成自己的最佳实践之前是如此。</p>
+<p class="source" lang="en">Claude Code is intentionally low-level and unopinionated, providing close to raw model access without forcing specific workflows. This design philosophy creates a flexible, customizable, scriptable, and safe power tool. While powerful, this flexibility presents a learning curve for engineers new to agentic coding tools—at least until they develop their own best practices.</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">这篇文章概述了那些被证明有效的通用模式，这些模式对 Anthropic 内部团队以及使用 Claude Code 在不同代码库、语言和环境中的外部工程师都有效。列表中的内容并非一成不变或普遍适用；请将这些建议视为起点。我们鼓励您进行实验，找到最适合您的方案！</p>
+<p class="source" lang="en">This post outlines general patterns that have proven effective, both for Anthropic&#39;s internal teams and for external engineers using Claude Code across various codebases, languages, and environments. Nothing in this list is set in stone nor universally applicable; consider these suggestions as starting points. We encourage you to experiment and find what works best for you!</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">想要更详细的信息吗？我们在 claude.ai/code 上的全面文档涵盖了本文中提到的所有功能，并提供了额外的示例、实现细节和高级技术。</p>
+<p class="source" lang="en">Looking for more detailed information? Our comprehensive documentation at claude.ai/code covers all the features mentioned in this post and provides additional examples, implementation details, and advanced techniques.</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">1. 自定义您的设置</p>
+<p class="source" lang="en">1. Customize your setup</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">Claude Code 是一个代理式编码助手，能够自动将上下文纳入提示中。这种上下文收集过程会消耗时间和字符数，但可以通过环境调整来优化它。</p>
+<p class="source" lang="en">Claude Code is an agentic coding assistant that automatically pulls context into prompts. This context gathering consumes time and tokens, but you can optimize it through environment tuning.</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">a. 创建 CLAUDE.md 文件</p>
+<p class="source" lang="en">a. Create CLAUDE.md files</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">CLAUDE.md 是一个特殊文件，Claude在开始对话时会自动将其纳入上下文中。因此，它是记录信息的理想位置。</p>
+<p class="source" lang="en">CLAUDE.md is a special file that Claude automatically pulls into context when starting a conversation. This makes it an ideal place for documenting:</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">常见的 bash 命令</p>
+<p class="source" lang="en">Common bash commands</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">核心文件和实用函数</p>
+<p class="source" lang="en">Core files and utility functions</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">代码风格指南</p>
+<p class="source" lang="en">Code style guidelines</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">测试说明</p>
+<p class="source" lang="en">Testing instructions</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">仓库礼仪（例如分支命名、合并与重新合并等）</p>
+<p class="source" lang="en">Repository etiquette (e.g., branch naming, merge vs. rebase, etc.)</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">开发者环境配置（例如使用 pyenv，以及使用的编译器）</p>
+<p class="source" lang="en">Developer environment setup (e.g., pyenv use, which compilers work)</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">任何项目特有的意外行为或警告</p>
+<p class="source" lang="en">Any unexpected behaviors or warnings particular to the project</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">您希望 Claude 记住的其他信息</p>
+<p class="source" lang="en">Other information you want Claude to remember</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">CLAUDE.md 文件没有特定的格式要求。我们建议保持它们简洁且易于阅读。例如：</p>
+<p class="source" lang="en">There’s no required format for CLAUDE.md files. We recommend keeping them concise and human-readable. For example:</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN"># Bash命令 - npm run build：构建项目 - npm run typecheck：运行类型检查器 # 代码风格 - 使用ES模块（import/export）语法，不要使用CommonJS（require） - 尽可能解构导入语句（例如：import { foo } from &#39;bar&#39;） # 工作流 - 完成一系列代码修改后务必进行类型检查 - 为了性能考虑，优先运行单个测试，而不是整个测试套件</p>
+<p class="source" lang="en"># Bash commands - npm run build: Build the project - npm run typecheck: Run the typechecker # Code style - Use ES modules (import/export) syntax, not CommonJS (require) - Destructure imports when possible (eg. import { foo } from &#39;bar&#39;) # Workflow - Be sure to typecheck when you’re done making a series of code changes - Prefer running single tests, and not the whole test suite, for performance</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">您可以将 CLAUDE.md 文件放在多个位置：</p>
+<p class="source" lang="en">You can place CLAUDE.md files in several locations:</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">你的代码库的根目录，或者你运行 claude 的地方（这是最常见的使用方式）。将其命名为 CLAUDE.md，并提交到 git 中，这样你就可以在多个会话中以及与团队分享（推荐），或者将其命名为 CLAUDE.local.md，并将其从 .gitignore 中排除。</p>
+<p class="source" lang="en">The root of your repo, or wherever you run claude from (the most common usage). Name it CLAUDE.md and check it into git so that you can share it across sessions and with your team (recommended), or name it CLAUDE.local.md and .gitignore it</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">任何运行 claude 的目录的父目录。这对于单仓库项目非常有用，在单仓库项目中，你可能会从 root/foo 运行 claude，并且同时有 root/CLAUDE.md 和 root/foo/CLAUDE.md 文件。这两种文件都会自动被纳入上下文中。</p>
+<p class="source" lang="en">Any parent of the directory where you run claude. This is most useful for monorepos, where you might run claude from root/foo, and have CLAUDE.md files in both root/CLAUDE.md and root/foo/CLAUDE.md. Both of these will be pulled into context automatically</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">任何你运行 Claude 的子目录中的文件。这是上述情况的相反情况，在这种情况下，当你处理子目录中的文件时，Claude 会按需加载 CLAUDE.md 文件。</p>
+<p class="source" lang="en">Any child of the directory where you run claude. This is the inverse of the above, and in this case, Claude will pull in CLAUDE.md files on demand when you work with files in child directories</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">你的主目录文件夹 (~/.claude/CLAUDE.md)，它适用于你所有的 claude 会话</p>
+<p class="source" lang="en">Your home folder (~/.claude/CLAUDE.md), which applies it to all your claude sessions</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">当您运行 /init 命令时，Claude 会自动为您生成 CLAUDE.md 文件。</p>
+<p class="source" lang="en">When you run the /init command, Claude will automatically generate a CLAUDE.md for you.</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">b. 调整你的 CLAUDE.md 文件</p>
+<p class="source" lang="en">b. Tune your CLAUDE.md files</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">你的 CLAUDE.md 文件会成为 Claude 的提示词的一部分，因此应该像处理常用的提示词一样对其进行优化。常见的错误是添加大量内容而不对效果进行迭代改进。花时间尝试不同的方法，以确定什么能促使模型更好地遵循指令。</p>
+<p class="source" lang="en">Your CLAUDE.md files become part of Claude’s prompts, so they should be refined like any frequently used prompt. A common mistake is adding extensive content without iterating on its effectiveness. Take time to experiment and determine what produces the best instruction following from the model.</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">您可以手动向您的 CLAUDE.md 添加内容，或者按 # 键向 Claude 发出指令，使其自动将内容融入相应的 CLAUDE.md 中。许多工程师在编码时经常使用 # 来记录命令、文件和风格指南，然后将 CLAUDE.md 的修改纳入提交中，以便团队成员也能从中受益。</p>
+<p class="source" lang="en">You can add content to your CLAUDE.md manually or press the # key to give Claude an instruction that it will automatically incorporate into the relevant CLAUDE.md. Many engineers use # frequently to document commands, files, and style guidelines while coding, then include CLAUDE.md changes in commits so team members benefit as well.</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">在 Anthropic，我们偶尔会将 CLAUDE.md 文件通过提示优化工具处理，并经常调整说明（例如使用“重要”或“必须”来强调），以提高遵循性。</p>
+<p class="source" lang="en">At Anthropic, we occasionally run CLAUDE.md files through the prompt improver and often tune instructions (e.g. adding emphasis with &quot;IMPORTANT&quot; or &quot;YOU MUST&quot;) to improve adherence.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F6961243cc6409e41ba93895faded4f4bc1772366-1600x1231.png&amp;w=3840&amp;q=75" alt="Claude Code tool allowlist" loading="lazy">
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">c. 整理 Claude 允许使用的工具列表</p>
+<p class="source" lang="en">c. Curate Claude&#39;s list of allowed tools</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">默认情况下，Claude Code会请求任何可能修改您系统的操作的许可：文件写入、许多 bash 命令、MCP 工具等。我们采用这种保守的方式设计 Claude Code，以优先保障安全性。您可以自定义允许列表，允许您确认安全的额外工具，或者允许可能不安全的、易于撤销的工具（例如文件编辑、git commit）。</p>
+<p class="source" lang="en">By default, Claude Code requests permission for any action that might modify your system: file writes, many bash commands, MCP tools, etc. We designed Claude Code with this deliberately conservative approach to prioritize safety. You can customize the allowlist to permit additional tools that you know are safe, or to allow potentially unsafe tools that are easy to undo (e.g., file editing, git commit).</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">有四种管理允许工具的方法：</p>
+<p class="source" lang="en">There are four ways to manage allowed tools:</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">在会话过程中提示时，选择“始终允许”。</p>
+<p class="source" lang="en">Select &quot;Always allow&quot; when prompted during a session.</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">在启动 Claude Code 后，使用 /permissions 命令可以添加或移除工具到允许列表中。例如，你可以将 “Edit” 添加到允许文件编辑的列表中，将 “Bash(git commit:*)” 添加到允许 git 提交的操作，或将 “mcp__puppeteer__puppeteer_navigate” 添加到允许使用 Puppeteer MCP 服务器导航的操作。</p>
+<p class="source" lang="en">Use the /permissions command after starting Claude Code to add or remove tools from the allowlist. For example, you can add Edit to always allow file edits, Bash(git commit:*) to allow git commits, or mcp__puppeteer__puppeteer_navigate to allow navigating with the Puppeteer MCP server.</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">手动编辑你的 .claude/settings.json 或 ~/.claude.json 文件（我们建议将前者提交到代码仓库，以便与团队共享）。</p>
+<p class="source" lang="en">Manually edit your .claude/settings.json or ~/.claude.json (we recommend checking the former into source control to share with your team).</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">使用 --allowedTools CLI 标志来设置会话特定的权限。</p>
+<p class="source" lang="en">Use the --allowedTools CLI flag for session-specific permissions.</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">d. 如果使用 GitHub，请安装 gh CLI</p>
+<p class="source" lang="en">d. If using GitHub, install the gh CLI</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">Claude 知道如何使用 gh CLI 与 GitHub 进行交互，包括创建问题、打开拉取请求、阅读评论等。如果没有安装 gh，Claude 仍然可以使用 GitHub API 或 MCP 服务器（如果你已经安装了它）。</p>
+<p class="source" lang="en">Claude knows how to use the gh CLI to interact with GitHub for creating issues, opening pull requests, reading comments, and more. Without gh installed, Claude can still use the GitHub API or MCP server (if you have it installed).</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">2. 给 Claude 更多工具</p>
+<p class="source" lang="en">2. Give Claude more tools</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">Claude可以访问你的终端环境，你可以像为自己编写一样，为它编写一系列便捷的脚本和功能。它还可以通过MCP和REST API利用更复杂的工具。</p>
+<p class="source" lang="en">Claude has access to your shell environment, where you can build up sets of convenience scripts and functions for it just like you would for yourself. It can also leverage more complex tools through MCP and REST APIs.</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">a. 使用 Claude 与 bash 工具</p>
+<p class="source" lang="en">a. Use Claude with bash tools</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">Claude Code 继承了你的 bash 环境，让你能够使用所有工具。虽然 Claude 熟悉常见的工具，如 unix 工具和 gh，但如果没有说明，它不会了解你的自定义 bash 工具。</p>
+<p class="source" lang="en">Claude Code inherits your bash environment, giving it access to all your tools. While Claude knows common utilities like unix tools and gh, it won&#39;t know about your custom bash tools without instructions:</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">告诉 Claude 工具名称及使用示例</p>
+<p class="source" lang="en">Tell Claude the tool name with usage examples</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">告诉 Claude 运行 --help 以查看工具文档</p>
+<p class="source" lang="en">Tell Claude to run --help to see tool documentation</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">在 CLAUDE.md 中记录常用的工具</p>
+<p class="source" lang="en">Document frequently used tools in CLAUDE.md</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">b. 使用 Claude 与 MCP 一起使用</p>
+<p class="source" lang="en">b. Use Claude with MCP</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">Claude Code既可以作为MCP服务器，也可以作为客户端。作为客户端，它可以通过三种方式连接到任意数量的MCP服务器以使用它们的工具：</p>
+<p class="source" lang="en">Claude Code functions as both an MCP server and client. As a client, it can connect to any number of MCP servers to access their tools in three ways:</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">在项目配置中（在在该目录中运行 Claude Code 时可用）</p>
+<p class="source" lang="en">In project config (available when running Claude Code in that directory)</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">在全局配置中（所有项目都可用）</p>
+<p class="source" lang="en">In global config (available in all projects)</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">在已签入的 .mcp.json 文件中（任何在您的代码库中工作的人都可以访问）。例如，您可以将 Puppeteer 和 Sentry 服务器添加到 .mcp.json 中，这样所有在您的代码库中工作的工程师都可以直接使用它们。</p>
+<p class="source" lang="en">In a checked-in .mcp.json file (available to anyone working in your codebase). For example, you can add Puppeteer and Sentry servers to your .mcp.json, so that every engineer working on your repo can use these out of the box.</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">在使用 MCP 时，使用 --mcp-debug 标志启动 Claude 也可以帮助识别配置问题。</p>
+<p class="source" lang="en">When working with MCP, it can also be helpful to launch Claude with the --mcp-debug flag to help identify configuration issues.</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">c. 使用自定义斜杠命令</p>
+<p class="source" lang="en">c. Use custom slash commands</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">对于重复的工作流程——如调试循环、日志分析等——请将提示模板存储在 .claude/commands 文件夹中的 Markdown 文件中。当你输入 /. 时，这些模板会通过斜杠命令菜单提供。你可以将这些命令提交到 git 中，以便团队其他成员也能使用。</p>
+<p class="source" lang="en">For repeated workflows—debugging loops, log analysis, etc.—store prompt templates in Markdown files within the .claude/commands folder. These become available through the slash commands menu when you type /. You can check these commands into git to make them available for the rest of your team.</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">自定义斜杠命令可以包含特殊关键字 $ARGUMENTS，用于传递命令调用时的参数。</p>
+<p class="source" lang="en">Custom slash commands can include the special keyword $ARGUMENTS to pass parameters from command invocation.</p>
+</div>
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">例如，这里有一个斜杠命令，你可以用来自动获取并修复 GitHub 问题：</p>
+<p class="source" lang="en">For example, here’s a slash command that you could use to automatically pull and fix a Github issue:</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">请分析并解决 GitHub 问题 $ARGUMENTS。请按照以下步骤操作：1. 使用 `gh issue view` 查看问题详情 2. 理解问题中描述的问题 3. 在代码库中搜索相关文件 4. 实施必要的修改以解决问题 5. 编写并运行测试以验证修复效果 6. 确保代码通过代码检查与类型检查 7. 编写详细的提交信息 8. 推送代码并创建 PR 请记得使用 GitHub CLI (`gh`) 来完成所有与 GitHub 相关的工作。</p>
+<p class="source" lang="en">Please analyze and fix the GitHub issue: $ARGUMENTS. Follow these steps: 1. Use `gh issue view` to get the issue details 2. Understand the problem described in the issue 3. Search the codebase for relevant files 4. Implement the necessary changes to fix the issue 5. Write and run tests to verify the fix 6. Ensure code passes linting and type checking 7. Create a descriptive commit message 8. Push and create a PR Remember to use the GitHub CLI (`gh`) for all GitHub-related tasks.</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">将上述内容放入 .claude/commands/fix-github-issue.md 中后，就可以在 Claude Code 中通过 /project:fix-github-issue 命令使用。例如，你可以使用 /project:fix-github-issue 1234 让 Claude 修复 issue #1234。同样，你也可以在 ~/.claude/commands 文件夹中添加自己的自定义命令，这样这些命令就可以在所有会话中使用。</p>
+<p class="source" lang="en">Putting the above content into .claude/commands/fix-github-issue.md makes it available as the /project:fix-github-issue command in Claude Code. You could then for example use /project:fix-github-issue 1234 to have Claude fix issue #1234. Similarly, you can add your own personal commands to the ~/.claude/commands folder for commands you want available in all of your sessions.</p>
+</div>
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">3. 尝试常见的工作流程</p>
+<p class="source" lang="en">3. Try common workflows</p>
+</div>
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">Claude Code并不强制使用特定的工作流程，让你能够按照自己的方式使用它。在这种灵活性的基础上，我们的用户社区中已经出现了一些有效的使用Claude Code的模式：</p>
+<p class="source" lang="en">Claude Code doesn’t impose a specific workflow, giving you the flexibility to use it how you want. Within the space this flexibility affords, several successful patterns for effectively using Claude Code have emerged across our community of users:</p>
+</div>
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">a. 探索、规划、编写代码、提交</p>
+<p class="source" lang="en">a. Explore, plan, code, commit</p>
+</div>
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">这种多功能工作流适用于许多问题：</p>
+<p class="source" lang="en">This versatile workflow suits many problems:</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">请让 Claude 阅读相关的文件、图片或 URL，提供一般提示（“阅读处理日志的文件”）或具体的文件名（“阅读 logging.py 文件”），但明确告诉它目前不要编写任何代码。这是工作流程中应该充分利用子代理的部分，尤其是对于复杂问题而言。让 Claude 使用子代理来验证细节或调查它可能有的问题，尤其是在对话或任务初期，有助于保持上下文的可用性，而带来的效率损失也不大。</p>
+<p class="source" lang="en">Ask Claude to read relevant files, images, or URLs, providing either general pointers (&quot;read the file that handles logging&quot;) or specific filenames (&quot;read logging.py&quot;), but explicitly tell it not to write any code just yet.This is the part of the workflow where you should consider strong use of subagents, especially for complex problems. Telling Claude to use subagents to verify details or investigate particular questions it might have, especially early on in a conversation or task, tends to preserve context availability without much downside in terms of lost efficiency.</p>
+</div>
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">这是工作流程中的一部分，在处理复杂问题时应充分利用子代理。让 Claude 使用子代理来验证细节或调查其可能有的特定问题，尤其是在对话或任务初期，这样可以保持上下文的可用性，而带来的效率损失并不大。</p>
+<p class="source" lang="en">This is the part of the workflow where you should consider strong use of subagents, especially for complex problems. Telling Claude to use subagents to verify details or investigate particular questions it might have, especially early on in a conversation or task, tends to preserve context availability without much downside in terms of lost efficiency.</p>
+</div>
+<div class="pair" id="p-64">
+<p class="target" lang="zh-CN">请让 Claude 制定应对特定问题的计划。我们建议使用“思考”这个词来触发深度思考模式，这样 Claude 就有更多时间来更彻底地评估各种方案。这些特定短语在系统中与不同的思考资源水平直接对应：“思考” &lt; “努力思考” &lt; “更努力思考” &lt; “极致思考”。每个级别都会为 Claude 分配越来越多的思考资源。如果这一步的结果看起来合理，你可以让 Claude 生成相关文档或 GitHub 问题，这样如果实施步骤（第 3 步）不符合你的需求，就可以回到这个阶段。</p>
+<p class="source" lang="en">Ask Claude to make a plan for how to approach a specific problem. We recommend using the word &quot;think&quot; to trigger extended thinking mode, which gives Claude additional computation time to evaluate alternatives more thoroughly. These specific phrases are mapped directly to increasing levels of thinking budget in the system: &quot;think&quot; &lt; &quot;think hard&quot; &lt; &quot;think harder&quot; &lt; &quot;ultrathink.&quot; Each level allocates progressively more thinking budget for Claude to use.If the results of this step seem reasonable, you can have Claude create a document or a GitHub issue with its plan so that you can reset to this spot if the implementation (step 3) isn’t what you want.</p>
+</div>
+<div class="pair" id="p-65">
+<p class="target" lang="zh-CN">如果这一步的结果看起来合理，你可以让 Claude 生成一个文档或 GitHub 问题，其中包含相关计划，这样如果实施的步骤（第3步）不符合你的要求，就可以回到这个状态。</p>
+<p class="source" lang="en">If the results of this step seem reasonable, you can have Claude create a document or a GitHub issue with its plan so that you can reset to this spot if the implementation (step 3) isn’t what you want.</p>
+</div>
+<div class="pair" id="p-66">
+<p class="target" lang="zh-CN">请让 Claude 在代码中实现解决方案。这也是一个好时机，让 Claude 明确验证其解决方案的合理性，因为它正在执行解决方案的部分内容。</p>
+<p class="source" lang="en">Ask Claude to implement its solution in code. This is also a good place to ask it to explicitly verify the reasonableness of its solution as it implements pieces of the solution.</p>
+</div>
+<div class="pair" id="p-67">
+<p class="target" lang="zh-CN">请让 Claude 提交结果并创建拉取请求。如果相关的话，也是让 Claude 更新任何 README 或 changelog 的好时机，并附上对其所做内容的说明。</p>
+<p class="source" lang="en">Ask Claude to commit the result and create a pull request. If relevant, this is also a good time to have Claude update any READMEs or changelogs with an explanation of what it just did.</p>
+</div>
+<div class="pair" id="p-68">
+<p class="target" lang="zh-CN">步骤 #1-#2 非常重要——没有这些步骤，Claude 往往会直接开始编写解决方案。虽然有时这也是你希望看到的，但让 Claude 先进行研究和规划，对于需要深入思考的问题来说，能显著提升性能。</p>
+<p class="source" lang="en">Steps #1-#2 are crucial—without them, Claude tends to jump straight to coding a solution. While sometimes that&#39;s what you want, asking Claude to research and plan first significantly improves performance for problems requiring deeper thinking upfront.</p>
+</div>
+<div class="pair" id="p-69">
+<p class="target" lang="zh-CN">b. 编写测试，提交；编写代码，迭代，提交</p>
+<p class="source" lang="en">b. Write tests, commit; code, iterate, commit</p>
+</div>
+<div class="pair" id="p-70">
+<p class="target" lang="zh-CN">这是 Anthropic 推荐的工作流程，适用于可以通过单元测试、集成测试或端到端测试轻松验证的变更。通过代理式编码，测试驱动开发（TDD）变得更加高效：</p>
+<p class="source" lang="en">This is an Anthropic-favorite workflow for changes that are easily verifiable with unit, integration, or end-to-end tests. Test-driven development (TDD) becomes even more powerful with agentic coding:</p>
+</div>
+<div class="pair" id="p-71">
+<p class="target" lang="zh-CN">请让 Claude 根据预期的输入和输出对来编写测试。明确说明你正在进行测试驱动开发，这样就能避免创建模拟实现，即使是对代码库中尚未存在的功能也是如此。</p>
+<p class="source" lang="en">Ask Claude to write tests based on expected input/output pairs. Be explicit about the fact that you’re doing test-driven development so that it avoids creating mock implementations, even for functionality that doesn’t exist yet in the codebase.</p>
+</div>
+<div class="pair" id="p-72">
+<p class="target" lang="zh-CN">告诉 Claude 运行测试，并确认它们失败。明确指示它在当前阶段不要编写任何实现代码通常很有帮助。</p>
+<p class="source" lang="en">Tell Claude to run the tests and confirm they fail. Explicitly telling it not to write any implementation code at this stage is often helpful.</p>
+</div>
+<div class="pair" id="p-73">
+<p class="target" lang="zh-CN">当你对测试满意时，让 Claude 提交这些测试。</p>
+<p class="source" lang="en">Ask Claude to commit the tests when you’re satisfied with them.</p>
+</div>
+<div class="pair" id="p-74">
+<p class="target" lang="zh-CN">请让 Claude 编写通过测试的代码，并指示它不要修改测试代码。让 Claude 继续编写，直到所有测试都通过。通常，Claude 需要几次迭代才能编写代码、运行测试、调整代码，然后再运行测试。在这个阶段，可以请它通过独立子代理验证实现方案没有过度拟合于测试。</p>
+<p class="source" lang="en">Ask Claude to write code that passes the tests, instructing it not to modify the tests. Tell Claude to keep going until all tests pass. It will usually take a few iterations for Claude to write code, run the tests, adjust the code, and run the tests again.At this stage, it can help to ask it to verify with independent subagents that the implementation isn’t overfitting to the tests</p>
+</div>
+<div class="pair" id="p-75">
+<p class="target" lang="zh-CN">在这个阶段，可以请独立子代理验证实施是否没有过度拟合到测试数据。</p>
+<p class="source" lang="en">At this stage, it can help to ask it to verify with independent subagents that the implementation isn’t overfitting to the tests</p>
+</div>
+<div class="pair" id="p-76">
+<p class="target" lang="zh-CN">当你对修改结果满意后，请让 Claude 提交代码。</p>
+<p class="source" lang="en">Ask Claude to commit the code once you’re satisfied with the changes.</p>
+</div>
+<div class="pair" id="p-77">
+<p class="target" lang="zh-CN">当 Claude 有明确的目标可以迭代改进时，它的表现最好——比如视觉示例、测试案例或其他类型的输出。通过提供如测试这样的预期输出，Claude 可以进行修改、评估结果，并逐步改进，直到取得成功。</p>
+<p class="source" lang="en">Claude performs best when it has a clear target to iterate against—a visual mock, a test case, or another kind of output. By providing expected outputs like tests, Claude can make changes, evaluate results, and incrementally improve until it succeeds.</p>
+</div>
+<div class="pair" id="p-78">
+<p class="target" lang="zh-CN">c. 编写代码，截图结果，进行迭代</p>
+<p class="source" lang="en">c. Write code, screenshot result, iterate</p>
+</div>
+<div class="pair" id="p-79">
+<p class="target" lang="zh-CN">与测试流程类似，你可以给 Claude 提供视觉目标：</p>
+<p class="source" lang="en">Similar to the testing workflow, you can provide Claude with visual targets:</p>
+</div>
+<div class="pair" id="p-80">
+<p class="target" lang="zh-CN">给 Claude 提供一种截取浏览器屏幕的方法（例如使用 Puppeteer MCP 服务器、iOS 模拟器 MCP 服务器，或手动将屏幕截图复制粘贴到 Claude 中）。</p>
+<p class="source" lang="en">Give Claude a way to take browser screenshots (e.g., with the Puppeteer MCP server, an iOS simulator MCP server, or manually copy / paste screenshots into Claude).</p>
+</div>
+<div class="pair" id="p-81">
+<p class="target" lang="zh-CN">给 Claude 提供一个可视化示例，可以通过复制、粘贴或拖放图片，或者提供图片文件路径来实现。</p>
+<p class="source" lang="en">Give Claude a visual mock by copying / pasting or drag-dropping an image, or giving Claude the image file path.</p>
+</div>
+<div class="pair" id="p-82">
+<p class="target" lang="zh-CN">请 Claude 将设计方案实现为代码，截取结果截图，然后不断调整，直到结果与模拟数据一致。</p>
+<p class="source" lang="en">Ask Claude to implement the design in code, take screenshots of the result, and iterate until its result matches the mock.</p>
+</div>
+<div class="pair" id="p-83">
+<p class="target" lang="zh-CN">当你满意时，让 Claude 执行提交操作。</p>
+<p class="source" lang="en">Ask Claude to commit when you&#39;re satisfied.</p>
+</div>
+<div class="pair" id="p-84">
+<p class="target" lang="zh-CN">像人类一样，Claude的输出效果通过迭代会显著改善。虽然第一个版本可能不错，但经过2-3次迭代后通常会更好。给Claude提供工具，让它能查看输出结果以获得最佳效果。</p>
+<p class="source" lang="en">Like humans, Claude&#39;s outputs tend to improve significantly with iteration. While the first version might be good, after 2-3 iterations it will typically look much better. Give Claude the tools to see its outputs for best results.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F6ea59a36fe82c2b300bceaf3b880a4b4852c552d-1600x1143.png&amp;w=3840&amp;q=75" alt="Safe yolo mode" loading="lazy">
+<div class="pair" id="p-85">
+<p class="target" lang="zh-CN">d. 安全 YOLO 模式</p>
+<p class="source" lang="en">d. Safe YOLO mode</p>
+</div>
+<div class="pair" id="p-86">
+<p class="target" lang="zh-CN">与其监督 Claude，你可以使用 claude --dangerously-skip-permissions 来绕过所有权限检查，让 Claude 能够不受干扰地工作直到完成。这对于修复 lint 错误或生成样板代码等任务非常有效。</p>
+<p class="source" lang="en">Instead of supervising Claude, you can use claude --dangerously-skip-permissions to bypass all permission checks and let Claude work uninterrupted until completion. This works well for workflows like fixing lint errors or generating boilerplate code.</p>
+</div>
+<div class="pair" id="p-87">
+<p class="target" lang="zh-CN">让 Claude 执行任意命令存在风险，可能导致数据丢失、系统损坏，甚至数据泄露（例如通过提示词注入攻击）。为了降低这些风险，在没有互联网访问权限的容器中使用 --dangerously-skip-permissions 参数。你可以使用 Docker Dev Containers 来遵循这个参考实现。</p>
+<p class="source" lang="en">Letting Claude run arbitrary commands is risky and can result in data loss, system corruption, or even data exfiltration (e.g., via prompt injection attacks). To minimize these risks, use --dangerously-skip-permissions in a container without internet access. You can follow this reference implementation using Docker Dev Containers.</p>
+</div>
+<div class="pair" id="p-88">
+<p class="target" lang="zh-CN">e. 代码库问答</p>
+<p class="source" lang="en">e. Codebase Q&amp;A</p>
+</div>
+<div class="pair" id="p-89">
+<p class="target" lang="zh-CN">在引入新的代码库时，可以使用 Claude Code 进行学习和探索。你可以像与项目中的其他工程师进行结对编程时一样，向 Claude 提出各种问题。Claude 可以自主搜索代码库，以回答诸如以下一般问题：</p>
+<p class="source" lang="en">When onboarding to a new codebase, use Claude Code for learning and exploration. You can ask Claude the same sorts of questions you would ask another engineer on the project when pair programming. Claude can agentically search the codebase to answer general questions like:</p>
+</div>
+<div class="pair" id="p-90">
+<p class="target" lang="zh-CN">日志是如何工作的？</p>
+<p class="source" lang="en">How does logging work?</p>
+</div>
+<div class="pair" id="p-91">
+<p class="target" lang="zh-CN">如何创建新的 API 端点？</p>
+<p class="source" lang="en">How do I make a new API endpoint?</p>
+</div>
+<div class="pair" id="p-92">
+<p class="target" lang="zh-CN">foo.rs 文件的第 134 行中，async move { ... } 是做什么的？</p>
+<p class="source" lang="en">What does async move { ... } do on line 134 of foo.rs?</p>
+</div>
+<div class="pair" id="p-93">
+<p class="target" lang="zh-CN">CustomerOnboardingFlowImpl 处理哪些边缘情况？</p>
+<p class="source" lang="en">What edge cases does CustomerOnboardingFlowImpl handle?</p>
+</div>
+<div class="pair" id="p-94">
+<p class="target" lang="zh-CN">为什么在第 333 行我们使用 foo() 而不是 bar()？</p>
+<p class="source" lang="en">Why are we calling foo() instead of bar() on line 333?</p>
+</div>
+<div class="pair" id="p-95">
+<p class="target" lang="zh-CN">baz.py 第 334 行在 Java 中相当于什么？</p>
+<p class="source" lang="en">What’s the equivalent of line 334 of baz.py in Java?</p>
+</div>
+<div class="pair" id="p-96">
+<p class="target" lang="zh-CN">在 Anthropic 公司，以这种方式使用 Claude Code 已成为我们的核心入职流程，显著加快了新人适应速度，并减少了其他工程师的工作负担。不需要特殊的提示！只需提问即可，Claude 会分析代码以寻找答案。</p>
+<p class="source" lang="en">At Anthropic, using Claude Code in this way has become our core onboarding workflow, significantly improving ramp-up time and reducing load on other engineers. No special prompting is required! Simply ask questions, and Claude will explore the code to find answers.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Fa08ea13c2359aac0eceacebf2e15f81e8e8ec8d2-1600x1278.png&amp;w=3840&amp;q=75" alt="Use Claude to interact with git" loading="lazy">
+<div class="pair" id="p-97">
+<p class="target" lang="zh-CN">f. 使用 Claude 与 git 进行交互</p>
+<p class="source" lang="en">f. Use Claude to interact with git</p>
+</div>
+<div class="pair" id="p-98">
+<p class="target" lang="zh-CN">Claude 能够有效处理许多 git 操作。许多 Anthropic 工程师在 90% 以上的 git 操作中使用 Claude。</p>
+<p class="source" lang="en">Claude can effectively handle many git operations. Many Anthropic engineers use Claude for 90%+ of our git interactions:</p>
+</div>
+<div class="pair" id="p-99">
+<p class="target" lang="zh-CN">通过搜索 git 历史记录来回答诸如“哪些更改被纳入了 v1.2.3？”、“谁拥有这个特定功能？”或“为什么这个 API 是这种设计的？”这样的问题。明确提示 Claude 查看 git 历史记录以回答这类问题会很有帮助。</p>
+<p class="source" lang="en">Searching git history to answer questions like &quot;What changes made it into v1.2.3?&quot;, &quot;Who owns this particular feature?&quot;, or &quot;Why was this API designed this way?&quot; It helps to explicitly prompt Claude to look through git history to answer queries like these.</p>
+</div>
+<div class="pair" id="p-100">
+<p class="target" lang="zh-CN">编写提交消息。Claude 会自动查看你的更改和最近的历史记录，然后结合所有相关上下文来生成提交消息。</p>
+<p class="source" lang="en">Writing commit messages. Claude will look at your changes and recent history automatically to compose a message taking all the relevant context into account</p>
+</div>
+<div class="pair" id="p-101">
+<p class="target" lang="zh-CN">处理复杂的 git 操作，如回退文件、解决重新组合冲突以及比较和合并补丁</p>
+<p class="source" lang="en">Handling complex git operations like reverting files, resolving rebase conflicts, and comparing and grafting patches</p>
+</div>
+<div class="pair" id="p-102">
+<p class="target" lang="zh-CN">g. 使用 Claude 与 GitHub 进行交互</p>
+<p class="source" lang="en">g. Use Claude to interact with GitHub</p>
+</div>
+<div class="pair" id="p-103">
+<p class="target" lang="zh-CN">Claude Code可以处理多种GitHub互动：</p>
+<p class="source" lang="en">Claude Code can manage many GitHub interactions:</p>
+</div>
+<div class="pair" id="p-104">
+<p class="target" lang="zh-CN">创建拉取请求：Claude 理解缩写“pr”，会根据差异内容及上下文生成合适的提交消息。</p>
+<p class="source" lang="en">Creating pull requests: Claude understands the shorthand &quot;pr&quot; and will generate appropriate commit messages based on the diff and surrounding context.</p>
+</div>
+<div class="pair" id="p-105">
+<p class="target" lang="zh-CN">为简单的代码审查评论实现一次性解决方案：只需告诉它修复 PR 中的评论（可选，可以提供更具体的指示），完成后再推送到 PR 分支。</p>
+<p class="source" lang="en">Implementing one-shot resolutions for simple code review comments: just tell it to fix comments on your PR (optionally, give it more specific instructions) and push back to the PR branch when it&#39;s done.</p>
+</div>
+<div class="pair" id="p-106">
+<p class="target" lang="zh-CN">修复失败的构建或 linter 警告</p>
+<p class="source" lang="en">Fixing failing builds or linter warnings</p>
+</div>
+<div class="pair" id="p-107">
+<p class="target" lang="zh-CN">通过让 Claude 遍历开放的 GitHub 问题来分类和优先级排序开放问题</p>
+<p class="source" lang="en">Categorizing and triaging open issues by asking Claude to loop over open GitHub issues</p>
+</div>
+<div class="pair" id="p-108">
+<p class="target" lang="zh-CN">这消除了需要记住 gh 命令行语法的需求，同时可以自动化常规任务。</p>
+<p class="source" lang="en">This eliminates the need to remember gh command line syntax while automating routine tasks.</p>
+</div>
+<div class="pair" id="p-109">
+<p class="target" lang="zh-CN">h. 使用 Claude 处理 Jupyter 笔记本</p>
+<p class="source" lang="en">h. Use Claude to work with Jupyter notebooks</p>
+</div>
+<div class="pair" id="p-110">
+<p class="target" lang="zh-CN">Anthropic的研究人员和数据科学家使用Claude Code来阅读和编写Jupyter笔记本。Claude能够解析输出结果，包括图像，从而提供了一种快速的方式来探索和交互数据。不需要特定的提示或工作流程，但我们建议的工作流程是在VS Code中同时打开Claude Code和.ipynb文件。</p>
+<p class="source" lang="en">Researchers and data scientists at Anthropic use Claude Code to read and write Jupyter notebooks. Claude can interpret outputs, including images, providing a fast way to explore and interact with data. There are no required prompts or workflows, but a workflow we recommend is to have Claude Code and a .ipynb file open side-by-side in VS Code.</p>
+</div>
+<div class="pair" id="p-111">
+<p class="target" lang="zh-CN">您也可以在向同事展示之前，让 Claude 对 Jupyter 笔记本进行整理或优化外观。特别要求它让笔记本及其数据可视化效果“美观易看”，有助于提醒它注重人类观看体验的优化。</p>
+<p class="source" lang="en">You can also ask Claude to clean up or make aesthetic improvements to your Jupyter notebook before you show it to colleagues. Specifically telling it to make the notebook or its data visualizations “aesthetically pleasing” tends to help remind it that it’s optimizing for a human viewing experience.</p>
+</div>
+<div class="pair" id="p-112">
+<p class="target" lang="zh-CN">4. 优化你的工作流程</p>
+<p class="source" lang="en">4. Optimize your workflow</p>
+</div>
+<div class="pair" id="p-113">
+<p class="target" lang="zh-CN">以下建议适用于所有工作流程：</p>
+<p class="source" lang="en">The suggestions below apply across all workflows:</p>
+</div>
+<div class="pair" id="p-114">
+<p class="target" lang="zh-CN">a. 在指示中要具体明确</p>
+<p class="source" lang="en">a. Be specific in your instructions</p>
+</div>
+<div class="pair" id="p-115">
+<p class="target" lang="zh-CN">Claude Code 的成功率在更具体的指令下显著提升，尤其是在首次尝试时。提前给出明确的指导可以减少后续需要调整的情况。</p>
+<p class="source" lang="en">Claude Code’s success rate improves significantly with more specific instructions, especially on first attempts. Giving clear directions upfront reduces the need for course corrections later.</p>
+</div>
+<div class="pair" id="p-116">
+<p class="target" lang="zh-CN">例如：</p>
+<p class="source" lang="en">For example:</p>
+</div>
+<div class="pair" id="p-117">
+<p class="target" lang="zh-CN">糟糕</p>
+<p class="source" lang="en">Poor</p>
+</div>
+<div class="pair" id="p-118">
+<p class="target" lang="zh-CN">好的</p>
+<p class="source" lang="en">Good</p>
+</div>
+<div class="pair" id="p-119">
+<p class="target" lang="zh-CN">为 foo.py 添加测试</p>
+<p class="source" lang="en">add tests for foo.py</p>
+</div>
+<div class="pair" id="p-120">
+<p class="target" lang="zh-CN">为 foo.py 编写一个新的测试案例，涵盖用户已注销的边界情况。避免使用模拟对象。</p>
+<p class="source" lang="en">write a new test case for foo.py, covering the edge case where the user is logged out. avoid mocks</p>
+</div>
+<div class="pair" id="p-121">
+<p class="target" lang="zh-CN">为什么 ExecutionFactory 的 API 如此奇怪？</p>
+<p class="source" lang="en">why does ExecutionFactory have such a weird api?</p>
+</div>
+<div class="pair" id="p-122">
+<p class="target" lang="zh-CN">查看 ExecutionFactory 的 git 历史记录，并总结其 API 的形成过程</p>
+<p class="source" lang="en">look through ExecutionFactory&#39;s git history and summarize how its api came to be</p>
+</div>
+<div class="pair" id="p-123">
+<p class="target" lang="zh-CN">添加日历小部件</p>
+<p class="source" lang="en">add a calendar widget</p>
+</div>
+<div class="pair" id="p-124">
+<p class="target" lang="zh-CN">看看主页上现有的小部件是如何实现的，以理解其中的模式以及代码和界面是如何分开的。HotDogWidget.php是一个很好的示例起点。然后，按照同样的模式来实现一个新的日历小部件，让用户可以选择月份，并向前/向后分页选择年份。不使用其他库，只使用代码库中已有的库，从头开始构建。</p>
+<p class="source" lang="en">look at how existing widgets are implemented on the home page to understand the patterns and specifically how code and interfaces are separated out. HotDogWidget.php is a good example to start with. then, follow the pattern to implement a new calendar widget that lets the user select a month and paginate forwards/backwards to pick a year. Build from scratch without libraries other than the ones already used in the rest of the codebase.</p>
+</div>
+<div class="pair" id="p-125">
+<p class="target" lang="zh-CN">Claude可以推断意图，但无法读取思想。具体的描述能更好地符合预期。</p>
+<p class="source" lang="en">Claude can infer intent, but it can&#39;t read minds. Specificity leads to better alignment with expectations.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F75e1b57a0b696e7aafeca1ed5fa6ba7c601a5953-1360x1126.png&amp;w=3840&amp;q=75" alt="Give Claude images" loading="lazy">
+<div class="pair" id="p-126">
+<p class="target" lang="zh-CN">b. 给 Claude 提供图片</p>
+<p class="source" lang="en">b. Give Claude images</p>
+</div>
+<div class="pair" id="p-127">
+<p class="target" lang="zh-CN">Claude 通过多种方法在图像和图表方面表现出色：</p>
+<p class="source" lang="en">Claude excels with images and diagrams through several methods:</p>
+</div>
+<div class="pair" id="p-128">
+<p class="target" lang="zh-CN">粘贴截图（小技巧：在 macOS 上按 cmd+ctrl+shift+4 可将截图复制到剪贴板，然后按 ctrl+v 进行粘贴。请注意，这不同于通常在 mac 上使用的 cmd+v 粘贴方式，也无法在远程使用。）</p>
+<p class="source" lang="en">Paste screenshots (pro tip: hit cmd+ctrl+shift+4 in macOS to screenshot to clipboard and ctrl+v to paste. Note that this is not cmd+v like you would usually use to paste on mac and does not work remotely.)</p>
+</div>
+<div class="pair" id="p-129">
+<p class="target" lang="zh-CN">直接将图片拖放至提示词输入处</p>
+<p class="source" lang="en">Drag and drop images directly into the prompt input</p>
+</div>
+<div class="pair" id="p-130">
+<p class="target" lang="zh-CN">提供图片的文件路径</p>
+<p class="source" lang="en">Provide file paths for images</p>
+</div>
+<div class="pair" id="p-131">
+<p class="target" lang="zh-CN">当使用设计模拟件作为 UI 开发的参考点，以及使用视觉图表进行分析和调试时，这特别有用。如果您不添加视觉元素，还是应该明确告诉 Claude，结果具有视觉吸引力非常重要。</p>
+<p class="source" lang="en">This is particularly useful when working with design mocks as reference points for UI development, and visual charts for analysis and debugging. If you are not adding visuals to context, it can still be helpful to be clear with Claude about how important it is for the result to be visually appealing.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F7372868757dd17b6f2d3fef98d499d7991d89800-1450x1164.png&amp;w=3840&amp;q=75" alt="Mention files you want Claude to look at or work on" loading="lazy">
+<div class="pair" id="p-132">
+<p class="target" lang="zh-CN">c. 提及您希望 Claude 查看或处理的文件</p>
+<p class="source" lang="en">c. Mention files you want Claude to look at or work on</p>
+</div>
+<div class="pair" id="p-133">
+<p class="target" lang="zh-CN">使用 Tab 补全功能可以快速访问仓库中的文件或文件夹，帮助 Claude 找到或更新正确的资源。</p>
+<p class="source" lang="en">Use tab-completion to quickly reference files or folders anywhere in your repository, helping Claude find or update the right resources.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Fe071de707f209bbaa7f16b593cc7ed0739875dae-1306x1088.png&amp;w=3840&amp;q=75" alt="Give Claude URLs" loading="lazy">
+<div class="pair" id="p-134">
+<p class="target" lang="zh-CN">d. 给 Claude 提供 URL 地址</p>
+<p class="source" lang="en">d. Give Claude URLs</p>
+</div>
+<div class="pair" id="p-135">
+<p class="target" lang="zh-CN">将特定的 URL 粘贴在 Claude 的提示后面，以便它获取和读取。为了避免对相同域名出现授权提示（例如 docs.foo.com），可以使用 /permissions 将域名添加到允许列表。</p>
+<p class="source" lang="en">Paste specific URLs alongside your prompts for Claude to fetch and read. To avoid permission prompts for the same domains (e.g., docs.foo.com), use /permissions to add domains to your allowlist.</p>
+</div>
+<div class="pair" id="p-136">
+<p class="target" lang="zh-CN">e. 尽早且频繁地纠正错误</p>
+<p class="source" lang="en">e. Course correct early and often</p>
+</div>
+<div class="pair" id="p-137">
+<p class="target" lang="zh-CN">虽然自动接受模式（按 shift+tab 切换）可以让 Claude 自主工作，但通常通过积极参与并指导 Claude 的工作方式可以获得更好的结果。在开始时详细向 Claude 解释任务可以取得最佳效果，但也可以随时纠正 Claude 的行为。</p>
+<p class="source" lang="en">While auto-accept mode (shift+tab to toggle) lets Claude work autonomously, you&#39;ll typically get better results by being an active collaborator and guiding Claude&#39;s approach. You can get the best results by thoroughly explaining the task to Claude at the beginning, but you can also course correct Claude at any time.</p>
+</div>
+<div class="pair" id="p-138">
+<p class="target" lang="zh-CN">这四种工具有助于修正课程内容：</p>
+<p class="source" lang="en">These four tools help with course correction:</p>
+</div>
+<div class="pair" id="p-139">
+<p class="target" lang="zh-CN">在编码之前，请让 Claude 制定一个计划。明确告诉它，在确认其计划可行之前不要开始编码。</p>
+<p class="source" lang="en">Ask Claude to make a plan before coding. Explicitly tell it not to code until you’ve confirmed its plan looks good.</p>
+</div>
+<div class="pair" id="p-140">
+<p class="target" lang="zh-CN">在任何阶段（思考、工具调用、文件编辑）中，按下Escape键可以中断Claude的操作，同时保留上下文信息，以便你重新指导或扩展指令。</p>
+<p class="source" lang="en">Press Escape to interrupt Claude during any phase (thinking, tool calls, file edits), preserving context so you can redirect or expand instructions.</p>
+</div>
+<div class="pair" id="p-141">
+<p class="target" lang="zh-CN">双击“Escape”可以回到历史记录，修改之前的提示词，并探索不同的方向。你可以修改提示词并重复操作，直到得到想要的结果。</p>
+<p class="source" lang="en">Double-tap Escape to jump back in history, edit a previous prompt, and explore a different direction. You can edit the prompt and repeat until you get the result you&#39;re looking for.</p>
+</div>
+<div class="pair" id="p-142">
+<p class="target" lang="zh-CN">请让 Claude 撤销更改，通常结合选项 #2 采用不同的方法。</p>
+<p class="source" lang="en">Ask Claude to undo changes, often in conjunction with option #2 to take a different approach.</p>
+</div>
+<div class="pair" id="p-143">
+<p class="target" lang="zh-CN">虽然 Claude Code 偶尔能第一次尝试就完美解决问题，但使用这些修正工具通常能更快得到更好的解决方案。</p>
+<p class="source" lang="en">Though Claude Code occasionally solves problems perfectly on the first attempt, using these correction tools generally produces better solutions faster.</p>
+</div>
+<div class="pair" id="p-144">
+<p class="target" lang="zh-CN">f. 使用 /clear 来保持上下文的聚焦</p>
+<p class="source" lang="en">f. Use /clear to keep context focused</p>
+</div>
+<div class="pair" id="p-145">
+<p class="target" lang="zh-CN">在长时间对话中，Claude的上下文窗口可能会充满无关的对话内容、文件内容和命令。这可能会降低性能，有时还会分散Claude的注意力。在任务之间频繁使用 /clear 命令来重置上下文窗口。</p>
+<p class="source" lang="en">During long sessions, Claude&#39;s context window can fill with irrelevant conversation, file contents, and commands. This can reduce performance and sometimes distract Claude. Use the /clear command frequently between tasks to reset the context window.</p>
+</div>
+<div class="pair" id="p-146">
+<p class="target" lang="zh-CN">g. 对于复杂的工作流程，使用检查清单和便签纸。</p>
+<p class="source" lang="en">g. Use checklists and scratchpads for complex workflows</p>
+</div>
+<div class="pair" id="p-147">
+<p class="target" lang="zh-CN">对于包含多个步骤或需要全面解决方案的大型任务——如代码迁移、修复大量 lint 错误或运行复杂的构建脚本——可以通过让 Claude 使用 Markdown 文件（甚至 GitHub 问题）作为检查清单和临时工作区来提升性能：</p>
+<p class="source" lang="en">For large tasks with multiple steps or requiring exhaustive solutions—like code migrations, fixing numerous lint errors, or running complex build scripts—improve performance by having Claude use a Markdown file (or even a GitHub issue!) as a checklist and working scratchpad:</p>
+</div>
+<div class="pair" id="p-148">
+<p class="target" lang="zh-CN">例如，要修复大量的 lint 问题，你可以采取以下方法：</p>
+<p class="source" lang="en">For example, to fix a large number of lint issues, you can do the following:</p>
+</div>
+<div class="pair" id="p-149">
+<p class="target" lang="zh-CN">告诉 Claude 运行 lint 命令，并将所有产生的错误（包含文件名和行号）记录到 Markdown 检查清单中。</p>
+<p class="source" lang="en">Tell Claude to run the lint command and write all resulting errors (with filenames and line numbers) to a Markdown checklist</p>
+</div>
+<div class="pair" id="p-150">
+<p class="target" lang="zh-CN">请指示 Claude 逐一处理每个问题，修复并验证后标记完成并继续下一个问题。</p>
+<p class="source" lang="en">Instruct Claude to address each issue one by one, fixing and verifying before checking it off and moving to the next</p>
+</div>
+<div class="pair" id="p-151">
+<p class="target" lang="zh-CN">h. 将数据输入到 Claude 中</p>
+<p class="source" lang="en">h. Pass data into Claude</p>
+</div>
+<div class="pair" id="p-152">
+<p class="target" lang="zh-CN">有几种方法可以用来向 Claude 提供数据：</p>
+<p class="source" lang="en">Several methods exist for providing data to Claude:</p>
+</div>
+<div class="pair" id="p-153">
+<p class="target" lang="zh-CN">直接复制并粘贴到你的提示中（最常见的方法）</p>
+<p class="source" lang="en">Copy and paste directly into your prompt (most common approach)</p>
+</div>
+<div class="pair" id="p-154">
+<p class="target" lang="zh-CN">将内容输入到 Claude 代码中（例如，cat foo.txt | claude），特别适用于日志、CSV 和大量数据。</p>
+<p class="source" lang="en">Pipe into Claude Code (e.g., cat foo.txt | claude), particularly useful for logs, CSVs, and large data</p>
+</div>
+<div class="pair" id="p-155">
+<p class="target" lang="zh-CN">告诉 Claude 通过 bash 命令、MCP 工具或自定义 slash 命令来获取数据</p>
+<p class="source" lang="en">Tell Claude to pull data via bash commands, MCP tools, or custom slash commands</p>
+</div>
+<div class="pair" id="p-156">
+<p class="target" lang="zh-CN">请让 Claude 阅读文件或获取 URL（也适用于图片）</p>
+<p class="source" lang="en">Ask Claude to read files or fetch URLs (works for images too)</p>
+</div>
+<div class="pair" id="p-157">
+<p class="target" lang="zh-CN">大多数会话都包含这些方法的组合。例如，你可以将日志文件传入，然后让 Claude 使用工具来获取更多上下文以调试日志。</p>
+<p class="source" lang="en">Most sessions involve a combination of these approaches. For example, you can pipe in a log file, then tell Claude to use a tool to pull in additional context to debug the logs.</p>
+</div>
+<div class="pair" id="p-158">
+<p class="target" lang="zh-CN">5. 使用无头模式来自动化你的基础设施</p>
+<p class="source" lang="en">5. Use headless mode to automate your infra</p>
+</div>
+<div class="pair" id="p-159">
+<p class="target" lang="zh-CN">Claude Code 包含无头模式，适用于 CI、pre-commit 钩子、构建脚本和自动化等非交互式环境。使用 -p 标志和提示符可以启用无头模式，使用 --output-format stream-json 可以输出流式 JSON 数据。</p>
+<p class="source" lang="en">Claude Code includes headless mode for non-interactive contexts like CI, pre-commit hooks, build scripts, and automation. Use the -p flag with a prompt to enable headless mode, and --output-format stream-json for streaming JSON output.</p>
+</div>
+<div class="pair" id="p-160">
+<p class="target" lang="zh-CN">请注意，无头模式在会话之间不会保留状态。您必须在每个会话中手动触发它。</p>
+<p class="source" lang="en">Note that headless mode does not persist between sessions. You have to trigger it each session.</p>
+</div>
+<div class="pair" id="p-161">
+<p class="target" lang="zh-CN">a. 使用 Claude 进行问题分类</p>
+<p class="source" lang="en">a. Use Claude for issue triage</p>
+</div>
+<div class="pair" id="p-162">
+<p class="target" lang="zh-CN">无头模式可以驱动由 GitHub 事件触发的自动化操作，比如当你的仓库中创建新问题时。例如，公共的 Claude Code 仓库使用 Claude 来检查新出现的问题，并分配相应的标签。</p>
+<p class="source" lang="en">Headless mode can power automations triggered by GitHub events, such as when a new issue is created in your repository. For example, the public Claude Code repository uses Claude to inspect new issues as they come in and assign appropriate labels.</p>
+</div>
+<div class="pair" id="p-163">
+<p class="target" lang="zh-CN">b. 使用 Claude 作为代码检查工具</p>
+<p class="source" lang="en">b. Use Claude as a linter</p>
+</div>
+<div class="pair" id="p-164">
+<p class="target" lang="zh-CN">Claude Code能够提供传统lint工具无法检测的主观代码审查，能够识别拼写错误、过时的注释、误导性的函数或变量名称等问题。</p>
+<p class="source" lang="en">Claude Code can provide subjective code reviews beyond what traditional linting tools detect, identifying issues like typos, stale comments, misleading function or variable names, and more.</p>
+</div>
+<div class="pair" id="p-165">
+<p class="target" lang="zh-CN">6. 通过多 Claude 工作流进行升级</p>
+<p class="source" lang="en">6. Uplevel with multi-Claude workflows</p>
+</div>
+<div class="pair" id="p-166">
+<p class="target" lang="zh-CN">除了单独使用之外，一些最强大的应用还涉及同时运行多个 Claude 实例。</p>
+<p class="source" lang="en">Beyond standalone usage, some of the most powerful applications involve running multiple Claude instances in parallel:</p>
+</div>
+<div class="pair" id="p-167">
+<p class="target" lang="zh-CN">a. 让一个 Claude 编写代码；用另一个 Claude 进行验证</p>
+<p class="source" lang="en">a. Have one Claude write code; use another Claude to verify</p>
+</div>
+<div class="pair" id="p-168">
+<p class="target" lang="zh-CN">一种简单但有效的做法就是让一个 Claude 编写代码，另一个 Claude 负责审查或测试代码。就像与多个工程师合作一样，有时分开处理不同上下文也有好处。</p>
+<p class="source" lang="en">A simple but effective approach is to have one Claude write code while another reviews or tests it. Similar to working with multiple engineers, sometimes having separate context is beneficial:</p>
+</div>
+<div class="pair" id="p-169">
+<p class="target" lang="zh-CN">使用 Claude 来编写代码</p>
+<p class="source" lang="en">Use Claude to write code</p>
+</div>
+<div class="pair" id="p-170">
+<p class="target" lang="zh-CN">使用 /clear 或在其他终端中启动第二个 Claude</p>
+<p class="source" lang="en">Run /clear or start a second Claude in another terminal</p>
+</div>
+<div class="pair" id="p-171">
+<p class="target" lang="zh-CN">让第二个 Claude 审查第一个 Claude 的工作</p>
+<p class="source" lang="en">Have the second Claude review the first Claude&#39;s work</p>
+</div>
+<div class="pair" id="p-172">
+<p class="target" lang="zh-CN">开始另一个 Claude 实例（或再次使用 /clear）来阅读代码并查看反馈。</p>
+<p class="source" lang="en">Start another Claude (or /clear again) to read both the code and review feedback</p>
+</div>
+<div class="pair" id="p-173">
+<p class="target" lang="zh-CN">让这个 Claude 根据反馈修改代码</p>
+<p class="source" lang="en">Have this Claude edit the code based on the feedback</p>
+</div>
+<div class="pair" id="p-174">
+<p class="target" lang="zh-CN">您也可以用测试来实现类似的效果：让一个 Claude 编写测试，然后让另一个 Claude 编写代码以使测试通过。甚至可以通过给 Claude 实例分别提供工作沙盒，并指定它们分别写入和读取的内容，让它们相互交流。</p>
+<p class="source" lang="en">You can do something similar with tests: have one Claude write tests, then have another Claude write code to make the tests pass. You can even have your Claude instances communicate with each other by giving them separate working scratchpads and telling them which one to write to and which one to read from.</p>
+</div>
+<div class="pair" id="p-175">
+<p class="target" lang="zh-CN">这种分离方式通常比让一个 Claude 处理所有事情更能取得好的效果。</p>
+<p class="source" lang="en">This separation often yields better results than having a single Claude handle everything.</p>
+</div>
+<div class="pair" id="p-176">
+<p class="target" lang="zh-CN">b. 对你的仓库进行多次检查</p>
+<p class="source" lang="en">b. Have multiple checkouts of your repo</p>
+</div>
+<div class="pair" id="p-177">
+<p class="target" lang="zh-CN">与其等待 Claude 完成每一步，Anthropic 的许多工程师通常会这样做：</p>
+<p class="source" lang="en">Rather than waiting for Claude to complete each step, something many engineers at Anthropic do is:</p>
+</div>
+<div class="pair" id="p-178">
+<p class="target" lang="zh-CN">在单独的文件夹中创建 3-4 个 git 检出版本</p>
+<p class="source" lang="en">Create 3-4 git checkouts in separate folders</p>
+</div>
+<div class="pair" id="p-179">
+<p class="target" lang="zh-CN">在单独的终端标签页中打开每个文件夹</p>
+<p class="source" lang="en">Open each folder in separate terminal tabs</p>
+</div>
+<div class="pair" id="p-180">
+<p class="target" lang="zh-CN">在每个文件夹中启动 Claude，并分配不同的任务</p>
+<p class="source" lang="en">Start Claude in each folder with different tasks</p>
+</div>
+<div class="pair" id="p-181">
+<p class="target" lang="zh-CN">循环检查进度，并批准或拒绝权限请求</p>
+<p class="source" lang="en">Cycle through to check progress and approve/deny permission requests</p>
+</div>
+<div class="pair" id="p-182">
+<p class="target" lang="zh-CN">c. 使用 git worktrees</p>
+<p class="source" lang="en">c. Use git worktrees</p>
+</div>
+<div class="pair" id="p-183">
+<p class="target" lang="zh-CN">这种方法适用于多个独立任务，是多个 checkout 的更轻量级替代方案。Git worktrees 允许你从同一个仓库中检查出多个分支，并将其分别存储在不同的目录中。每个 worktree 都有自己独立的工作目录和孤立文件，同时共享相同的 Git 历史和 reflog。</p>
+<p class="source" lang="en">This approach shines for multiple independent tasks, offering a lighter-weight alternative to multiple checkouts. Git worktrees allow you to check out multiple branches from the same repository into separate directories. Each worktree has its own working directory with isolated files, while sharing the same Git history and reflog.</p>
+</div>
+<div class="pair" id="p-184">
+<p class="target" lang="zh-CN">使用 git worktrees可以让你同时在项目的不同部分运行多个 Claude 会话，每个会话专注于独立的任务。例如，一个 Claude 可以负责重构认证系统，另一个则构建完全无关的数据可视化组件。由于这些任务不重叠，每个 Claude 可以全速工作，无需等待其他会话的更改或处理合并冲突。</p>
+<p class="source" lang="en">Using git worktrees enables you to run multiple Claude sessions simultaneously on different parts of your project, each focused on its own independent task. For instance, you might have one Claude refactoring your authentication system while another builds a completely unrelated data visualization component. Since the tasks don&#39;t overlap, each Claude can work at full speed without waiting for the other&#39;s changes or dealing with merge conflicts:</p>
+</div>
+<div class="pair" id="p-185">
+<p class="target" lang="zh-CN">创建工作树：git worktree add ../project-feature-a feature-a</p>
+<p class="source" lang="en">Create worktrees: git worktree add ../project-feature-a feature-a</p>
+</div>
+<div class="pair" id="p-186">
+<p class="target" lang="zh-CN">在每个工作树中启动 Claude：cd ../project-feature-a &amp;&amp; claude</p>
+<p class="source" lang="en">Launch Claude in each worktree: cd ../project-feature-a &amp;&amp; claude</p>
+</div>
+<div class="pair" id="p-187">
+<p class="target" lang="zh-CN">根据需要创建额外的工作树（在新终端标签页中重复步骤 1-2）</p>
+<p class="source" lang="en">Create additional worktrees as needed (repeat steps 1-2 in new terminal tabs)</p>
+</div>
+<div class="pair" id="p-188">
+<p class="target" lang="zh-CN">一些提示：</p>
+<p class="source" lang="en">Some tips:</p>
+</div>
+<div class="pair" id="p-189">
+<p class="target" lang="zh-CN">使用一致的命名规范</p>
+<p class="source" lang="en">Use consistent naming conventions</p>
+</div>
+<div class="pair" id="p-190">
+<p class="target" lang="zh-CN">每个工作树保留一个终端标签页</p>
+<p class="source" lang="en">Maintain one terminal tab per worktree</p>
+</div>
+<div class="pair" id="p-191">
+<p class="target" lang="zh-CN">如果您在 Mac 上使用 iTerm2，请设置 Claude 需要关注时的通知功能</p>
+<p class="source" lang="en">If you’re using iTerm2 on Mac, set up notifications for when Claude needs attention</p>
+</div>
+<div class="pair" id="p-192">
+<p class="target" lang="zh-CN">使用不同的 IDE 窗口来管理不同的工作树</p>
+<p class="source" lang="en">Use separate IDE windows for different worktrees</p>
+</div>
+<div class="pair" id="p-193">
+<p class="target" lang="zh-CN">完成后清理：git worktree remove ../project-feature-a</p>
+<p class="source" lang="en">Clean up when finished: git worktree remove ../project-feature-a</p>
+</div>
+<div class="pair" id="p-194">
+<p class="target" lang="zh-CN">d. 使用自定义 harness 的无头模式</p>
+<p class="source" lang="en">d. Use headless mode with a custom harness</p>
+</div>
+<div class="pair" id="p-195">
+<p class="target" lang="zh-CN">claude -p（无头模式）能够将 Claude Code 程序化地集成到更大的工作流程中，同时利用其内置工具和系统提示。使用无头模式主要有两种模式。</p>
+<p class="source" lang="en">claude -p (headless mode) integrates Claude Code programmatically into larger workflows while leveraging its built-in tools and system prompt. There are two primary patterns for using headless mode:</p>
+</div>
+<div class="pair" id="p-196">
+<p class="target" lang="zh-CN">1. 扩展处理大型数据迁移或分析任务（例如，分析数百条日志中的情感或分析数千个 CSV 文件）：</p>
+<p class="source" lang="en">1. Fanning out handles large migrations or analyses (e.g., analyzing sentiment in hundreds of logs or analyzing thousands of CSVs):</p>
+</div>
+<div class="pair" id="p-197">
+<p class="target" lang="zh-CN">让 Claude 编写一个脚本来生成任务列表。例如，生成一份包含 2k 个文件的列表，这些文件需要从框架 A 迁移到框架 B。</p>
+<p class="source" lang="en">Have Claude write a script to generate a task list. For example, generate a list of 2k files that need to be migrated from framework A to framework B.</p>
+</div>
+<div class="pair" id="p-198">
+<p class="target" lang="zh-CN">遍历任务，对每个任务调用 Claude 程序，并给出任务及可用的工具集。例如：claude -p “将 foo.py 从 React 迁移到 Vue。完成后，如果成功则必须返回字符串 OK，如果失败则返回 FAIL。” --allowedTools Edit Bash(git commit:*)</p>
+<p class="source" lang="en">Loop through tasks, calling Claude programmatically for each and giving it a task and a set of tools it can use. For example: claude -p “migrate foo.py from React to Vue. When you are done, you MUST return the string OK if you succeeded, or FAIL if the task failed.” --allowedTools Edit Bash(git commit:*)</p>
+</div>
+<div class="pair" id="p-199">
+<p class="target" lang="zh-CN">运行该脚本几次，然后调整提示词以得到期望的结果。</p>
+<p class="source" lang="en">Run the script several times and refine your prompt to get the desired outcome.</p>
+</div>
+<div class="pair" id="p-200">
+<p class="target" lang="zh-CN">2. 管道化技术将 Claude 集成到现有的数据/处理管道中：</p>
+<p class="source" lang="en">2. Pipelining integrates Claude into existing data/processing pipelines:</p>
+</div>
+<div class="pair" id="p-201">
+<p class="target" lang="zh-CN">调用 claude -p “&lt;你的提示词&gt;” --json | your_command，其中 your_command 是你的处理流程中的下一步操作</p>
+<p class="source" lang="en">Call claude -p “&lt;your prompt&gt;” --json | your_command, where your_command is the next step of your processing pipeline</p>
+</div>
+<div class="pair" id="p-202">
+<p class="target" lang="zh-CN">就是这样！JSON 输出（可选）可以帮助提供结构，从而便于自动化处理。</p>
+<p class="source" lang="en">That’s it! JSON output (optional) can help provide structure for easier automated processing.</p>
+</div>
+<div class="pair" id="p-203">
+<p class="target" lang="zh-CN">对于这两种使用场景，使用 --verbose 标志来调试 Claude 调用会很有帮助。通常建议在生产环境中关闭详细模式，以获得更清晰的输出结果。</p>
+<p class="source" lang="en">For both of these use cases, it can be helpful to use the --verbose flag for debugging the Claude invocation. We generally recommend turning verbose mode off in production for cleaner output.</p>
+</div>
+<div class="pair" id="p-204">
+<p class="target" lang="zh-CN">对于使用 Claude Code 工作有什么建议和最佳实践吗？请标记 @AnthropicAI，这样我们就能看到你正在构建的内容！</p>
+<p class="source" lang="en">What are your tips and best practices for working with Claude Code? Tag @AnthropicAI so we can see what you&#39;re building!</p>
+</div>
+<div class="pair" id="p-205">
+<p class="target" lang="zh-CN">作者与致谢</p>
+<p class="source" lang="en">Authors &amp; acknowledgements</p>
+</div>
+<div class="pair" id="p-206">
+<p class="target" lang="zh-CN">致谢</p>
+<p class="source" lang="en">Acknowledgements</p>
+</div>
+<div class="pair" id="p-207">
+<p class="target" lang="zh-CN">由鲍里斯·切尔尼撰写。这部作品借鉴了 Claude Code 用户社区中的最佳实践，他们的创新方法和工作流程持续激励着我们。特别感谢黛西·霍尔曼、阿什温·巴特、吴猫、西德·比达萨里亚、卡尔·鲁布、N.T.A.、张 Barry、德鲁·霍顿以及许多 Anthropic 工程师，他们宝贵的见解和 Claude Code 的使用经验帮助形成了这些建议。</p>
+<p class="source" lang="en">Written by Boris Cherny. This work draws upon best practices from across the broader Claude Code user community, whose creative approaches and workflows continue to inspire us. Special thanks also to Daisy Hollman, Ashwin Bhat, Cat Wu, Sid Bidasaria, Cal Rueb, N.T.A., Barry Zhang, Drew Hodun and many other Anthropic engineers whose valuable insights and practical experience with Claude Code helped shape these recommendations.</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://www.anthropic.com/research/claude-code-best-practices" target="_blank" rel="noopener noreferrer">https://www.anthropic.com/research/claude-code-best-practices</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/how-we-built-our-multi-agent-research-system.html">← How we built our multi-agent research system</a><a href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html">The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations →</a></nav>
+  <footer class="footer">本站为公开 AI 工程博客的非官方中英对照归档。中文译文仅作辅助阅读，请以英文原文为准；文章内容版权归原作者所有。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

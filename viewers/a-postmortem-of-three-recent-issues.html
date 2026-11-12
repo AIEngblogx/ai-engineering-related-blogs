@@ -1,0 +1,756 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>A postmortem of three recent issues · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ A postmortem of three recent issues</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">01</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">02</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">11</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">12</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>Effective context engineering for AI agents</a>
+<a class="nav-item current" href="../viewers/a-postmortem-of-three-recent-issues.html" aria-current="page"><span class="num">19</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">21</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">24</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">25</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">26</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">27</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">28</span>Introducing Contextual Retrieval</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">01</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">02</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">11</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">12</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>Effective context engineering for AI agents</a>
+<a class="nav-item current" href="../viewers/a-postmortem-of-three-recent-issues.html" aria-current="page"><span class="num">19</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">21</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">24</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">25</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">26</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">27</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">28</span>Introducing Contextual Retrieval</a></nav></details>
+<main class="main"><article class="page">
+  <h1>A postmortem of three recent issues</h1>
+  <p class="subline">原文：<a href="https://www.anthropic.com/research/a-postmortem-of-three-recent-issues" target="_blank" rel="noopener noreferrer">https://www.anthropic.com/research/a-postmortem-of-three-recent-issues</a> · 2025-09-17 · Anthropic Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F55f6ae5b6156f26c14695939ff77d4f4bc4e82f8-2000x1125.jpg&amp;w=1920&amp;q=75" alt="A postmortem of three recent issues" loading="lazy">
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">2026年9月28日</p>
+<p class="source" lang="en">Sep 28, 2026</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">8月到9月初之间，三个基础设施缺陷间歇性地降低了Claude的响应质量。我们现在已经解决了这些问题，并希望解释一下发生了什么。</p>
+<p class="source" lang="en">Between August and early September, three infrastructure bugs intermittently degraded Claude&#39;s response quality. We&#39;ve now resolved these issues and want to explain what happened.</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">8月初，许多用户开始报告 Claude 的响应质量下降的问题。最初的报告很难与用户反馈中的正常波动区分开来。到了8月底，这些报告的频率和持续性越来越频繁，我们因此展开了调查，最终发现了三个不同的基础设施漏洞。</p>
+<p class="source" lang="en">In early August, a number of users began reporting degraded responses from Claude. These initial reports were difficult to distinguish from normal variation in user feedback. By late August, the increasing frequency and persistence of these reports prompted us to open an investigation that led us to uncover three separate infrastructure bugs.</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">直说吧：我们从不因为需求、时间或服务器负载而降低模型质量。用户报告的问题仅仅是由于基础设施故障造成的。</p>
+<p class="source" lang="en">To state it plainly: We never reduce model quality due to demand, time of day, or server load. The problems our users reported were due to infrastructure bugs alone.</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">我们意识到用户期望 Claude 提供稳定的质量，并且我们对确保基础设施变更不影响模型输出设置了非常高的标准。在最近的这些事件中，我们未能达到这一标准。以下复盘报告说明了问题出在哪里，为什么检测和解决过程比预期要长，以及我们将采取哪些措施来防止未来发生类似事件。</p>
+<p class="source" lang="en">We recognize users expect consistent quality from Claude, and we maintain an extremely high bar for ensuring infrastructure changes don&#39;t affect model outputs. In these recent incidents, we didn&#39;t meet that bar. The following postmortem explains what went wrong, why detection and resolution took longer than we would have wanted, and what we&#39;re changing to prevent similar future incidents.</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">我们通常不会分享关于基础设施的如此详细的技术信息，但这些问题的范围和复杂性使得更全面的解释是必要的。</p>
+<p class="source" lang="en">We don&#39;t typically share this level of technical detail about our infrastructure, but the scope and complexity of these issues justified a more comprehensive explanation.</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">我们如何大规模使用 Claude</p>
+<p class="source" lang="en">How we serve Claude at scale</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">我们通过 Amazon Bedrock 和 Google Cloud 的 Vertex AI 第一方 API 为数百万用户提供 Claude 服务。我们在多种硬件平台上部署 Claude，包括 AWS Trainium、NVIDIA GPU 和 Google TPU。这种方式提供了足够的能力和地域分布能力，以服务全球用户。</p>
+<p class="source" lang="en">We serve Claude to millions of users via our first-party API, Amazon Bedrock, and Google Cloud&#39;s Vertex AI. We deploy Claude across multiple hardware platforms, namely AWS Trainium, NVIDIA GPUs, and Google TPUs. This approach provides the capacity and geographic distribution necessary to serve users worldwide.</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">每个硬件平台都有不同的特性，需要特定的优化。尽管存在这些差异，我们对模型实现有严格的等价标准。我们的目标是让用户无论使用哪个平台请求，都能获得相同质量的响应。这种复杂性意味着任何基础设施的变更都需要在所有平台和配置下进行仔细的验证。</p>
+<p class="source" lang="en">Each hardware platform has different characteristics and requires specific optimizations. Despite these variations, we have strict equivalence standards for model implementations. Our aim is that users should get the same quality responses regardless of which platform serves their request. This complexity means that any infrastructure change requires careful validation across all platforms and configurations.</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">事件时间线</p>
+<p class="source" lang="en">Timeline of events</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Fd707dfc2effceba608d04007bc776132a3e57838-3840x1800.png&amp;w=3840&amp;q=75" alt="Illustrative timeline of events on the Claude API. Yellow: issue detected, Red: degradation worsened, Green: fix deployed." loading="lazy">
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">这些错误具有重叠特性，使得诊断变得特别困难。第一个错误于8月5日出现，影响了大约0.8%的Sonnet 4请求。另外两个错误则出现在8月25日和26日的部署中。</p>
+<p class="source" lang="en">The overlapping nature of these bugs made diagnosis particularly challenging. The first bug was introduced on August 5, affecting approximately 0.8% of requests made to Sonnet 4. Two more bugs arose from deployments on August 25 and 26.</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">虽然最初的影响有限，但8月29日开始的负载均衡调整开始增加受影响的流量。这导致更多用户遇到问题，而另一些用户则仍然表现出正常的性能，从而产生了令人困惑且矛盾的报告。</p>
+<p class="source" lang="en">Although initial impacts were limited, a load balancing change on August 29 started to increase affected traffic. This caused many more users to experience issues while others continued to see normal performance, creating confusing and contradictory reports.</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">三个重叠的问题</p>
+<p class="source" lang="en">Three overlapping issues</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">下面我们描述了导致性能下降的三个错误，它们发生的时间以及我们是如何解决这些问题的。</p>
+<p class="source" lang="en">Below we describe the three bugs that caused the degradation, when they occurred, and how we resolved them:</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">1. 上下文窗口路由错误</p>
+<p class="source" lang="en">1. Context window routing error</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">8月5日，部分Sonnet 4请求被错误地发送到为即将到来的1M令牌上下文窗口配置的服务器上。最初，这个错误影响了0.8%的请求。8月29日，常规的负载均衡调整无意中增加了被发送到1M上下文服务器的短上下文请求数量。在8月31日受影响最严重的时段，16%的Sonnet 4请求受到了影响。</p>
+<p class="source" lang="en">On August 5, some Sonnet 4 requests were misrouted to servers configured for the upcoming 1M token context window. This bug initially affected 0.8% of requests. On August 29, a routine load balancing change unintentionally increased the number of short-context requests routed to the 1M context servers. At the worst impacted hour on August 31, 16% of Sonnet 4 requests were affected.</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">在此期间，大约 30% 的 Claude Code 用户在请求过程中至少有一个消息被错误地发送到错误的服务器类型，导致响应质量下降。在 Amazon Bedrock 上，从 8 月 12 日开始，错误路由的流量占所有 Sonnet 4 请求的 0.18%。在 Google Cloud 的 Vertex AI 上，从 8 月 27 日到 9 月 16 日，错误路由影响了不到 0.0004% 的请求。</p>
+<p class="source" lang="en">Approximately 30% of Claude Code users who made requests during this period had at least one message routed to the wrong server type, resulting in degraded responses. On Amazon Bedrock, misrouted traffic peaked at 0.18% of all Sonnet 4 requests from August 12. Incorrect routing affected less than 0.0004% of requests on Google Cloud&#39;s Vertex AI between August 27 and September 16.</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">然而，一些用户受到的影响更为严重，因为我们的路由机制具有“粘性”。这意味着一旦请求被错误的服务器处理，后续的请求很可能仍由同一个错误服务器处理。</p>
+<p class="source" lang="en">However, some users were affected more severely, as our routing is &quot;sticky&quot;. This meant that once a request was served by the incorrect server, subsequent follow-ups were likely to be served by the same incorrect server.</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">解决方案：我们修复了路由逻辑，确保短内容和长内容请求都能被分配到正确的服务器池。该修复措施于9月4日部署。至9月16日，我们已完成对第一方平台和 Google Cloud Vertex AI 的部署，至9月18日则完成了对 AWS Bedrock 的部署。</p>
+<p class="source" lang="en">Resolution: We fixed the routing logic to ensure short- and long-context requests were directed to the correct server pools. We deployed the fix on September 4. Rollout to our first-party platform and Google Cloud&#39;s Vertex AI was completed by September 16, and to AWS Bedrock by September 18.</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">2. 输出损坏</p>
+<p class="source" lang="en">2. Output corruption</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">8月25日，我们在Claude API TPU服务器上部署了配置错误，导致令牌生成时出现错误。由于运行时性能优化导致的这个问题，有时会让那些根据上下文应该很少产生的令牌具有高概率出现，例如根据英语提示生成泰语或中文字符，或者产生明显的语法错误。一些用英语提问的用户可能会在回复中看到“สวัสดี”。</p>
+<p class="source" lang="en">On August 25, we deployed a misconfiguration to the Claude API TPU servers that caused an error during token generation. An issue caused by a runtime performance optimization occasionally assigned a high probability to tokens that should rarely be produced given the context, for example producing Thai or Chinese characters in response to English prompts, or producing obvious syntax errors in code. A small subset of users that asked a question in English might have seen &quot;สวัสดี&quot; in the middle of the response, for example.</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">这种故障影响了8月25日至28日对Opus 4.1和Opus 4的请求，以及8月25日至9月2日对Sonnet 4的请求。第三方平台并未受到此问题的影响。</p>
+<p class="source" lang="en">This corruption affected requests made to Opus 4.1 and Opus 4 on August 25-28, and requests to Sonnet 4 August 25–September 2. Third-party platforms were not affected by this issue.</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">解决方案：我们发现了问题，并于9月2日回滚了更改。我们在部署流程中增加了对异常字符输出的检测测试。</p>
+<p class="source" lang="en">Resolution: We identified the issue and rolled back the change on September 2. We&#39;ve added detection tests for unexpected character outputs to our deployment process.</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">3. 近似处理前 k 个 XLA:TPU 编译错误</p>
+<p class="source" lang="en">3. Approximate top-k XLA:TPU miscompilation</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">8月25日，我们部署了代码以改进Claude在文本生成过程中选择标记的方式。这一变更无意中触发了XLA:TPU1编译器中的一个隐藏错误，该错误已被确认影响Claude Haiku 3.5的请求。</p>
+<p class="source" lang="en">On August 25, we deployed code to improve how Claude selects tokens during text generation. This change inadvertently triggered a latent bug in the XLA:TPU1 compiler, which has been confirmed to affect requests to Claude Haiku 3.5.</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">我们还认为，这可能对 Claude API 上的 Sonnet 4 和 Opus 3 的一部分产生了影响。第三方平台并未受到此问题的影响。</p>
+<p class="source" lang="en">We also believe this could have impacted a subset of Sonnet 4 and Opus 3 on the Claude API. Third-party platforms were not affected by this issue.</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">解决方式：我们首先发现影响 Haiku 3.5 的漏洞，并于9月4日将其回滚。后来发现用户报告了与该漏洞兼容的 Opus 3 问题，于是于9月12日再次将其回滚。经过深入调查，我们在 Sonnet 4 上无法复现该漏洞，但为了谨慎起见，也决定将其回滚。</p>
+<p class="source" lang="en">Resolution: We first observed the bug affecting Haiku 3.5 and rolled it back on September 4. We later noticed user reports of problems with Opus 3 that were compatible with this bug, and rolled it back on September 12. After extensive investigation we were unable to reproduce this bug on Sonnet 4 but decided to also roll it back out of an abundance of caution.</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">同时，我们进行了以下工作：(a) 与 XLA:TPU 团队合作解决编译器错误，以及 (b) 推出了一个使用精确 top-k 且精度更高的修复方案。详情请参阅下面的深入说明。</p>
+<p class="source" lang="en">Simultaneously, we have (a) been working with the XLA:TPU team on a fix for the compiler bug and (b) rolled out a fix to use exact top-k with enhanced precision. For details, see the deep dive below.</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">仔细看看 XLA 编译器错误</p>
+<p class="source" lang="en">A closer look at the XLA compiler bug</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">为了说明这些问题的复杂性，以下是 XLA 编译器错误的具体表现以及为何难以诊断。</p>
+<p class="source" lang="en">To illustrate the complexity of these issues, here&#39;s how the XLA compiler bug manifested and why it proved particularly challenging to diagnose.</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">当 Claude 生成文本时，它会计算每个可能下一个单词的概率，然后随机从这一概率分布中选择一个样本。我们使用“top-p 采样”方法来避免产生无意义的输出——只考虑那些累积概率达到阈值（通常为 0.99 或 0.999）的单词。在 TPU 上，我们的模型运行在多个芯片上，概率计算则发生在不同的位置。为了对这些概率进行排序，我们需要在不同芯片之间协调数据，这相当复杂。</p>
+<p class="source" lang="en">When Claude generates text, it calculates probabilities for each possible next word, then randomly chooses a sample from this probability distribution. We use &quot;top-p sampling&quot; to avoid nonsensical outputs—only considering words whose cumulative probability reaches a threshold (typically 0.99 or 0.999). On TPUs, our models run across multiple chips, with probability calculations happening in different locations. To sort these probabilities, we need to coordinate data between chips, which is complex.2</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">2024年12月，我们发现当温度为零时，TPU实现偶尔会丢失最可能的词元。我们采用了一种解决方案来修复这个问题。</p>
+<p class="source" lang="en">In December 2024, we discovered our TPU implementation would occasionally drop the most probable token when temperature was zero. We deployed a workaround to fix this case.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Fefee0d3d25f6b03cbfc57e70e0e364dcd8b82fe0-2000x500.png&amp;w=3840&amp;q=75" alt="Code snippet of a December 2024 patch to work around the unexpected dropped token bug when temperature = 0." loading="lazy">
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">根本原因是混合精度算术问题。我们的模型使用 bf16（16位浮点）来计算下一个词的概率。然而，向量处理器是基于 fp32 的，因此 TPU 编译器（XLA）可以通过将某些操作转换为 fp32（32位）来优化运行时间。这种优化过程由 xla_allow_excess_precision 标志控制，该标志默认设置为 true。</p>
+<p class="source" lang="en">The root cause involved mixed precision arithmetic. Our models compute next-token probabilities in bf16 (16-bit floating point). However, the vector processor is fp32-native, so the TPU compiler (XLA) can optimize runtime by converting some operations to fp32 (32-bit). This optimization pass is guarded by the xla_allow_excess_precision flag which defaults to true.</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">这导致了不匹配：本应一致认为概率最高的token的操作却以不同的精度级别运行。精度不匹配意味着它们无法达成一致认为哪个token的概率最高。这导致概率最高的token有时完全从考虑中消失。</p>
+<p class="source" lang="en">This caused a mismatch: operations that should have agreed on the highest probability token were running at different precision levels. The precision mismatch meant they didn&#39;t agree on which token had the highest probability. This caused the highest probability token to sometimes disappear from consideration entirely.</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">8月26日，我们部署了代码重写版本，以解决精度问题，并改善在达到top-p阈值时的概率处理方式。但在解决这些问题时，我们发现了一个更棘手的问题。</p>
+<p class="source" lang="en">On August 26, we deployed a rewrite of our sampling code to fix the precision issues and improve how we handled probabilities at the limit that reach the top-p threshold. But in fixing these problems, we exposed a trickier one.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F6d10e58c0bd5fd7cb03dc0adc716cb1e4f039343-2000x2560.png&amp;w=3840&amp;q=75" alt="Code snippet showing minimized reproducer merged as part of the August 11 change that root-caused the “bug” being worked around in December 2024; in reality, it’s expected behavior of the xla_allow_excess_precision flag." loading="lazy">
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">我们的修复方案消除了 December 时的临时解决方案，因为我们认为已经解决了根本问题。这导致近似 top-k 操作中出现了一个更深层次的错误——该优化旨在快速找到概率最高的词元。3 这种近似方法有时会给出完全错误的结果，但仅针对某些批次大小和模型配置。December 时的临时解决方案无意中掩盖了这个问题。</p>
+<p class="source" lang="en">Our fix removed the December workaround because we believed we&#39;d solved the root cause. This led to a deeper bug in the approximate top-k operation—a performance optimization that quickly finds the highest probability tokens.3 This approximation sometimes returned completely wrong results, but only for certain batch sizes and model configurations. The December workaround had been inadvertently masking this problem.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F7e42db934d0e84ea40fc56b416ddb09b2097a5ff-2400x1404.png&amp;w=3840&amp;q=75" alt="Slack message showing reproducer of the underlying approximate top-k bug shared with the XLA:TPU engineers who developed the algorithm. The code returns correct results when run on CPUs." loading="lazy">
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">该错误的行为令人非常失望，变化无常。它会根据诸如之前或之后运行的操作以及是否启用了调试工具等无关因素而发生变化。同样的提示可能在某个请求下能正常工作，在另一个请求下却会失败。</p>
+<p class="source" lang="en">The bug&#39;s behavior was frustratingly inconsistent. It changed depending on unrelated factors such as what operations ran before or after it, and whether debugging tools were enabled. The same prompt might work perfectly on one request and fail on the next.</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">在调查过程中，我们还发现前k个元素的精确操作不再有之前那种严重的性能损失。我们从近似算法改为精确算法计算前k个元素，并对一些额外操作进行了fp32精度上的标准化处理。模型质量至关重要，因此我们接受了轻微的效率影响。</p>
+<p class="source" lang="en">While investigating, we also discovered that the exact top-k operation no longer had the prohibitive performance penalty it once did. We switched from approximate to exact top-k and standardized some additional operations on fp32 precision.4 Model quality is non-negotiable, so we accepted the minor efficiency impact.</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">为什么检测很困难</p>
+<p class="source" lang="en">Why detection was difficult</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">我们的验证流程通常依赖基准测试、安全性评估和性能指标。工程团队会进行随机检查，并首先在小型“试验组”中部署。</p>
+<p class="source" lang="en">Our validation process ordinarily relies on benchmarks alongside safety evaluations and performance metrics. Engineering teams perform spot checks and deploy to small &quot;canary&quot; groups first.</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">这些问题暴露了我们应该更早发现的关键漏洞。我们进行的评估未能准确反映用户报告的问题，部分原因是 Claude 经常能够从个别错误中快速恢复。我们的隐私政策也给调查报告带来了困难。我们的内部隐私和安全控制限制了工程师访问用户与 Claude 互动的情况和时机，尤其是当这些互动没有作为反馈报告给我们时。这确实保护了用户隐私，但使得工程师无法检查那些有助于识别或复现错误的问题互动。</p>
+<p class="source" lang="en">These issues exposed critical gaps that we should have identified earlier. The evaluations we ran simply didn&#39;t capture the degradation users were reporting, in part because Claude often recovers well from isolated mistakes. Our own privacy practices also created challenges in investigating reports. Our internal privacy and security controls limit how and when engineers can access user interactions with Claude, in particular when those interactions are not reported to us as feedback. This protects user privacy but prevents engineers from examining the problematic interactions needed to identify or reproduce bugs.</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">每个错误在不同的平台上表现出不同的症状，且恶化速度也各不相同。这导致报告混乱不堪，无法指向单一原因，看起来像是随机且不一致的性能下降。</p>
+<p class="source" lang="en">Each bug produced different symptoms on different platforms at different rates. This created a confusing mix of reports that didn&#39;t point to any single cause. It looked like random, inconsistent degradation.</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">从本质上讲，我们过于依赖那些有噪声的评估数据。虽然我们意识到网上报告数量增加了，但缺乏一种明确的方式将这些报告与我们最近的变更联系起来。当8月29日负面报告激增时，我们没有立即将其与正常的负载均衡变更联系起来。</p>
+<p class="source" lang="en">More fundamentally, we relied too heavily on noisy evaluations. Although we were aware of an increase in reports online, we lacked a clear way to connect these to each of our recent changes. When negative reports spiked on August 29, we didn&#39;t immediately make the connection to an otherwise standard load balancing change.</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">我们要进行更改的内容</p>
+<p class="source" lang="en">What we&#39;re changing</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">随着我们继续优化基础设施，我们也在改进对 Claude 提供服务的所有平台上的错误评估和预防机制。以下是我们的调整内容：</p>
+<p class="source" lang="en">As we continue to improve our infrastructure, we&#39;re also improving the way we evaluate and prevent bugs like those discussed above across all platforms where we serve Claude. Here&#39;s what we&#39;re changing:</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">更敏感的评估：为了帮助发现特定问题的根本原因，我们开发了能够更可靠地区分正常和故障实现方式的评估方法。我们将继续改进这些评估，以更严格地监控模型质量。</p>
+<p class="source" lang="en">More sensitive evaluations: To help discover the root cause of any given issue, we’ve developed evaluations that can more reliably differentiate between working and broken implementations. We’ll keep improving these evaluations to keep a closer eye on model quality.</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">更多地方进行质量评估：虽然我们对系统进行定期评估，但会在实际生产系统中持续进行评估，以便发现诸如上下文窗口负载均衡错误等问题。</p>
+<p class="source" lang="en">Quality evaluations in more places: Although we run regular evaluations on our systems, we will run them continuously on true production systems to catch issues such as the context window load balancing error.</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">更快速的调试工具：我们将开发相应的基础设施和工具，以便更好地调试来自社区的反馈，同时不损害用户隐私。此外，这里开发的一些定制工具将用于减少未来类似问题的修复时间，如果未来出现类似问题的话。</p>
+<p class="source" lang="en">Faster debugging tooling: We&#39;ll develop infrastructure and tooling to better debug community-sourced feedback without sacrificing user privacy. Additionally, some bespoke tools developed here will be used to reduce the remediation time in future similar incidents, if those should occur.</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">评估和监控非常重要。但这些事件表明，当 Claude 的响应不符合预期标准时，也需要用户持续的反馈。关于观察到的具体变化、遇到的意外行为示例以及不同使用场景中的模式，都帮助我们识别了问题所在。</p>
+<p class="source" lang="en">Evals and monitoring are important. But these incidents have shown that we also need continuous signal from users when responses from Claude aren&#39;t up to the usual standard. Reports of specific changes observed, examples of unexpected behavior encountered, and patterns across different use cases all helped us isolate the issues.</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">对于用户来说，继续直接向我们反馈仍然非常有帮助。您可以在 Claude Code 中使用 /bug 命令，也可以在 Claude 应用程序中使用“反对”按钮来提交反馈。开发者和研究人员经常创造出新的、有趣的评估模型质量的方法，以补充我们的内部测试。如果您想分享自己的反馈，请发送邮件至 feedback@anthropic.com。</p>
+<p class="source" lang="en">It remains particularly helpful for users to continue to send us their feedback directly. You can use the /bug command in Claude Code or you can use the &quot;thumbs down&quot; button in the Claude apps to do so. Developers and researchers often create new and interesting ways to evaluate model quality that complement our internal testing. If you&#39;d like to share yours, reach out to feedback@anthropic.com.</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">我们仍然感谢我们的社区为这些贡献所做出的努力。</p>
+<p class="source" lang="en">We remain grateful to our community for these contributions.</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">作者与致谢</p>
+<p class="source" lang="en">Authors &amp; acknowledgements</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">致谢</p>
+<p class="source" lang="en">Acknowledgements</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">由 Sam McAllister 撰写，感谢 Stuart Ritchie、Jonathan Gray、Kashyap Murali、Brennan Saeta、Oliver Rausch、Alex Palcuie 以及许多其他人的贡献。</p>
+<p class="source" lang="en">Written by Sam McAllister, with thanks to Stuart Ritchie, Jonathan Gray, Kashyap Murali, Brennan Saeta, Oliver Rausch, Alex Palcuie, and many others.</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">[1] XLA:TPU 是一种优化编译器，可将 XLA 高级优化语言——通常使用 JAX 编写——转换为 TPU 机器指令。</p>
+<p class="source" lang="en">[1] XLA:TPU is the optimizing compiler that translates XLA High Level Optimizing language—often written using JAX—to TPU machine instructions.</p>
+</div>
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">[2] 我们的模型规模太大，无法使用单个芯片，而是分布在数十个或更多芯片上，因此我们的排序操作属于分布式排序。TPU（就像GPU和Trainium一样）与CPU相比也有不同的性能特点，需要使用向量化操作而非串行算法来实施不同的技术。</p>
+<p class="source" lang="en">[2] Our models are too large for single chips and are partitioned across tens of chips or more, making our sorting operation a distributed sort. TPUs (just like GPUs and Trainium) also have different performance characteristics than CPUs, requiring different implementation techniques using vectorized operations instead of serial algorithms.</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">[3] 我们一直使用这种近似方法，因为它能带来显著的性能提升。这种近似方法允许接受最低概率标记中的潜在不准确性，而这些不准确性不应影响质量——除非错误导致它丢失了最高概率标记。</p>
+<p class="source" lang="en">[3] We had been using this approximate operation because it yielded substantial performance improvements. The approximation works by accepting potential inaccuracies in the lowest probability tokens, which shouldn&#39;t affect quality—except when the bug caused it to drop the highest probability token instead.</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">[4] 请注意，现在正确的 top-k 实现可能会在 top-p 阈值附近的关键词包含上略有差异，在极少数情况下，用户可以通过重新调整 top-p 的选择来获得更好的效果。</p>
+<p class="source" lang="en">[4] Note that the now-correct top-k implementation may result in slight differences in the inclusion of tokens near the top-p threshold, and in rare cases users may benefit from re-tuning their choice of top-p.</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://www.anthropic.com/research/a-postmortem-of-three-recent-issues" target="_blank" rel="noopener noreferrer">https://www.anthropic.com/research/a-postmortem-of-three-recent-issues</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/effective-context-engineering-for-ai-agents.html">← Effective context engineering for AI agents</a><a href="../viewers/writing-effective-tools-for-agents-with-agents.html">Writing effective tools for agents — with agents →</a></nav>
+  <footer class="footer">本站为公开 AI 工程博客的非官方中英对照归档。中文译文仅作辅助阅读，请以英文原文为准；文章内容版权归原作者所有。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

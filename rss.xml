@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0">
+  <channel>
+    <title>AIEngblogx</title>
+    <link>https://aiengblogx.github.io/ai-engineering-related-blogs</link>
+    <description>公开 AI 工程博客中英对照</description>
+    <item>
+      <title>The components of agent memory</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/the-components-of-agent-memory.html</link>
+      <guid isPermaLink="false">f0247d2be6d23fda</guid>
+      <pubDate>Fri, 06 Nov 2026 00:00:00 GMT</pubDate>
+      <description>The components of agent memory · 2026-11-06</description>
+    </item>
+    <item>
+      <title>Redesigning source control at Anthropic</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/redesigning-source-control-at-anthropic.html</link>
+      <guid isPermaLink="false">ff44501d216cdf26</guid>
+      <pubDate>Tue, 13 Oct 2026 00:00:00 GMT</pubDate>
+      <description>Redesigning source control at Anthropic · 2026-10-13</description>
+    </item>
+    <item>
+      <title>How we contain Claude across products</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/how-we-contain-claude-across-products.html</link>
+      <guid isPermaLink="false">e4bdeb479512926e</guid>
+      <pubDate>Mon, 25 May 2026 00:00:00 GMT</pubDate>
+      <description>How we contain Claude across products · 2026-05-25</description>
+    </item>
+    <item>
+      <title>An update on recent Claude Code quality reports</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/an-update-on-recent-claude-code-quality-reports.html</link>
+      <guid isPermaLink="false">0817f4ca347754c5</guid>
+      <pubDate>Thu, 23 Apr 2026 00:00:00 GMT</pubDate>
+      <description>An update on recent Claude Code quality reports · 2026-04-23</description>
+    </item>
+    <item>
+      <title>Scaling Managed Agents: Decoupling the brain from the hands</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html</link>
+      <guid isPermaLink="false">a76463269fe24214</guid>
+      <pubDate>Wed, 08 Apr 2026 00:00:00 GMT</pubDate>
+      <description>Scaling Managed Agents: Decoupling the brain from the hands · 2026-04-08</description>
+    </item>
+    <item>
+      <title>How we built Claude Code auto mode: a safer way to skip permissions</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html</link>
+      <guid isPermaLink="false">aeba4a5ac745f0d1</guid>
+      <pubDate>Wed, 25 Mar 2026 00:00:00 GMT</pubDate>
+      <description>How we built Claude Code auto mode: a safer way to skip permissions · 2026-03-25</description>
+    </item>
+    <item>
+      <title>Harness design for long-running application development</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/harness-design-for-long-running-application-development.html</link>
+      <guid isPermaLink="false">9674175d11a5e150</guid>
+      <pubDate>Tue, 24 Mar 2026 00:00:00 GMT</pubDate>
+      <description>Harness design for long-running application development · 2026-03-24</description>
+    </item>
+    <item>
+      <title>Eval awareness in Claude Opus 4.6’s BrowseComp performance</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html</link>
+      <guid isPermaLink="false">191d25f83854ebf7</guid>
+      <pubDate>Fri, 06 Mar 2026 00:00:00 GMT</pubDate>
+      <description>Eval awareness in Claude Opus 4.6’s BrowseComp performance · 2026-03-06</description>
+    </item>
+    <item>
+      <title>Building a C compiler with a team of parallel Claudes</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html</link>
+      <guid isPermaLink="false">de02c29beeb748f9</guid>
+      <pubDate>Thu, 05 Feb 2026 00:00:00 GMT</pubDate>
+      <description>Building a C compiler with a team of parallel Claudes · 2026-02-05</description>
+    </item>
+    <item>
+      <title>Quantifying infrastructure noise in agentic coding evals</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html</link>
+      <guid isPermaLink="false">1423c176d4b3c928</guid>
+      <pubDate>Thu, 05 Feb 2026 00:00:00 GMT</pubDate>
+      <description>Quantifying infrastructure noise in agentic coding evals · 2026-02-05</description>
+    </item>
+    <item>
+      <title>Designing AI-resistant technical evaluations</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/designing-ai-resistant-technical-evaluations.html</link>
+      <guid isPermaLink="false">9de9666d511a8697</guid>
+      <pubDate>Wed, 21 Jan 2026 00:00:00 GMT</pubDate>
+      <description>Designing AI-resistant technical evaluations · 2026-01-21</description>
+    </item>
+    <item>
+      <title>Demystifying evals for AI agents</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/demystifying-evals-for-ai-agents.html</link>
+      <guid isPermaLink="false">12b54ccec592b443</guid>
+      <pubDate>Fri, 09 Jan 2026 00:00:00 GMT</pubDate>
+      <description>Demystifying evals for AI agents · 2026-01-09</description>
+    </item>
+    <item>
+      <title>Effective harnesses for long-running agents</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/effective-harnesses-for-long-running-agents.html</link>
+      <guid isPermaLink="false">678054878ca13d53</guid>
+      <pubDate>Wed, 26 Nov 2025 00:00:00 GMT</pubDate>
+      <description>Effective harnesses for long-running agents · 2025-11-26</description>
+    </item>
+    <item>
+      <title>Introducing advanced tool use on the Claude Developer Platform</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html</link>
+      <guid isPermaLink="false">c81bbcb144a3719c</guid>
+      <pubDate>Mon, 24 Nov 2025 00:00:00 GMT</pubDate>
+      <description>Introducing advanced tool use on the Claude Developer Platform · 2025-11-24</description>
+    </item>
+    <item>
+      <title>Code execution with MCP: Building more efficient agents</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/code-execution-with-mcp-building-more-efficient-agents.html</link>
+      <guid isPermaLink="false">9b15778f8aea146b</guid>
+      <pubDate>Tue, 04 Nov 2025 00:00:00 GMT</pubDate>
+      <description>Code execution with MCP: Building more efficient agents · 2025-11-04</description>
+    </item>
+    <item>
+      <title>Beyond permission prompts: making Claude Code more secure and autonomous</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html</link>
+      <guid isPermaLink="false">cee4bb7f93fa6961</guid>
+      <pubDate>Mon, 20 Oct 2025 00:00:00 GMT</pubDate>
+      <description>Beyond permission prompts: making Claude Code more secure and autonomous · 2025-10-20</description>
+    </item>
+    <item>
+      <title>Equipping agents for the real world with Agent Skills</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/equipping-agents-for-the-real-world-with-agent-skills.html</link>
+      <guid isPermaLink="false">5132cc384b2d0cfb</guid>
+      <pubDate>Thu, 16 Oct 2025 00:00:00 GMT</pubDate>
+      <description>Equipping agents for the real world with Agent Skills · 2025-10-16</description>
+    </item>
+    <item>
+      <title>Effective context engineering for AI agents</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/effective-context-engineering-for-ai-agents.html</link>
+      <guid isPermaLink="false">6d7ad609a0608e58</guid>
+      <pubDate>Mon, 29 Sep 2025 00:00:00 GMT</pubDate>
+      <description>Effective context engineering for AI agents · 2025-09-29</description>
+    </item>
+    <item>
+      <title>A postmortem of three recent issues</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/a-postmortem-of-three-recent-issues.html</link>
+      <guid isPermaLink="false">4a0e0cde48f1cda8</guid>
+      <pubDate>Wed, 17 Sep 2025 00:00:00 GMT</pubDate>
+      <description>A postmortem of three recent issues · 2025-09-17</description>
+    </item>
+    <item>
+      <title>Writing effective tools for agents — with agents</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/writing-effective-tools-for-agents-with-agents.html</link>
+      <guid isPermaLink="false">b8397818825a87be</guid>
+      <pubDate>Thu, 11 Sep 2025 00:00:00 GMT</pubDate>
+      <description>Writing effective tools for agents — with agents · 2025-09-11</description>
+    </item>
+    <item>
+      <title>Desktop Extensions: One-click MCP server installation for Claude Desktop</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html</link>
+      <guid isPermaLink="false">087ba172494097ea</guid>
+      <pubDate>Thu, 26 Jun 2025 00:00:00 GMT</pubDate>
+      <description>Desktop Extensions: One-click MCP server installation for Claude Desktop · 2025-06-26</description>
+    </item>
+    <item>
+      <title>Confidential Inference via Trusted Virtual Machines</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/confidential-inference-via-trusted-virtual-machines.html</link>
+      <guid isPermaLink="false">7eafeb0b80fa9991</guid>
+      <pubDate>Wed, 18 Jun 2025 00:00:00 GMT</pubDate>
+      <description>Confidential Inference via Trusted Virtual Machines · 2025-06-18</description>
+    </item>
+    <item>
+      <title>How we built our multi-agent research system</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/how-we-built-our-multi-agent-research-system.html</link>
+      <guid isPermaLink="false">ea7cfd31aaf21dbe</guid>
+      <pubDate>Fri, 13 Jun 2025 00:00:00 GMT</pubDate>
+      <description>How we built our multi-agent research system · 2025-06-13</description>
+    </item>
+    <item>
+      <title>Claude Code: Best practices for agentic coding</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/claude-code-best-practices-for-agentic-coding.html</link>
+      <guid isPermaLink="false">a9914f0c8b63a36e</guid>
+      <pubDate>Fri, 18 Apr 2025 00:00:00 GMT</pubDate>
+      <description>Claude Code: Best practices for agentic coding · 2025-04-18</description>
+    </item>
+    <item>
+      <title>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html</link>
+      <guid isPermaLink="false">d2127010b061d1aa</guid>
+      <pubDate>Thu, 20 Mar 2025 00:00:00 GMT</pubDate>
+      <description>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations · 2025-03-20</description>
+    </item>
+    <item>
+      <title>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html</link>
+      <guid isPermaLink="false">326a42f91618a6d0</guid>
+      <pubDate>Mon, 06 Jan 2025 00:00:00 GMT</pubDate>
+      <description>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet · 2025-01-06</description>
+    </item>
+    <item>
+      <title>Building effective agents</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/building-effective-agents.html</link>
+      <guid isPermaLink="false">38c43325a50c50c6</guid>
+      <pubDate>Thu, 19 Dec 2024 00:00:00 GMT</pubDate>
+      <description>Building effective agents · 2024-12-19</description>
+    </item>
+    <item>
+      <title>Introducing Contextual Retrieval</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/introducing-contextual-retrieval.html</link>
+      <guid isPermaLink="false">b852890527f35653</guid>
+      <pubDate>Thu, 19 Sep 2024 00:00:00 GMT</pubDate>
+      <description>Introducing Contextual Retrieval · 2024-09-19</description>
+    </item>
+  </channel>
+</rss>

@@ -1,0 +1,976 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Building effective agents · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Building effective agents</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">01</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">02</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">11</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">12</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">19</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">21</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">24</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">25</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">26</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item current" href="../viewers/building-effective-agents.html" aria-current="page"><span class="num">27</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">28</span>Introducing Contextual Retrieval</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">01</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">02</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">11</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">12</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">19</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">21</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">24</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">25</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">26</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item current" href="../viewers/building-effective-agents.html" aria-current="page"><span class="num">27</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">28</span>Introducing Contextual Retrieval</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Building effective agents</h1>
+  <p class="subline">原文：<a href="https://www.anthropic.com/research/building-effective-agents" target="_blank" rel="noopener noreferrer">https://www.anthropic.com/research/building-effective-agents</a> · 2024-12-19 · Anthropic Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F449cbca59ea1d94cdebb3118c21894a7c9f76db0-2000x1125.jpg&amp;w=1920&amp;q=75" alt="Building effective agents" loading="lazy">
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">注意：本文中描述的工具环境在2024年12月之后已经发生了很大变化。关于我们当前的方法，请参阅我们如何构建 Claude 管理代理以及管理代理文档。过去一年里，我们与数十个行业中的大型语言模型代理团队合作。通常来说，最成功的实现并没有使用复杂的框架或专业库，而是采用简单、可组合的模式来构建。</p>
+<p class="source" lang="en">Note: Much of the tooling landscape described in this post has changed since December 2024. For our current approach, see how we built Claude Managed Agents and the Managed Agents documentation. Over the past year, we&#39;ve worked with dozens of teams building large language model (LLM) agents across industries. Consistently, the most successful implementations weren&#39;t using complex frameworks or specialized libraries. Instead, they were building with simple, composable patterns.</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">在本文中，我们将分享我们与客户合作以及自行开发智能代理所学到的经验，并为开发者提供关于如何构建有效智能代理的实际建议。</p>
+<p class="source" lang="en">In this post, we share what we’ve learned from working with our customers and building agents ourselves, and give practical advice for developers on building effective agents.</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">什么是代理？</p>
+<p class="source" lang="en">What are agents?</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">“代理”可以以多种方式定义。一些客户将代理视为完全自主的系统，这些系统能够在较长时间内独立运行，并使用各种工具来完成复杂的任务。另一些客户则使用这个术语来描述遵循预定义工作流的更具体的实现方式。在 Anthropic，我们将所有这些变体都归类为代理式系统，但在工作流和代理之间做出了重要的架构区分：</p>
+<p class="source" lang="en">&quot;Agent&quot; can be defined in several ways. Some customers define agents as fully autonomous systems that operate independently over extended periods, using various tools to accomplish complex tasks. Others use the term to describe more prescriptive implementations that follow predefined workflows. At Anthropic, we categorize all these variations as agentic systems, but draw an important architectural distinction between workflows and agents:</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">工作流是通过预定义的代码路径来协调 LLM 和工具的系统。</p>
+<p class="source" lang="en">Workflows are systems where LLMs and tools are orchestrated through predefined code paths.</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">另一方面，代理是一种系统，其中大型语言模型能够动态地指导自身的进程和工具使用，从而保持对任务完成方式的控制。</p>
+<p class="source" lang="en">Agents, on the other hand, are systems where LLMs dynamically direct their own processes and tool usage, maintaining control over how they accomplish tasks.</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">下面，我们将详细探讨这两种代理式系统。在附录1（“实际中的代理”）中，我们介绍了两个领域，客户在使用这些系统时发现了特定的价值。</p>
+<p class="source" lang="en">Below, we will explore both types of agentic systems in detail. In Appendix 1 (“Agents in Practice”), we describe two domains where customers have found particular value in using these kinds of systems.</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">何时（以及何时不）使用代理</p>
+<p class="source" lang="en">When (and when not) to use agents</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">在使用大语言模型构建应用程序时，我们建议寻找最简单的解决方案，只有在必要时才增加复杂性。这可能意味着完全不构建代理系统。代理系统通常通过牺牲延迟和成本来换取更好的任务性能，您应该考虑这种权衡是否合理。</p>
+<p class="source" lang="en">When building applications with LLMs, we recommend finding the simplest solution possible, and only increasing complexity when needed. This might mean not building agentic systems at all. Agentic systems often trade latency and cost for better task performance, and you should consider when this tradeoff makes sense.</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">当需要更高的复杂性时，工作流能够为明确的任务提供可预测性和一致性；而当需要大规模的灵活性及模型驱动的决策时，代理则更为合适。然而，对于许多应用来说，通过检索和上下文示例来优化单个大语言模型调用通常就足够了。</p>
+<p class="source" lang="en">When more complexity is warranted, workflows offer predictability and consistency for well-defined tasks, whereas agents are the better option when flexibility and model-driven decision-making are needed at scale. For many applications, however, optimizing single LLM calls with retrieval and in-context examples is usually enough.</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">使用框架的时间与方式</p>
+<p class="source" lang="en">When and how to use frameworks</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">有许多框架能够简化代理式系统的实现，包括：</p>
+<p class="source" lang="en">There are many frameworks that make agentic systems easier to implement, including:</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">Claude Agent SDK；</p>
+<p class="source" lang="en">The Claude Agent SDK;</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">AWS 的 Strands Agents SDK；</p>
+<p class="source" lang="en">Strands Agents SDK by AWS;</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">Rivet，一个拖放式 GUI LLM 工作流构建器；以及</p>
+<p class="source" lang="en">Rivet, a drag and drop GUI LLM workflow builder; and</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">Vellum，另一种用于构建和测试复杂工作流的图形用户界面工具。</p>
+<p class="source" lang="en">Vellum, another GUI tool for building and testing complex workflows.</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">这些框架通过简化调用 LLM、定义和解析工具以及串联调用等标准低级别任务，使得入门变得容易。然而，它们通常会创建额外的抽象层，可能会掩盖底层的提示和响应，使得调试变得更加困难。此外，当更简单的设置就能满足需求时，人们也可能会倾向于添加复杂性。</p>
+<p class="source" lang="en">These frameworks make it easy to get started by simplifying standard low-level tasks like calling LLMs, defining and parsing tools, and chaining calls together. However, they often create extra layers of abstraction that can obscure the underlying prompts ​​and responses, making them harder to debug. They can also make it tempting to add complexity when a simpler setup would suffice.</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">我们建议开发者首先直接使用 LLM API：许多模式只需几行代码即可实现。如果你使用框架，请确保理解其底层代码。对底层机制的错误假设是客户出错的常见原因。</p>
+<p class="source" lang="en">We suggest that developers start by using LLM APIs directly: many patterns can be implemented in a few lines of code. If you do use a framework, ensure you understand the underlying code. Incorrect assumptions about what&#39;s under the hood are a common source of customer error.</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">请参阅我们的烹饪手册，了解一些示例实现。</p>
+<p class="source" lang="en">See our cookbook for some sample implementations.</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">构建模块、工作流和代理</p>
+<p class="source" lang="en">Building blocks, workflows, and agents</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">在本节中，我们将探讨我们在实际生产环境中看到的代理式系统的常见模式。我们将从基础构建模块——增强型 LLM 开始，然后逐步增加复杂性，从简单的组合工作流到自主代理。</p>
+<p class="source" lang="en">In this section, we’ll explore the common patterns for agentic systems we’ve seen in production. We&#39;ll start with our foundational building block—the augmented LLM—and progressively increase complexity, from simple compositional workflows to autonomous agents.</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">构建模块：增强版大语言模型</p>
+<p class="source" lang="en">Building block: The augmented LLM</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">代理式系统的基本构建模块是一个经过增强的 LLM，它配备了检索、工具和记忆等功能。我们的当前模型能够主动利用这些能力——生成自己的搜索查询、选择合适的工具，并决定保留哪些信息。</p>
+<p class="source" lang="en">The basic building block of agentic systems is an LLM enhanced with augmentations such as retrieval, tools, and memory. Our current models can actively use these capabilities—generating their own search queries, selecting appropriate tools, and determining what information to retain.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Fd3083d3f40bb2b6f477901cc9a240738d3dd1371-2401x1000.png&amp;w=3840&amp;q=75" alt="The augmented LLM" loading="lazy">
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">我们建议重点关注实施的两个关键方面：根据您的具体应用场景调整这些功能，并确保它们为您的 LLM 提供简单且文档齐全的接口。虽然有多种方式可以实现这些增强功能，但一种方法是通过我们最近发布的模型上下文协议，它允许开发者通过简单的客户端实现与越来越多的第三方工具生态系统集成。</p>
+<p class="source" lang="en">We recommend focusing on two key aspects of the implementation: tailoring these capabilities to your specific use case and ensuring they provide an easy, well-documented interface for your LLM. While there are many ways to implement these augmentations, one approach is through our recently released Model Context Protocol, which allows developers to integrate with a growing ecosystem of third-party tools with a simple client implementation.</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">在本文的剩余部分，我们将假设每个 LLM 调用都能使用这些增强功能。</p>
+<p class="source" lang="en">For the remainder of this post, we&#39;ll assume each LLM call has access to these augmented capabilities.</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">工作流程：提示链连接</p>
+<p class="source" lang="en">Workflow: Prompt chaining</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">提示链将任务分解为一系列步骤，每个大语言模型调用都会处理前一步的输出。你可以对任何中间步骤添加程序化检查（参见下图中的“门”结构），以确保流程仍然按计划进行。</p>
+<p class="source" lang="en">Prompt chaining decomposes a task into a sequence of steps, where each LLM call processes the output of the previous one. You can add programmatic checks (see &quot;gate” in the diagram below) on any intermediate steps to ensure that the process is still on track.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F7418719e3dab222dccb379b8879e1dc08ad34c78-2401x1000.png&amp;w=3840&amp;q=75" alt="The prompt chaining workflow" loading="lazy">
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">何时使用此工作流：当任务可以轻松且清晰地分解为固定子任务时，此工作流非常适用。主要目标是通过将每个 LLM 调用转化为更简单的任务，以牺牲延迟为代价来获得更高的准确性。</p>
+<p class="source" lang="en">When to use this workflow: This workflow is ideal for situations where the task can be easily and cleanly decomposed into fixed subtasks. The main goal is to trade off latency for higher accuracy, by making each LLM call an easier task.</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">提示链使用的有用示例：</p>
+<p class="source" lang="en">Examples where prompt chaining is useful:</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">生成营销文案，然后将其翻译成其他语言。</p>
+<p class="source" lang="en">Generating Marketing copy, then translating it into a different language.</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">编写文档大纲，确保大纲符合特定标准，然后根据大纲撰写文档。</p>
+<p class="source" lang="en">Writing an outline of a document, checking that the outline meets certain criteria, then writing the document based on the outline.</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">工作流程：路由</p>
+<p class="source" lang="en">Workflow: Routing</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">路由类将输入内容分类，并引导其执行特定的后续任务。这种工作流能够实现职责分离，并构建更专业的提示词。如果没有这种工作流，针对一种输入方式的优化可能会降低其他输入的性能。</p>
+<p class="source" lang="en">Routing classifies an input and directs it to a specialized followup task. This workflow allows for separation of concerns, and building more specialized prompts. Without this workflow, optimizing for one kind of input can hurt performance on other inputs.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F5c0c0e9fe4def0b584c04d37849941da55e5e71c-2401x1000.png&amp;w=3840&amp;q=75" alt="The routing workflow" loading="lazy">
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">何时使用此工作流：对于具有不同类别且更适合单独处理的复杂任务，以及可以通过大语言模型或更传统的分类模型/算法准确进行分类的任务，路由方式非常适用。</p>
+<p class="source" lang="en">When to use this workflow: Routing works well for complex tasks where there are distinct categories that are better handled separately, and where classification can be handled accurately, either by an LLM or a more traditional classification model/algorithm.</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">路由有用的例子：</p>
+<p class="source" lang="en">Examples where routing is useful:</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">将不同类型的客户服务咨询（一般问题、退款请求、技术支持）引导到不同的后续流程、提示和工具中。</p>
+<p class="source" lang="en">Directing different types of customer service queries (general questions, refund requests, technical support) into different downstream processes, prompts, and tools.</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">将简单/常见的问题路由到如 Claude Haiku 4.5 这样的成本较低的模型，而将困难/不常见的问题路由到如 Claude Sonnet 4.5 这样的更强大的模型，以优化最佳性能。</p>
+<p class="source" lang="en">Routing easy/common questions to smaller, cost-efficient models like Claude Haiku 4.5 and hard/unusual questions to more capable models like Claude Sonnet 4.5 to optimize for best performance.</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">工作流：并行化</p>
+<p class="source" lang="en">Workflow: Parallelization</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">LLM有时可以在一个任务上同时工作，并通过程序方式汇总其输出。这种工作流，即并行化，表现为两种主要形式：</p>
+<p class="source" lang="en">LLMs can sometimes work simultaneously on a task and have their outputs aggregated programmatically. This workflow, parallelization, manifests in two key variations:</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">分段：将任务分解为并行执行的独立子任务。</p>
+<p class="source" lang="en">Sectioning: Breaking a task into independent subtasks run in parallel.</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">投票：多次执行同一任务以获得不同的结果。</p>
+<p class="source" lang="en">Voting: Running the same task multiple times to get diverse outputs.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F406bb032ca007fd1624f261af717d70e6ca86286-2401x1000.png&amp;w=3840&amp;q=75" alt="The parallelization workflow" loading="lazy">
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">何时使用此工作流：当可并行化的子任务能够提高速度时，或者需要多次尝试以获得更高的置信度结果时，并行化效果显著。对于包含多种考虑因素的复杂任务，通常每个考虑因素由独立的 LLM 调用处理，这样就能专注于每个具体方面。</p>
+<p class="source" lang="en">When to use this workflow: Parallelization is effective when the divided subtasks can be parallelized for speed, or when multiple perspectives or attempts are needed for higher confidence results. For complex tasks with multiple considerations, LLMs generally perform better when each consideration is handled by a separate LLM call, allowing focused attention on each specific aspect.</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">并行化有用的例子：</p>
+<p class="source" lang="en">Examples where parallelization is useful:</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">分段处理：实施防护机制，让一个模型实例处理用户查询，同时另一个模型实例则检查内容或请求是否不当。这种方式通常比让同一个大语言模型同时处理防护机制和核心响应表现得更好。自动化评估大语言模型性能，即每个大语言模型调用都会针对给定提示中的不同性能方面进行评估。</p>
+<p class="source" lang="en">Sectioning:Implementing guardrails where one model instance processes user queries while another screens them for inappropriate content or requests. This tends to perform better than having the same LLM call handle both guardrails and the core response.Automating evals for evaluating LLM performance, where each LLM call evaluates a different aspect of the model’s performance on a given prompt.</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">实施防护机制，让一个模型实例处理用户查询，同时另一个模型实例则检查内容或请求是否不当。这种方式通常比让同一个大语言模型同时处理防护机制和核心响应表现得更好。</p>
+<p class="source" lang="en">Implementing guardrails where one model instance processes user queries while another screens them for inappropriate content or requests. This tends to perform better than having the same LLM call handle both guardrails and the core response.</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">简化评估过程以评估大语言模型的性能，其中每个大语言模型调用都会针对给定提示下的模型性能的不同方面进行评估。</p>
+<p class="source" lang="en">Automating evals for evaluating LLM performance, where each LLM call evaluates a different aspect of the model’s performance on a given prompt.</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">投票：对代码进行漏洞检查，多个提示器会审查代码并在发现问题时标记它。评估给定内容是否不当，多个提示器会从不同方面进行评估，或要求不同的投票阈值，以平衡误报和漏报。</p>
+<p class="source" lang="en">Voting:Reviewing a piece of code for vulnerabilities, where several different prompts review and flag the code if they find a problem.Evaluating whether a given piece of content is inappropriate, with multiple prompts evaluating different aspects or requiring different vote thresholds to balance false positives and negatives.</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">在审查代码以查找漏洞时，多个不同的提示会一起审查代码，并在发现问题时标记出来。</p>
+<p class="source" lang="en">Reviewing a piece of code for vulnerabilities, where several different prompts review and flag the code if they find a problem.</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">评估给定内容是否不合适，通过多个提示评估不同方面，或要求不同的投票阈值，以平衡误报和漏报。</p>
+<p class="source" lang="en">Evaluating whether a given piece of content is inappropriate, with multiple prompts evaluating different aspects or requiring different vote thresholds to balance false positives and negatives.</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">工作流：协调器与工作者</p>
+<p class="source" lang="en">Workflow: Orchestrator-workers</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">在编排工具体流中，中央 LLM 会动态分解任务，将其分配给工具体 LLM，并合成它们的结果。</p>
+<p class="source" lang="en">In the orchestrator-workers workflow, a central LLM dynamically breaks down tasks, delegates them to worker LLMs, and synthesizes their results.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F8985fc683fae4780fb34eab1365ab78c7e51bc8e-2401x1000.png&amp;w=3840&amp;q=75" alt="The orchestrator-workers workflow" loading="lazy">
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">何时使用此工作流：此工作流非常适合复杂的任务，在这些任务中无法预测所需的子任务（例如，在编码中，需要修改的文件数量以及每个文件中的修改内容往往取决于任务本身）。虽然与并行化在地形上相似，但与并行化的关键区别在于其灵活性——子任务不是预先定义的，而是由 orchestrator 根据特定输入确定。</p>
+<p class="source" lang="en">When to use this workflow: This workflow is well-suited for complex tasks where you can’t predict the subtasks needed (in coding, for example, the number of files that need to be changed and the nature of the change in each file likely depend on the task). Whereas it’s topographically similar, the key difference from parallelization is its flexibility—subtasks aren&#39;t pre-defined, but determined by the orchestrator based on the specific input.</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">示例说明 orchestrator-workers 有何用处：</p>
+<p class="source" lang="en">Example where orchestrator-workers is useful:</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">编码产品能够每次对多个文件进行复杂的修改。</p>
+<p class="source" lang="en">Coding products that make complex changes to multiple files each time.</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">搜索任务涉及从多个来源收集和分析信息，以寻找可能相关的信息。</p>
+<p class="source" lang="en">Search tasks that involve gathering and analyzing information from multiple sources for possible relevant information.</p>
+</div>
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">工作流程：评估器-优化器</p>
+<p class="source" lang="en">Workflow: Evaluator-optimizer</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">在评估器-优化器工作流程中，一个大语言模型调用生成响应，同时另一个则持续提供评估与反馈。</p>
+<p class="source" lang="en">In the evaluator-optimizer workflow, one LLM call generates a response while another provides evaluation and feedback in a loop.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F14f51e6406ccb29e695da48b17017e899a6119c7-2401x1000.png&amp;w=3840&amp;q=75" alt="The evaluator-optimizer workflow" loading="lazy">
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">何时使用此工作流：当我们有明确的评估标准，且迭代优化能带来可衡量的效果时，此工作流特别有效。符合良好适配的两个标志是：首先，当人类提供反馈时，LLM 的回应可以明显改善；其次，LLM 能够提供此类反馈。这类似于人类作家在制作完善文档时经历的迭代写作过程。</p>
+<p class="source" lang="en">When to use this workflow: This workflow is particularly effective when we have clear evaluation criteria, and when iterative refinement provides measurable value. The two signs of good fit are, first, that LLM responses can be demonstrably improved when a human articulates their feedback; and second, that the LLM can provide such feedback. This is analogous to the iterative writing process a human writer might go through when producing a polished document.</p>
+</div>
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">evaluator-optimizer 有用的例子：</p>
+<p class="source" lang="en">Examples where evaluator-optimizer is useful:</p>
+</div>
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">文学翻译中有些细微之处，翻译语言模型可能最初无法捕捉，但评估语言模型能够提供有价值的批评意见。</p>
+<p class="source" lang="en">Literary translation where there are nuances that the translator LLM might not capture initially, but where an evaluator LLM can provide useful critiques.</p>
+</div>
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">需要多轮搜索和分析以收集全面信息的复杂搜索任务，由评估者决定是否进行进一步搜索。</p>
+<p class="source" lang="en">Complex search tasks that require multiple rounds of searching and analysis to gather comprehensive information, where the evaluator decides whether further searches are warranted.</p>
+</div>
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">代理人</p>
+<p class="source" lang="en">Agents</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">当大语言模型在关键能力方面得到发展——如理解复杂输入、进行推理和规划、可靠地使用工具以及从错误中恢复——代理角色在生产环境中开始出现。代理通过人类用户的命令或互动讨论开始工作。一旦任务明确，代理就会独立规划并执行，可能会向人类寻求进一步的信息或判断。在执行过程中，代理在每一步都需要从环境中获取“真实数据”以评估进展，例如工具调用结果或代码执行结果。代理可以在检查点或遇到障碍时暂停以等待人类反馈。任务通常在完成时结束，但也常见包含停止条件（如最大迭代次数）以维持控制。</p>
+<p class="source" lang="en">Agents are emerging in production as LLMs mature in key capabilities—understanding complex inputs, engaging in reasoning and planning, using tools reliably, and recovering from errors. Agents begin their work with either a command from, or interactive discussion with, the human user. Once the task is clear, agents plan and operate independently, potentially returning to the human for further information or judgement. During execution, it&#39;s crucial for the agents to gain “ground truth” from the environment at each step (such as tool call results or code execution) to assess its progress. Agents can then pause for human feedback at checkpoints or when encountering blockers. The task often terminates upon completion, but it’s also common to include stopping conditions (such as a maximum number of iterations) to maintain control.</p>
+</div>
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">代理可以处理复杂的任务，但其实现通常很简单。它们通常只是使用基于环境反馈的工具的 LLM，并处于循环之中。因此，清晰且周到的设计工具集及其文档非常重要。我们在附录 2（“提示工程：你的工具”）中详细介绍了工具开发的最佳实践。</p>
+<p class="source" lang="en">Agents can handle sophisticated tasks, but their implementation is often straightforward. They are typically just LLMs using tools based on environmental feedback in a loop. It is therefore crucial to design toolsets and their documentation clearly and thoughtfully. We expand on best practices for tool development in Appendix 2 (&quot;Prompt Engineering your Tools&quot;).</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F58d9f10c985c4eb5d53798dea315f7bb5ab6249e-2401x1000.png&amp;w=3840&amp;q=75" alt="Autonomous agent" loading="lazy">
+<div class="pair" id="p-64">
+<p class="target" lang="zh-CN">何时使用智能体：智能体适用于那些开放式问题，难以或无法预测所需的步骤数量，且无法硬编码固定路径的情况。大语言模型可能会持续运行许多轮次，因此必须对其决策有一定的信任。智能体的自主性使其非常适合在可信环境中扩展任务。</p>
+<p class="source" lang="en">When to use agents: Agents can be used for open-ended problems where it’s difficult or impossible to predict the required number of steps, and where you can’t hardcode a fixed path. The LLM will potentially operate for many turns, and you must have some level of trust in its decision-making. Agents&#39; autonomy makes them ideal for scaling tasks in trusted environments.</p>
+</div>
+<div class="pair" id="p-65">
+<p class="target" lang="zh-CN">代理的自主特性意味着更高的成本，并且存在错误累积的可能性。我们建议在沙箱环境中进行广泛的测试，并设置适当的约束措施。</p>
+<p class="source" lang="en">The autonomous nature of agents means higher costs, and the potential for compounding errors. We recommend extensive testing in sandboxed environments, along with the appropriate guardrails.</p>
+</div>
+<div class="pair" id="p-66">
+<p class="target" lang="zh-CN">&lt;text&gt;
+代理有用的例子：
+&lt;/text&gt;</p>
+<p class="source" lang="en">Examples where agents are useful:</p>
+</div>
+<div class="pair" id="p-67">
+<p class="target" lang="zh-CN">以下示例来自我们的实际实现：</p>
+<p class="source" lang="en">The following examples are from our own implementations:</p>
+</div>
+<div class="pair" id="p-68">
+<p class="target" lang="zh-CN">一种编码代理，用于解决 SWE-bench 任务，这些任务涉及根据任务描述对多个文件进行编辑；</p>
+<p class="source" lang="en">A coding Agent to resolve SWE-bench tasks, which involve edits to many files based on a task description;</p>
+</div>
+<div class="pair" id="p-69">
+<p class="target" lang="zh-CN">我们的“计算机使用”参考实现中，Claude利用计算机来完成任务。</p>
+<p class="source" lang="en">Our “computer use” reference implementation, where Claude uses a computer to accomplish tasks.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F4b9a1f4eb63d5962a6e1746ac26bbc857cf3474f-2400x1666.png&amp;w=3840&amp;q=75" alt="High-level flow of a coding agent" loading="lazy">
+<div class="pair" id="p-70">
+<p class="target" lang="zh-CN">结合和定制这些模式</p>
+<p class="source" lang="en">Combining and customizing these patterns</p>
+</div>
+<div class="pair" id="p-71">
+<p class="target" lang="zh-CN">这些构建模块并非固定不变的规范。它们是常见的模式，开发者可以对其进行调整和组合，以适应不同的应用场景。就像任何大语言模型特性一样，成功的关键在于衡量性能并不断优化实现方式。再次强调：只有在明显能提升效果时，才应考虑增加复杂性。</p>
+<p class="source" lang="en">These building blocks aren&#39;t prescriptive. They&#39;re common patterns that developers can shape and combine to fit different use cases. The key to success, as with any LLM features, is measuring performance and iterating on implementations. To repeat: you should consider adding complexity only when it demonstrably improves outcomes.</p>
+</div>
+<div class="pair" id="p-72">
+<p class="target" lang="zh-CN">摘要</p>
+<p class="source" lang="en">Summary</p>
+</div>
+<div class="pair" id="p-73">
+<p class="target" lang="zh-CN">在LLM领域取得成功并非在于构建最复杂的系统，而是构建符合您需求的合适系统。从简单的提示词开始，通过全面的评估来优化它们，只有在简单解决方案无法满足需求时，才引入多步骤的代理系统。</p>
+<p class="source" lang="en">Success in the LLM space isn&#39;t about building the most sophisticated system. It&#39;s about building the right system for your needs. Start with simple prompts, optimize them with comprehensive evaluation, and add multi-step agentic systems only when simpler solutions fall short.</p>
+</div>
+<div class="pair" id="p-74">
+<p class="target" lang="zh-CN">&lt;text&gt;
+在实施智能体时，我们试图遵循三个核心原则：
+&lt;/text&gt;</p>
+<p class="source" lang="en">When implementing agents, we try to follow three core principles:</p>
+</div>
+<div class="pair" id="p-75">
+<p class="target" lang="zh-CN">保持你的智能体设计的简洁性。</p>
+<p class="source" lang="en">Maintain simplicity in your agent&#39;s design.</p>
+</div>
+<div class="pair" id="p-76">
+<p class="target" lang="zh-CN">通过明确展示智能体的规划步骤，优先实现透明度。</p>
+<p class="source" lang="en">Prioritize transparency by explicitly showing the agent’s planning steps.</p>
+</div>
+<div class="pair" id="p-77">
+<p class="target" lang="zh-CN">通过详细的工具文档和测试，精心设计你的代理-计算机界面（ACI）。</p>
+<p class="source" lang="en">Carefully craft your agent-computer interface (ACI) through thorough tool documentation and testing.</p>
+</div>
+<div class="pair" id="p-78">
+<p class="target" lang="zh-CN">框架可以帮助你快速开始工作，但在进入生产环境时，不要犹豫减少抽象层，而是使用基础组件进行构建。遵循这些原则，你可以创建出不仅功能强大，而且可靠、易于维护且受到用户信任的智能体。</p>
+<p class="source" lang="en">Frameworks can help you get started quickly, but don&#39;t hesitate to reduce abstraction layers and build with basic components as you move to production. By following these principles, you can create agents that are not only powerful but also reliable, maintainable, and trusted by their users.</p>
+</div>
+<div class="pair" id="p-79">
+<p class="target" lang="zh-CN">附录1：实际中的智能体</p>
+<p class="source" lang="en">Appendix 1: Agents in practice</p>
+</div>
+<div class="pair" id="p-80">
+<p class="target" lang="zh-CN">我们与客户的合作揭示了两种特别有前景的 AI 智能体应用，这些应用展示了上述模式的实际价值。这两种应用都说明了，智能体在需要对话与行动、有明确的成功标准、能够实现反馈循环以及需要有意义的人类监督的任务中，能够带来最大的价值。</p>
+<p class="source" lang="en">Our work with customers has revealed two particularly promising applications for AI agents that demonstrate the practical value of the patterns discussed above. Both applications illustrate how agents add the most value for tasks that require both conversation and action, have clear success criteria, enable feedback loops, and integrate meaningful human oversight.</p>
+</div>
+<div class="pair" id="p-81">
+<p class="target" lang="zh-CN">A. 客户支持</p>
+<p class="source" lang="en">A. Customer support</p>
+</div>
+<div class="pair" id="p-82">
+<p class="target" lang="zh-CN">客户支持将熟悉的聊天机器人界面与工具集成带来的增强功能相结合。这对于更开放式的代理来说非常合适，因为：</p>
+<p class="source" lang="en">Customer support combines familiar chatbot interfaces with enhanced capabilities through tool integration. This is a natural fit for more open-ended agents because:</p>
+</div>
+<div class="pair" id="p-83">
+<p class="target" lang="zh-CN">支持交互自然遵循对话流程，同时需要访问外部信息和执行相应操作；</p>
+<p class="source" lang="en">Support interactions naturally follow a conversation flow while requiring access to external information and actions;</p>
+</div>
+<div class="pair" id="p-84">
+<p class="target" lang="zh-CN">工具可以被整合起来，以提取客户数据、订单历史和知识库文章；</p>
+<p class="source" lang="en">Tools can be integrated to pull customer data, order history, and knowledge base articles;</p>
+</div>
+<div class="pair" id="p-85">
+<p class="target" lang="zh-CN">诸如退款发放或更新工单这样的操作可以通过编程方式处理；</p>
+<p class="source" lang="en">Actions such as issuing refunds or updating tickets can be handled programmatically; and</p>
+</div>
+<div class="pair" id="p-86">
+<p class="target" lang="zh-CN">成功可以通过用户定义的解决方案来明确衡量。</p>
+<p class="source" lang="en">Success can be clearly measured through user-defined resolutions.</p>
+</div>
+<div class="pair" id="p-87">
+<p class="target" lang="zh-CN">一些公司通过基于使用的定价模式证明了这种方法的可行性，该模式仅对成功解决问题收取费用，显示出对代理工具有效性的信心。</p>
+<p class="source" lang="en">Several companies have demonstrated the viability of this approach through usage-based pricing models that charge only for successful resolutions, showing confidence in their agents&#39; effectiveness.</p>
+</div>
+<div class="pair" id="p-88">
+<p class="target" lang="zh-CN">B. 编码代理</p>
+<p class="source" lang="en">B. Coding agents</p>
+</div>
+<div class="pair" id="p-89">
+<p class="target" lang="zh-CN">软件开发领域在 LLM 功能方面展现出巨大的潜力，其能力已经从代码补全发展到自主解决问题。代理特别有效，因为：</p>
+<p class="source" lang="en">The software development space has shown remarkable potential for LLM features, with capabilities evolving from code completion to autonomous problem-solving. Agents are particularly effective because:</p>
+</div>
+<div class="pair" id="p-90">
+<p class="target" lang="zh-CN">代码解决方案可以通过自动化测试来验证；</p>
+<p class="source" lang="en">Code solutions are verifiable through automated tests;</p>
+</div>
+<div class="pair" id="p-91">
+<p class="target" lang="zh-CN">代理人员可以利用测试结果作为反馈来不断优化解决方案；</p>
+<p class="source" lang="en">Agents can iterate on solutions using test results as feedback;</p>
+</div>
+<div class="pair" id="p-92">
+<p class="target" lang="zh-CN">问题领域是明确且结构化的；</p>
+<p class="source" lang="en">The problem space is well-defined and structured; and</p>
+</div>
+<div class="pair" id="p-93">
+<p class="target" lang="zh-CN">输出质量可以客观衡量。</p>
+<p class="source" lang="en">Output quality can be measured objectively.</p>
+</div>
+<div class="pair" id="p-94">
+<p class="target" lang="zh-CN">在我们的实现中，智能体现在能够仅根据拉取请求描述就能解决 SWE-bench Verified 基准测试中的真实 GitHub 问题。然而，虽然自动化测试有助于验证功能，但人工审查对于确保解决方案符合系统整体需求仍然至关重要。</p>
+<p class="source" lang="en">In our own implementation, agents can now solve real GitHub issues in the SWE-bench Verified benchmark based on the pull request description alone. However, whereas automated testing helps verify functionality, human review remains crucial for ensuring solutions align with broader system requirements.</p>
+</div>
+<div class="pair" id="p-95">
+<p class="target" lang="zh-CN">附录2：你的工具提示工程</p>
+<p class="source" lang="en">Appendix 2: Prompt engineering your tools</p>
+</div>
+<div class="pair" id="p-96">
+<p class="target" lang="zh-CN">无论您正在构建哪种代理系统，工具都可能是您代理的重要组成部分。通过在我们的 API 中指定工具的确切结构和定义，工具使 Claude 能够与外部服务和 API 进行交互。如果 Claude 计划调用工具，其在 API 响应中将包含工具使用块。工具定义和规格应与您的整体提示同样受到提示工程方面的关注。在这个简短的附录中，我们描述了如何对工具进行提示工程设计。</p>
+<p class="source" lang="en">No matter which agentic system you&#39;re building, tools will likely be an important part of your agent. Tools enable Claude to interact with external services and APIs by specifying their exact structure and definition in our API. When Claude responds, it will include a tool use block in the API response if it plans to invoke a tool. Tool definitions and specifications should be given just as much prompt engineering attention as your overall prompts. In this brief appendix, we describe how to prompt engineer your tools.</p>
+</div>
+<div class="pair" id="p-97">
+<p class="target" lang="zh-CN">通常有多种方式可以描述相同的操作。例如，可以通过编写差异文件或重写整个文件来指定文件编辑操作。对于结构化输出，可以在 Markdown 或 JSON 中返回代码。在软件工程中，这类差异属于表面上的差异，可以从一种格式无损地转换为另一种格式。然而，有些格式对大语言模型来说更难编写。编写差异文件需要知道在编写新代码之前，块头中有多少行会发生变化。在 JSON 中编写代码（与 Markdown 相比）则需要额外的换行符和引号转义处理。</p>
+<p class="source" lang="en">There are often several ways to specify the same action. For instance, you can specify a file edit by writing a diff, or by rewriting the entire file. For structured output, you can return code inside markdown or inside JSON. In software engineering, differences like these are cosmetic and can be converted losslessly from one to the other. However, some formats are much more difficult for an LLM to write than others. Writing a diff requires knowing how many lines are changing in the chunk header before the new code is written. Writing code inside JSON (compared to markdown) requires extra escaping of newlines and quotes.</p>
+</div>
+<div class="pair" id="p-98">
+<p class="target" lang="zh-CN">我们对确定工具格式的建议如下：</p>
+<p class="source" lang="en">Our suggestions for deciding on tool formats are the following:</p>
+</div>
+<div class="pair" id="p-99">
+<p class="target" lang="zh-CN">给模型足够的标记来“思考”，然后再让它把内容写到角落里。</p>
+<p class="source" lang="en">Give the model enough tokens to &quot;think&quot; before it writes itself into a corner.</p>
+</div>
+<div class="pair" id="p-100">
+<p class="target" lang="zh-CN">保持格式尽可能接近模型在互联网文本中自然看到的形式。</p>
+<p class="source" lang="en">Keep the format close to what the model has seen naturally occurring in text on the internet.</p>
+</div>
+<div class="pair" id="p-101">
+<p class="target" lang="zh-CN">确保没有诸如需要准确统计数千行代码或处理代码字符串转义等不必要的格式开销。</p>
+<p class="source" lang="en">Make sure there&#39;s no formatting &quot;overhead&quot; such as having to keep an accurate count of thousands of lines of code, or string-escaping any code it writes.</p>
+</div>
+<div class="pair" id="p-102">
+<p class="target" lang="zh-CN">一个经验法则是考虑在人机界面（HCI）上投入了多少努力，然后同样多的努力用于创建优秀的智能代理-计算机界面（ACI）。以下是关于如何做到这一点的一些建议：</p>
+<p class="source" lang="en">One rule of thumb is to think about how much effort goes into human-computer interfaces (HCI), and plan to invest just as much effort in creating good agent-computer interfaces (ACI). Here are some thoughts on how to do so:</p>
+</div>
+<div class="pair" id="p-103">
+<p class="target" lang="zh-CN">站在模型的角度考虑一下。根据描述和参数，使用这个工具是否显而易见，还是需要仔细思考？如果是后者，那么对于模型来说也可能如此。一个好的工具定义通常会包含使用示例、边缘情况、输入格式要求以及与其他工具的明确区分。</p>
+<p class="source" lang="en">Put yourself in the model&#39;s shoes. Is it obvious how to use this tool, based on the description and parameters, or would you need to think carefully about it? If so, then it’s probably also true for the model. A good tool definition often includes example usage, edge cases, input format requirements, and clear boundaries from other tools.</p>
+</div>
+<div class="pair" id="p-104">
+<p class="target" lang="zh-CN">如何修改参数名称或描述以使其更清晰？可以将这视为为团队中的初级开发人员编写优秀的文档注释。当使用许多类似工具时，这一点尤为重要。</p>
+<p class="source" lang="en">How can you change parameter names or descriptions to make things more obvious? Think of this as writing a great docstring for a junior developer on your team. This is especially important when using many similar tools.</p>
+</div>
+<div class="pair" id="p-105">
+<p class="target" lang="zh-CN">测试模型如何使用你的工具：在我们的工作区中运行多个示例输入，看看模型会犯什么错误，然后不断调整优化。</p>
+<p class="source" lang="en">Test how the model uses your tools: Run many example inputs in our workbench to see what mistakes the model makes, and iterate.</p>
+</div>
+<div class="pair" id="p-106">
+<p class="target" lang="zh-CN">对工具实施防错措施。调整参数设置，使出错更加困难。</p>
+<p class="source" lang="en">Poka-yoke your tools. Change the arguments so that it is harder to make mistakes.</p>
+</div>
+<div class="pair" id="p-107">
+<p class="target" lang="zh-CN">在为 SWE-bench 构建智能代理的过程中，我们实际花费的时间更多在优化工具上，而不是整体提示词上。例如，我们发现当智能代理移出根目录后，使用相对文件路径的工具会导致模型出错。为了解决这个问题，我们修改了工具，使其始终要求绝对文件路径，结果发现模型能够完美使用这种方法。</p>
+<p class="source" lang="en">While building our agent for SWE-bench, we actually spent more time optimizing our tools than the overall prompt. For example, we found that the model would make mistakes with tools using relative filepaths after the agent had moved out of the root directory. To fix this, we changed the tool to always require absolute filepaths—and we found that the model used this method flawlessly.</p>
+</div>
+<div class="pair" id="p-108">
+<p class="target" lang="zh-CN">作者与致谢</p>
+<p class="source" lang="en">Authors &amp; acknowledgements</p>
+</div>
+<div class="pair" id="p-109">
+<p class="target" lang="zh-CN">致谢</p>
+<p class="source" lang="en">Acknowledgements</p>
+</div>
+<div class="pair" id="p-110">
+<p class="target" lang="zh-CN">由埃里克·S和张 Barry撰写。这项工作基于我们在Anthropic构建代理的经验以及客户分享的宝贵见解，我们对此深表感谢。</p>
+<p class="source" lang="en">Written by Erik S. and Barry Zhang. This work draws upon our experiences building agents at Anthropic and the valuable insights shared by our customers, for which we&#39;re deeply grateful.</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://www.anthropic.com/research/building-effective-agents" target="_blank" rel="noopener noreferrer">https://www.anthropic.com/research/building-effective-agents</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html">← Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a><a href="../viewers/introducing-contextual-retrieval.html">Introducing Contextual Retrieval →</a></nav>
+  <footer class="footer">本站为公开 AI 工程博客的非官方中英对照归档。中文译文仅作辅助阅读，请以英文原文为准；文章内容版权归原作者所有。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

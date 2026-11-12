@@ -1,0 +1,817 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>The components of agent memory · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ The components of agent memory</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item current" href="../viewers/the-components-of-agent-memory.html" aria-current="page"><span class="num">01</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">02</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">11</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">12</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">19</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">21</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">24</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">25</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">26</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">27</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">28</span>Introducing Contextual Retrieval</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item current" href="../viewers/the-components-of-agent-memory.html" aria-current="page"><span class="num">01</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">02</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">03</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">04</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">05</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">06</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">07</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">08</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">09</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">10</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">11</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">12</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">13</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">14</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">15</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">16</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">17</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">18</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">19</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">20</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">21</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">22</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">23</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">24</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">25</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">26</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">27</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">28</span>Introducing Contextual Retrieval</a></nav></details>
+<main class="main"><article class="page">
+  <h1>The components of agent memory</h1>
+  <p class="subline">原文：<a href="https://www.anthropic.com/research/components-of-agent-memory" target="_blank" rel="noopener noreferrer">https://www.anthropic.com/research/components-of-agent-memory</a> · 2026-11-06 · Anthropic Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F31b7b06af6c391aa4f93ad9747d00ae248ea3c63-2000x1125.jpg&amp;w=1920&amp;q=75" alt="Illustration of two offset half circles with a grid pattern, one green and one pink, facing each other across a gap on a light blue background." loading="lazy">
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">索伦·克尔凯郭尔说过，生活只能从过去理解，但必须向前生活。在为人工智能代理设计记忆功能时，我们也遇到了类似的困境。</p>
+<p class="source" lang="en">Søren Kierkegaard wrote that life can only be understood backward, but it must be lived forward. We’ve encountered a similar bind when designing memory for AI agents.</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">作为人类，我们在日常生活中不断编码记忆。海马体在这一点中起着核心作用，它捕捉当下的体验，使记忆能够快速形成并立即被使用。但只有部分体验会被巩固为长期知识。</p>
+<p class="source" lang="en">As humans, we encode memory constantly as we go about our lives. The hippocampus plays a central role in this, capturing experiences in the moment so that memories form quickly and are immediately available. But only some experiences are consolidated into long-term knowledge.</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">大部分这种整合过程似乎发生在我们大脑处于离线状态时。当我们睡觉或休息时，海马体会重新播放我们最近的经历。据认为，这一过程会逐步整理这些经历，并将它们整合到新皮层中——新皮层是大脑中存储我们所谓知识的主要部分。</p>
+<p class="source" lang="en">Much of that consolidation appears to happen when our brains are offline. As we sleep, and during quiet rest, the hippocampus replays our recent experiences. This is thought to gradually distill those experiences and integrate them into the neocortex—the part of our brains that stores most of what we think of as knowledge.</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">智能体记忆也可以采用类似的分工模式。智能体将大部分工作记录在日志或文本中。Letta和加州大学伯克利分校的研究人员提出，在睡眠期间进行计算，可以让模型利用交互之间的空闲时间来重新整理现有上下文。同样的思路可以帮助智能体通过回顾日志来纠正错误或生成新的笔记和表示，从而整理其记忆。这一过程通常被称为“做梦”（图1）。</p>
+<p class="source" lang="en">Agent memory can use a similar division of labor. Agents capture much of their work in logs or transcripts. Researchers at Letta and UC Berkeley proposed sleep-time compute as a way for models to use idle time between interactions to reorganize their existing context. The same idea can help agents organize their memory by reflecting on logs to fix mistakes or produce new notes and representations. This process is often called dreaming (Figure 1).</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">我们发现做梦是一种有效的工具，可以帮助 Claude 实现有效的记忆。在本文中，我们将分享我们对智能体记忆的看法，并介绍我们进行的几项评估，以探索智能体记忆，包括使用做梦的方法，以及每个组成部分对记忆组织有何贡献。</p>
+<p class="source" lang="en">We’ve found that dreaming has been a useful tool for helping us give Claude effective memory. In this post, we share how we’ve come to think about agent memory and walk through several evaluations we’ve used to explore agent memory, including the use of dreaming, and what each component contributes to memory organization.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Fa0bcfa203214d817d2b4261b7188aba8be6db5b2-3840x1754.png&amp;w=3840&amp;q=75" alt="Diagram of a memory hierarchy between one session and the next. From bottom to top: transcripts (a searchable event log), memory notes written by Claude, memory representations such as wikis, and injected context loaded into every session. Inside a box labeled “Dreaming,” arrows run from transcripts up to each layer, and in both directions between neighboring upper layers." loading="lazy">
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">内存笔记</p>
+<p class="source" lang="en">Memory notes</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">所谓“代理记忆”，指的是 Claude 从经验中获得的知识，包括与用户的互动以及被分配的任务，这些知识被保留在会话之间，以上下文的形式保存以便后续使用。它不包括模型其他学习或管理上下文的方式，如权重变化（训练期间设置的内部参数）、上下文内学习（在单次对话中获得的知识）以及压缩（ Claude 生成的摘要替代其之前的发言，使其能够在新的上下文窗口中继续工作）。</p>
+<p class="source" lang="en">By “agent memory,” we mean knowledge that Claude gains from experience—including interactions with users and tasks it’s been assigned—and that it retains between sessions, saved as context it can read later. It excludes other ways models can learn or manage context, such as changes to their weights (the internal parameters set during training), in-context learning (knowledge gained within a single conversation), and compaction (summaries written by Claude that replace its older turns so it can continue working in a new context window).</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">在人类大脑中，经历之前、期间或之后释放的化学信号可以标记记忆为重要记忆。被标记的记忆在离线期间比未被标记的记忆更容易被反复回忆。这种被称为“重放”的过程有助于稳定这些记忆并将其整合到长期记忆中。</p>
+<p class="source" lang="en">In the human brain, chemical signals released before, during, or after an experience can mark a memory as important. Marked memories tend to be replayed more often than unmarked ones during offline periods. This process, called replay, helps stabilize and integrate them into long-term memory.</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">同样，Claude 可以在会话日志中实时标记重要的事件，这样以后更容易找到；或者可以将这些事件写入内存存储中，比如内存笔记文件夹（图 2）。但是，Claude 如何在不知道接下来会发生什么之前，判断当前什么是重要的呢？</p>
+<p class="source" lang="en">Similarly, Claude can tag salient events in a session log as they happen, so they’re easier to find later, or it can write them to a memory store, such as a folder of memory notes (Figure 2). But how can Claude tell what’s salient in the moment, before it knows what’s coming next?</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F2ef2bf5c81ea6d578749782782eff10cf3136de4-3840x1754.png&amp;w=3840&amp;q=75" alt="The same memory hierarchy, with the memory notes layer highlighted. An arrow runs from the session directly to the memory notes, described as salient observations written by Claude." loading="lazy">
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">内存可以是对未来所需内容的预测</p>
+<p class="source" lang="en">Memory can be a prediction about what the future will need</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">记忆有时也是一种预测。通过写下一条规则，智能体预测所描述的模式将会再次出现。例如，写下一个经过验证的事实，就是智能体在未来的会话中会依赖该事实而无需再次检查的一种预测。随着时间的推移，Claude在做出这种预测方面已经变得更好了。</p>
+<p class="source" lang="en">Memory is, occasionally, a prediction. By writing down a rule, an agent predicts that the pattern it’s describing will be relevant again. For instance, writing down a verified fact is a prediction that an agent in a future session will want to rely on that fact without double-checking it. Over time, Claude has become much better at making these kinds of predictions.</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">考虑使用 Continual Learning Bench (CL-Bench) 1.0 中的任务，该基准测试用于评估智能体利用记忆能力处理长期任务的能力。其中一个特定任务要求 Claude 通过查询数据库来回答一系列问题。当 Claude 给出答案后，它会得到正确的解决方案，并可以保存记忆以帮助回答未来的问题。</p>
+<p class="source" lang="en">Consider a task from Continual Learning Bench (CL-Bench) 1.0, a benchmark that measures an agent’s ability to use memory in order to tackle long-horizon tasks. One particular task asks Claude to answer a series of questions by looking up information in a database. After Claude gives an answer, it’s told the correct solution and can write a memory to help answer future questions.</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">在这里，记忆可以支持学习循环。如果 Claude 回答错误，它可以记录这一失误，提出关于错误原因的理论，验证这些理论，并将发现的结果转化为未来回答问题的规则。</p>
+<p class="source" lang="en">Memory can support a learning loop here. If Claude gets a question wrong, it can record the failure, come up with theories about what went wrong, test those theories, and turn what it finds into a rule about how to answer in the future.</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">我们使用 Claude 管理代理完成了 CL-Bench 1.0 任务。Claude 每次问题都在一个新的会话中开始，只有一个例外：它能够从连续会话中保留的文件目录中检索文件。</p>
+<p class="source" lang="en">We ran the CL-Bench 1.0 task using Claude Managed Agents. Claude started each question in a fresh session, with one exception: it could retrieve files from a memory directory that persisted from one session to the next.</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">不同的模型在创建自己的学习循环方面取得了不同的效果。Claude Sonnet 4.6甚至生成了关于为什么答案错误的理论。它的内存目录中包含许多文件，每个文件列出了几个未经测试的猜测。</p>
+<p class="source" lang="en">Different models achieved different levels of success at creating their own learning loops. Claude Sonnet 4.6 got as far as generating theories about why an answer was wrong. Its memory directory contained a scattering of files, each listing several untested guesses.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Fbb0d44c78cc431fb5e84fbf2cb17c4303bc6bd65-3840x2160.png&amp;w=3840&amp;q=75" alt="Left: bar chart of mean reward on the CL-Bench database task, stateless baseline versus memory store. Opus 5.5: 0.655, 0.838. Sonnet 5.5: 0.644, 0.833. Opus 5: 0.564, 0.828. Opus 4.7: 0.383, 0.700. Sonnet 5: 0.306, 0.610. Sonnet 4.6: 0.330, 0.364. Right: line chart of running-mean reward over 30 questions for the same models, with and without memory." loading="lazy">
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">Claude Opus 4.7将注释整合到一份参考文件中，并标记出哪些事实已经确认，哪些仍待确认。Claude Sonnet 5在评分者检查后将每个答案标记为已确认，并在答案错误时写下修正内容。</p>
+<p class="source" lang="en">Claude Opus 4.7 consolidated its notes into a single reference document and began marking which facts it had checked and which were still unconfirmed. Claude Sonnet 5 marked each answer as confirmed after the grader had checked it, and wrote a correction when it had answered wrong.</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">Claude Opus 5是这些模型中第一个实现闭环的模型。它的大部分内容包括一条规则（以及该规则为真的依据）、对之前问题的回答，以及关于它在此过程中发现的陷阱的明确提示（图3）。</p>
+<p class="source" lang="en">Claude Opus 5 was the first of these models to close the loop. Most of its entries included a rule (and also how it knew the rule was true), answers to earlier questions, and clear warnings about traps it had discovered along the way (Figure 3).</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">与 Opus 5 一样，Claude Opus 5.5 和 Claude Sonnet 5.5 都实现了闭环，利用记忆来捕捉关于如何最佳回答未来问题的验证规则。通过记忆，它们的得分与 Opus 5 相近，不过没有记忆时的基线表现略高一些。</p>
+<p class="source" lang="en">Like Opus 5, Claude Opus 5.5 and Claude Sonnet 5.5 both closed the loop, using memory to capture validated rules about how to best answer future questions. With memory, both scored about the same as Opus 5, though their baseline performance without memory was slightly higher.</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">克劳德已经学会了如何判断显著性</p>
+<p class="source" lang="en">Claude has learned to judge salience</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">我们还测试了 Claude 玩《宝可梦红》的能力，这款游戏要求 Claude 处理复杂的长期任务，以此来验证 Claude 对记忆内容的判断能力。在每次运行开始时，我们给每个模型提供一个内存文件文件夹，它可以在游戏过程中读取和写入这些文件（图 4）。</p>
+<p class="source" lang="en">We also evaluated Claude’s ability to play Pokémon Red, a game that challenges Claude to navigate complex long-horizon tasks, as a test of Claude’s judgment about what to save to memory. At the start of each run, we gave each model a folder of memory files that it could read from and write to while it played (Figure 4).</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">我们比较了 Claude Sonnet 3.7 和 Claude Fable 5 在游戏进行约 10,000 步时的记忆文件夹。我们注意到一个关键差异在于每个模型认为值得记住的内容。Sonnet 3.7 认为所有内容都重要，因此无差别地将内容写入记忆。它的记忆文件夹包含了一系列遭遇记录，通常每个战斗、每个找到的物品以及每个遇到的非玩家角色都有独立的文件。最终，Sonnet 3.7 在 225 个文件夹中写入了 413 个记忆文件，并获得了一个徽章（徽章代表玩家在游戏中的进展）。</p>
+<p class="source" lang="en">We compared the memory folders from one run each of Claude Sonnet 3.7 and Claude Fable 5, when each was about 10,000 steps into the game. A key difference we noticed was what each model thought was worth remembering. Sonnet 3.7 assumed everything might matter and wrote to memory indiscriminately. Its memory folder contained an archive of encounters, often with a separate file for each battle it fought, each item it found, and each non-player character it met. Ultimately, Sonnet 3.7 wrote 413 memory files across 225 folders and earned one badge (badges mark a player’s progress through the game).</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">相比之下，Fable 5在两个文件夹中创建了九个文件，还有一个名为global.md的顶层文件，并获得了四个徽章。</p>
+<p class="source" lang="en">Fable 5, by comparison, wrote nine files in two folders, plus a single top-level file called global.md, and earned four badges.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F5e15e10f665773050d90fafc38ab8dd76ae5368b-3840x2545.png&amp;w=3840&amp;q=75" alt="Two treemaps of Pokémon memory directories at the same scale, where area shows characters of memory. Claude Sonnet 3.7’s is large and crowded, with 413 files and 977,930 characters across folders such as locations, main, battles, and several “consolidated” folders. Claude Fable 5’s is small, with 10 files and 43,406 characters in locations, gameplay, and global.md." loading="lazy">
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">第3.7版Sonnet的方法存在问题，主要是因为宝可梦的游戏状态不断变化——第3.7版详细的记录也不断过时。因此，随着Claude的发展，它不得不花费更多时间和资源来梳理记忆，而不是直接玩游戏。例如，在大约10,000步时，第3.7版Sonnet开始生成第四个“master”记忆文件文件夹。在接下来的17步中，它创建了6个文件，删除了9个文件，并且在游戏本身中没有采取任何操作。</p>
+<p class="source" lang="en">Sonnet 3.7’s approach was a problem mainly because the game state of Pokémon changes constantly—Sonnet 3.7’s detailed record was continuously going out of date. As a result, as Claude progressed, it had to spend more time and resources combing through its memories rather than playing the game. Around step 10,000, for example, Sonnet 3.7 started its fourth folder of “master” memory files. Over the next 17 steps, it created six files, deleted nine others, and took no actions in the game itself.</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">Fable 5 采用了记忆机制来处理游戏没有明确说明的内容。Sonnet 3.7 写入记忆中的某些信息——比如玩家拥有的资金数额或玩家在地图上的位置——可以在每一回合从屏幕上直接读取，因此存储这些信息是多余的。相比之下，关于策略、计划和经过验证的规则的记忆文件只有在 Claude 自行计算时才会存在，并且除非 Claude 将其记录下来，否则这些文件就会消失。</p>
+<p class="source" lang="en">Fable 5’s approach used memory for things the game didn’t explicitly tell it. Some of the kinds of information Sonnet 3.7 wrote to memory—such as how much money the player has or where the player is on the map—can be read off the screen every turn, so storing it is redundant. By contrast, memory files about strategy, plans, and tested rules exist only if Claude works them out, and they disappear unless Claude writes them down.</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">Fable 5按照这种方式组织其记忆。其 global.md 文件充当了一个仪表板，包含当前目标、针对健身房的预设计划（即获得徽章的挑战），以及模型使用记忆的规则。locations文件夹中保存了特定路线的导航计划，gameplay文件夹中则保存了基于游戏机制学习到的策略。例如，连续使用七个球都没有抓到Magikarp（最容易捕捉的宝可梦之一）后，Claude写道：“如果连续使用3个以上的球都失败，就要改变时机（在菜单步骤之间多按几次‘等待’键）——这样就能成功抓到它。”</p>
+<p class="source" lang="en">Fable 5 organized its memory accordingly. Its global.md file acted as a dashboard, holding the current goal, a prewritten plan for tackling gyms (the challenges where badges are won), and the model’s own rules for using memory. A locations folder held plans for navigating particular routes, and a gameplay folder held strategies based on what it had learned about how the game works. For example, after seven Poké Balls in a row failed to catch a Magikarp (one of the easiest Pokémon to catch), Claude wrote, “If 3+ balls fail in a row, VARY the timing (insert extra ‘wait’ presses between menu steps) - the catch landed right after doing this.”</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">由于内存占用更少，Fable 5在游戏中的进展比Sonnet 3.7要显著得多。Opus 5.5也采用了类似的方法：它保留了一个小型的内存笔记文件夹，记录当前目标和下一步行动，并在游戏过程中修改这些笔记，最终成功通关游戏。</p>
+<p class="source" lang="en">With a much smaller memory folder, Fable 5 progressed much further in the game than Sonnet 3.7. Opus 5.5 took a similar approach: it kept a small folder of memory notes that tracked its current goal and next steps, rewrote them as it played, and beat the game.</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">引导 Claude 编写内存</p>
+<p class="source" lang="en">Steering Claude to write memory</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">我们发现告诉 Claude 什么是内存以及如何使用内存是有帮助的。在 CL-Bench 测试中，我们只是告诉 Claude 有一个内存文件夹可用。这种基本的指导就足以让 Opus 4.7 和 Opus 5 有效使用内存，并且显著提升了性能（见图 3）。</p>
+<p class="source" lang="en">We’ve found that it helps to tell Claude what memory is for, but not how to use it. On CL-Bench, we simply told Claude that a memory folder was available. That general guidance was enough for Opus 4.7 and Opus 5 to use memory effectively, and it gave both a noticeable boost in performance (Figure 3).</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">我们还测试了给模型设定特定规则以指导它们将什么内容写入内存，每个测试都设置一条规则。我们比较了每个模型在每条规则下从内存中获得的收益与没有该规则时的收益。当设定规则为“仅记录失败情况”时，Opus 5和Opus 4.7的性能提升都大大减少（图5右侧）。对于更强大的模型，允许它们自行判断重要性比预先设定固定规则更有效，而那些固定规则可能会削弱性能。</p>
+<p class="source" lang="en">We also tested giving the models specific rules about what they should write to memory, with one rule per test. We compared how much each model gained from memory with each rule against how much it gained without it. When we set a rule to “record only failures,” both Opus 5 and Opus 4.7 lost much of the performance boost that memory gave them (Figure 5, right). For stronger models, giving them freedom to judge salience was more effective than setting fixed rules in advance, and those rules could end up weakening performance.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Fda03e864e4eba93a91314fa5f2a5d0e4c14b2a0f-3840x2310.png&amp;w=3840&amp;q=75" alt="Left: bar chart of Sonnet 4.6’s mean reward on the CL-Bench database task: 0.330 at baseline, 0.364 with memory, and 0.641 with memory and refined instruction. Reference lines mark Opus 4.7 with memory at 0.700 and Opus 5 with memory at 0.828. Right: change in memory gain when told to record only failures: Opus 5, −0.234; Opus 4.7, −0.150; Sonnet 4.6, −0.020." loading="lazy">
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">我们还注意到，转向机制对旧模型的影响最大。例如，Sonnet 4.6 常常无法从内存目录中读取文件，也未能验证其关于答案为何错误的理论。</p>
+<p class="source" lang="en">We also noticed that steering helped older models the most. For instance, Sonnet 4.6 often didn’t read files from its memory directory and failed to test its theories about why an answer was wrong.</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">在这种情况下，在回答之前提示 Claude 读取其记忆文件，然后明确测试其理论，几乎使基准得分翻了一番（图 5，左侧）。Sonnet 5 可以自行完成这一操作。在没有提示的情况下，它在 10 次中有 9 次会读取记忆文件后再进行回答。相比之下，Sonnet 4.6 这种情况发生的次数不到一半。</p>
+<p class="source" lang="en">In this case, prompting Claude to read its memory files before answering—and then to explicitly test its theories—nearly doubled its benchmark score (Figure 5, left). Sonnet 5 does this on its own. Without being prompted to, it read its memory before answering 9 out of 10 times. By comparison, Sonnet 4.6 did this less than half of the time.</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">使用 Frontier Claude 模型时，当有人请求或当某些内容显然值得记住时，我们通常会提供简单的指导来创建记忆笔记，而判断权则交给 Claude。</p>
+<p class="source" lang="en">With frontier Claude models, we typically give simple guidance to create memory notes when a person asks them to or when something is clearly worth remembering, and we leave that judgment up to Claude.</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">做梦可以改善记忆</p>
+<p class="source" lang="en">Dreaming can correct memory</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">由于 Claude 根据会话中认为重要的内容将信息写入记忆，因此从一开始就错误的记录，或者随着环境变化而变化的记录，在后续的会话中可以被 Claude 读取并信任。</p>
+<p class="source" lang="en">Since Claude writes to memory based on what it judges to be salient in-session, a note that’s wrong from the start or that drifts as the environment changes can be read, and trusted, by Claude in a later session.</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">&lt;text&gt;
+做梦让 Claude 能够将笔记与原始记录进行对比测试（图 6）。当 Claude 使用管理代理并通过挂载的目录来保存记忆，从而玩 Pokémon 时，我们就看到了一个积极的例子。
+&lt;/text&gt;</p>
+<p class="source" lang="en">Dreaming gives Claude a way to test its notes against the original transcripts (Figure 6). We saw a positive example of this when Claude played Pokémon using Managed Agents with a mounted directory for its memories.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F55ce85bd12860090704a5543a3da7504334ad9a9-3840x1754.png&amp;w=3840&amp;q=75" alt="The memory hierarchy with dreaming, highlighting an arrow from the transcripts layer up to the memory notes layer, which shows dreaming correcting notes against transcripts." loading="lazy">
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">在游戏的一部分中，玩家必须穿过月之山，这是一个洞穴系统，入口在地图的西侧，出口在东侧。入口附近有一个陷阱：一个单向的悬崖，会将玩家扔回他们来的路上，没有明确的办法可以爬回去。克劳德利用山口的建筑——宝可中心作为地标，因此他是否从悬崖上走下来，取决于他认为宝可中心位于山的哪一侧。</p>
+<p class="source" lang="en">In one part of the game, the player has to get through Mt. Moon, a cave system with its entrance on the west side of the map and its exit on the east. Near the entrance is a trap: a one-way ledge that drops the player onto the route they came from, with no clear way to climb back up. Claude was using the PokéCenter, a building at the mountain’s entrance, as a landmark, so whether it walked off the ledge depended on which side of the mountain it thought the PokéCenter was on.</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">有一次，克劳德错误地记录说宝可梦中心在东侧。当它从宝可梦中心出来时，宣布：“月亮山在我身后”，并更新了笔记：“月亮山，完成。”但月亮山其实并不在它身后。几步之后，克劳德从悬崖上翻了过去，回到了来时的路线上（图7）。它的导航工具没有显示下降过程，于是克劳德得出结论：“我错过了很远的西边”，并且一直都在正确的方向上。其实并没有。</p>
+<p class="source" lang="en">At one point, Claude wrote down (incorrectly) that the PokéCenter was on the east side. When it walked out of the PokéCenter, it announced, “Mt Moon is behind me,” and updated its notes: “Mt Moon DONE.” But Mt. Moon was not behind it. A few actions later, Claude went over the ledge and landed back on the route it had come from (Figure 7). Its navigation tool didn’t show the drop, so Claude concluded, “I overshot far west,” and that it had been on the correct side all along. It hadn’t.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Fd906d6ed9ac92db36631a624ad517183b07a545d-3840x2101.png&amp;w=3840&amp;q=75" alt="Two Pokémon map panels with the agent next to a ledge. Left, “Raw memory,” where the stored note is wrong: an arrow shows the agent heading for the next city. Right, “Memory + dreaming,” where an offline pass corrected the note: an arrow shows the agent heading back to the cave entrance." loading="lazy">
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">然后我们测试了做梦是否可以帮助 Claude 避免这个陷阱。我们在包含 PokéCenter 错误位置的记忆文件夹上进行了做梦练习：Claude 对照会话记录检查了笔记中的错误，发现了问题，并重新写了笔记。会话记录为 Claude 提供了一个真实数据来验证其记忆。有了修正后的记忆笔记后，Claude 直接回到了月亮山，最终到达了蔚蓝之城。</p>
+<p class="source" lang="en">We then tested whether dreaming could help Claude avoid this trap. We ran dreaming on the memory folder that contained the wrong location for the PokéCenter: Claude checked the note against the session transcript, caught its error, and rewrote it. The transcript gave Claude a ground truth to validate its memory against. With the corrected memory note, Claude went straight back into Mt. Moon and eventually reached Cerulean City.</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">在未经修正的路线中，克劳德三次回到了之前的路线。第三次失败之后，克劳德似乎放弃了，他写道：“我决定停止，而不是继续循环。”我们的设置自动回复指示它继续前进。于是它确实继续前进，一直回到了 Pewter City——那座位于山脉之前的城镇，它希望在那里恢复并补充物资。这次旅程最终以克劳德没有到达 Cerulean City而结束。</p>
+<p class="source" lang="en">In the run with the uncorrected note, Claude dropped back onto that earlier route three times. After the third failure, Claude seemed to give up, writing, “I’m going to stop rather than keep looping.” Our setup’s automatic reply instructed it to continue. So it did, all the way back to Pewter City, the town before the mountain, where it hoped to heal and restock. The run ended without Claude ever reaching Cerulean City.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F2eb2bfe6d01e9a1fca74a41e952d948c09d42008-3840x2636.png&amp;w=3840&amp;q=75" alt="Line chart of progress toward Cerulean over 3,000 cumulative actions. The memory plus dreaming run reaches Cerulean at action 1,935. The raw memory run falls off the ledge and backtracks to Pewter. The run with no memory never reaches Cerulean." loading="lazy">
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">做梦可以建立新的记忆表征</p>
+<p class="source" lang="en">Dreaming can build new memory representations</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">通过做梦功能，Claude可以构建表示方式来帮助梳理记忆（图9）。它使用的一种记忆表示方式被称为wiki，即由Claude编写和维护的页面集合，这些页面汇集了Claude关于某一主题的知識，并将这些知識与其他笔记关联起来。这些链接实际上为Claude提供了一张地图，使其能够筛选记忆，并在需要时高效地找到相关记忆。</p>
+<p class="source" lang="en">With dreaming, Claude can build representations to help navigate memory (Figure 9). One type of memory representation it uses is called a wiki, a collection of pages written and maintained by Claude that gathers what Claude knows about one subject and links it to other notes. These links effectively provide Claude with a map it can use to sift through its memory and efficiently locate memories when they’re needed.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F30923242548d746ee77784c87826cadc46574c34-3840x1754.png&amp;w=3840&amp;q=75" alt="The memory hierarchy with dreaming, highlighting arrows from transcripts and from memory notes up to the memory representations layer, such as wikis." loading="lazy">
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">像维基这样的表示方式可以帮助 Claude 浏览其不断增长的知识库。我们利用了一家软件公司 Stainless 的内部文档——大约 350,000 个文件，约 420M 个标记——来探讨维基作为记忆表示方式的优势。我们针对这些文档制定了包含 25 个问题的评估集，并给 Claude 提供了搜索工具来探索这些文档。我们还指示 Claude 使用 dreaming 功能基于这些文件创建一个维基。在 128 次会话中，我们引导 Opus 5 代理去探索这些文件，编写或修正相关的维基页面，合并重复内容，并检查这些内容是否与来源相符。</p>
+<p class="source" lang="en">Representations like wikis can help Claude traverse its ever-growing knowledge base. We explored the benefit of wikis as a memory representation using a corpus of internal documents—about 350,000 files, roughly 420M tokens—from Stainless, a software company we acquired in May. We created an evaluation set of 25 questions about this corpus and gave Claude a search tool to explore it. We also instructed Claude to build a wiki based on these files using dreaming. Over 128 sessions, we prompted Opus 5 agents to explore the files, write or correct linked wiki pages, merge duplicates, and check claims against the sources.</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">每次会话都基于智能体在之前会话中的进展，通过共享日志来协调工作。当我们将梦境分析的会话数量从两次增加到128次时，在25个问题上的表现从13%提升到了48%的评分标准（图10）。</p>
+<p class="source" lang="en">Each session built on the progress that agents made in prior sessions, using a shared log to coordinate work. As we scaled dreaming from two sessions to 128, performance on the 25 questions grew from 13% to 48% of graded criteria (Figure 10).</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">Claude 逐步构建其知识库。在创建初始知识库后，它通过后续的“梦境”过程来添加、编辑或删除内容。在最初的“梦境”阶段，Claude 的知识水平就像新员工一样，仅基于知识库回答问题的能力也有限。随着“梦境”次数的增加，其知识图谱就会变得丰富，就像经验丰富的员工一样。在我们的测试中，我们发现当同时提供搜索工具时，知识库对 Claude 的帮助最大。当使用搜索工具和知识库时，随着知识库的扩展，Claude 的综合得分从 54% 上升到 61%，而仅使用搜索工具时则为 53%。当仅使用知识库回答问题时，Claude 的最佳得分是 48%。使用搜索工具和知识库还能每条问题节省约 20,000 个标记。</p>
+<p class="source" lang="en">Claude builds its wikis incrementally. After creating an initial wiki, it uses subsequent rounds of dreaming to add to, edit, or prune it. In the early rounds of dreaming, Claude’s knowledge is like that of a new employee, and its ability to answer questions based on the wiki alone is limited. The more it dreams, the richer its knowledge map grows, like that of a seasoned employee. In our tests, we found that the wiki helped Claude the most when we also gave it access to a search tool. When it used both search and the wiki, Claude’s aggregate score rose from 54% to 61% as that wiki grew, compared with 53% when it had access to the search tool alone. Claude’s best score was 48% when it used only the wiki to answer questions. Using search and the wiki also saved about 20,000 tokens per question.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F336832b5015f1bfcfd7d786fae8120c533f26ecd-3136x1432.png&amp;w=3840&amp;q=75" alt="Center: line chart of graded criteria met as wiki generation grows from 2M to 128M dreaming tokens. Wiki plus search tool rises from 54% to 61%, wiki alone rises from 13% to 48%, and the search tool with no wiki is flat at 53%. Left and right: network graphs of an example wiki, with 103 pages and 766 links after 2 sessions and 222 pages and 12,893 links after 128 sessions." loading="lazy">
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">我们想测试哪些任务能够从 Claude 拥有维基资源中受益。为此，我们使用了 Harvey LAB 基准测试以及一系列关于合并的文档。该基准测试给 Claude 提供一组文档，并要求它根据这些文档内容生成法律摘要。之后，该基准测试会根据一系列标准对摘要进行评分。虽然可能比玩宝可梦没那么吸引人，但这些评估结果让我们有了多种文档集合，可以用来构建维基。</p>
+<p class="source" lang="en">We wanted to test which kinds of tasks benefited from Claude having a wiki. To do this, we used the Harvey LAB benchmark along with a collection of documents about a merger. The benchmark gives Claude a set of documents and asks Claude to generate a legal brief based on their content. The benchmark then grades the brief against a list of criteria. While a tad less engaging, perhaps, than a Pokémon run, these evaluations give us diverse collections of documents to build wikis from.</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">我们指示 Claude 从文档中构建一个 wiki。然后，我们让 Claude 从 wiki 和直接文件搜索中回答问题（关于合并事项）或生成法律简报（LAB 基准测试）。一项测试提出了24个关于合并的问题（图11，左侧），其中超过一半需要 Claude 在多个文档中查找信息，许多问题还需要 Claude 运用判断或进行数学计算。在这些任务中（红色和橙色线条），当 Claude 参考 wiki 时，得分为87%，而仅使用搜索时则为73%。</p>
+<p class="source" lang="en">We instructed Claude to build a wiki from the documents. We then asked Claude to answer questions (about the merger) or generate legal briefs (the LAB benchmark) both from the wiki and from a direct file search. One test asked 24 questions about the merger (Figure 11, left), more than half of which needed Claude to find information across several documents, and many of which also needed Claude to use judgment or do math. On those items (red and orange lines), Claude scored 87% when it consulted the wiki, compared with 73% when it used search alone.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F3677eab5e938466cc41fbac4d47f3118135d0563-3840x3694.png&amp;w=3840&amp;q=75" alt="Two diagrams linking graded criteria to source documents. Left, the task where the wiki showed more benefit: most of the 24 criteria connect to two or more of 10 documents, and nine need judgment or arithmetic. Right, the task where the wiki showed less benefit: most of the 57 criteria can be found by text search in a single document, usually the deal overview memo." loading="lazy">
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">在其他情况下，该维基则不太有用。在一项 LAB 任务中（图 11，右侧），通过从单个文档中进行文本搜索，通常可以迅速获取简短的标准信息，而维基在性能上并没有明显优势。在另一项 LAB 任务中，维基的内容却比文档本身还要长（图 12）。就像博尔赫斯短篇故事《科学上的精确性》中的地图绘制者一样，他们绘制的地图非常详细，其规模与所代表的帝国相当，克劳德则制作了一个极其详细的维基，但实际上并没有起到任何抽象化的作用。</p>
+<p class="source" lang="en">In other cases, the wiki was less useful. On one LAB task (Figure 11, right), brief criteria often could be retrieved with a text search from a single document, and the wiki showed no clear gain in performance relative to search. On another LAB task, the wiki grew larger than the documents themselves (Figure 12). Like the mapmakers in Borges’s one-paragraph short story “On Exactitude in Science,” who drafted a map so detailed it was as large as the empire it represented, Claude had made an extremely detailed wiki that effectively abstracted nothing.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Fffa35479b1dea63b7948f76995b488d08854e86d-3840x2150.png&amp;w=3840&amp;q=75" alt="Diagram of a wiki build and second pass. On the left, a circle holds the corpus: 10 documents, 115 KB of text. An arrow leads to a larger circle holding the wiki built from it: 68 pages, 255 links, and 203 KB, or 1.77 times the corpus. Some of the wiki’s pages have no links." loading="lazy">
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">做梦可以促进记忆层次结构的提升</p>
+<p class="source" lang="en">Dreaming can promote notes up the memory hierarchy</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">做梦还能让笔记浮到记忆层次结构的顶部，而智能代理可以在每个会话开始时主动将它们加载到 Claude 的上下文中（图 13）。这意味着 Claude 不需要去搜索它们，甚至不需要知道有需要搜索的内容。</p>
+<p class="source" lang="en">Dreaming can also float notes to the top of the memory hierarchy, and the agent harness can preemptively load them into Claude’s context at the start of every session (Figure 13). This means Claude doesn’t need to search for them, or even to know there’s something to search for.</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">将记忆转化为新会话（一种上下文注入方式）必须谨慎进行。注入的记忆会消耗宝贵的资源，错误的记录可能会出现在每个会话中。加载记录也不保证 Claude 会按照这些记录行事：我们的 Claude Code 文档指出，较长的指令文件会降低遵守程度。因此，记忆层次结构的最上层必须保持相对较小，而梦境过程中的很多工作就是保持这一点——将一些细节向下移动，并留下链接。</p>
+<p class="source" lang="en">Promoting memories into a new session (a form of context injection) must be done carefully. Injected memories use up valuable tokens, and an incorrect note can be carried into every session. Loading a note also doesn’t guarantee that Claude acts on it: our documentation on Claude Code warns that longer instruction files reduce adherence. So the top layer of the memory hierarchy has to stay relatively small, and much of dreaming’s work here is keeping it that way—by moving some details down the hierarchy and leaving links behind.</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">Claude Code 的自动记忆功能同样会保持注入的层规模较小，Claude 会在会话期间维持这一状态。Claude 不会将所有的自动记忆加载到每个会话的上下文窗口中，只加载 MEMORY.md 的前 200 行或 25 KB 内容。这个标题充当了一个索引，告诉 Claude 它知道什么以及在哪里可以找到这些信息。</p>
+<p class="source" lang="en">Claude Code’s auto memory keeps its injected layer small in the same way, with Claude maintaining it during the session. Claude doesn’t load all of its auto memory into every session’s context window. It loads only the first 200 lines or 25 KB of MEMORY.md. This header serves as an index, which shows Claude what it knows and where to find it.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Fc88bcc04c5d0e77db5828c9dbe72faf1c4421f8f-3840x1754.png&amp;w=3840&amp;q=75" alt="The memory hierarchy with dreaming, highlighting arrows from transcripts and from memory representations up to the injected context layer at the top, which feeds into the next session." loading="lazy">
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">做梦可以将记忆集中在特定的目标上</p>
+<p class="source" lang="en">Dreaming can focus memory on a specific goal</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">做梦也可以影响记忆的形成。例如，像 Claude Duet 这样的助手，往往从围绕其帮助对象进行组织的记忆中受益，而做梦可以被调整以构建符合特定目标的记忆。</p>
+<p class="source" lang="en">Dreaming can also shape how memory grows. An assistant like Claude Duet, for example, often benefits from having memories that are organized around the person it’s helping, and dreaming can be tuned to build memory in service of a particular goal.</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">指导内存增长方式的指令因任务而异，并告诉 Claude 哪些信息才是重要的。例如，LAB 基准测试中的一个任务模拟了公司收购过程，并提供了一系列合同。该任务评分标准在于是否准确描述了合同条款。</p>
+<p class="source" lang="en">The instructions that guide how memory grows differ by task and tell Claude what information actually matters. For example, one task in the LAB benchmark simulates a company acquisition and provides a set of contracts. The brief is graded on whether it correctly describes the contract terms.</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">我们开始时提供了生成维基的基本说明，但并未告诉 Claude 如何使用该维基。这项任务很大程度上依赖于合同条款。在维基构建过程中，几个代理同时向共享的合同条款表发送了内容（见图14左侧）。</p>
+<p class="source" lang="en">We started with basic instructions for generating the wiki that didn’t tell Claude how to use the wiki. This task relied heavily on contract terms. While the wiki was being built, several agents wrote to a shared table of contract terms at the same time (Figure 14, left).</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2F592f604d38e90537553ab7127d1d3115924fda92-3840x1822.png&amp;w=3840&amp;q=75" alt="Two diagrams. Before: four agents write to the same shared page, provisions.md, and one agent’s save erases another’s lines; 41 of 57 graded facts survived. After: four agents each write their own contract’s page, with terms copied word for word; all 57 of 57 graded facts survived." loading="lazy">
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">结果是一个缺少关键信息的 wiki。当我们对从 wiki 生成的摘要进行评分时，Claude 只包含了 57 个事实中的 41 个（72%）。经过分析问题所在，我们发现共享表格对合同条款的总结不够完善，甚至有些信息缺失，因为各个 agent 互相覆盖了彼此的工作内容。</p>
+<p class="source" lang="en">The result was a wiki that was missing key facts. When we graded a brief generated from the wiki, Claude had included only 41 of the 57 facts (72%). When we looked at what had gone wrong, we found that the shared table summarized the contract terms poorly and was missing some of them altogether, because agents had overwritten one another’s work.</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">合同条款是该维基最重要的部分，但说明中并未提及这一点。为了找到更好的说明，我们进行了一次循环过程：Claude会反思自己的失误，提出对说明的修改建议，然后重新构建维基。这个循环过程让 Claude 意识到遵守合同条款的重要性，并据此重新编写了构建维基的说明。</p>
+<p class="source" lang="en">The contract terms were the most important part of the wiki, but the instructions didn’t say that. To find better instructions, we ran a loop in which Claude reflected on its failures, proposed a change to the instructions, and rebuilt the wiki. This loop allowed Claude to discover how important it was to follow the contract terms, and it rewrote the instructions for building the wiki accordingly.</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">每个合同在维基页面上都有独立页面，由单个代理人员撰写，他们直接引用条款原文，而不是将其总结成共享表格。当我们对基于这个改进后的维基生成的简报进行评分时，所有标准都达到了100%，而之前仅为72%。</p>
+<p class="source" lang="en">Each contract got its own page in the wiki, written by a single agent, which quoted the terms word for word rather than summarizing them into a shared table. When we graded the brief generated from this improved wiki, 100% of the criteria could be met, up from 72%.</p>
+</div>
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">做梦可以填补一次使用后留下的空白</p>
+<p class="source" lang="en">Dreaming can fill in gaps a session leaves behind</p>
+</div>
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">当 Claude 编写记忆笔记时，它只能看到特定会话中的上下文。而“梦想”功能则可以在多个会话中搜索，以发现共同模式或纠正常见错误。</p>
+<p class="source" lang="en">When Claude writes memory notes, it sees only the context in that particular session. Dreaming can search across many sessions to find common patterns or correct common mistakes.</p>
+</div>
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">在构建 LAB 基准测试的维基时（例如见图 14），有时 Claude 会链接到尚未创建的页面。第二次“做梦”操作解决了许多这些问题。在一项任务中（见图 15），“做梦”功能找到了九个指向维基中缺失页面的链接，并将它们指向同一文档的现有页面。此外，它还添加了三个新页面，包括一个索引，以优化维基的结构。</p>
+<p class="source" lang="en">When building the wikis for the LAB benchmark (as an example, see Figure 14), sometimes Claude would link to pages that hadn’t yet been created. A second dreaming pass closed many of these gaps. On one task (Figure 15), dreaming found nine links to a missing page in the wiki and repointed them to an existing page for the same document. It also added three new pages, including an index, to improve the wiki.</p>
+</div>
+<img src="https://www.anthropic.com/_next/image?url=https%3A%2F%2Fwww-cdn.anthropic.com%2Fimages%2F4zrzovbb%2Fwebsite%2Ff1afeef9a2d986a6155c0789db46b8fa372a20eb-3840x1812.png&amp;w=3840&amp;q=75" alt="Two network graphs of a wiki. Before the second pass: 38 entries and 225 links, with nine links from six pages pointing to “escrow-agreement,” a page that doesn’t exist. After: 41 entries and 278 links, with all nine links pointing to “buyer-form-escrow-agreement” and three new pages: index, instructions email, and escalations." loading="lazy">
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">回顾过去，展望未来</p>
+<p class="source" lang="en">Thinking backward, looking forward</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">关于如何设计智能体的记忆系统，还有许多未解决的问题。其中一个问题是 Claude 应该何时创建记忆。当 Claude 执行任务时，它可以将内容写入记忆存储库（如文件夹、文件或数据库），在源头就记录重要信息，使关键细节能立即用于后续的对话或会话。但即时记录笔记会不可避免地分散 Claude 对主要任务的注意力。相比之下，做梦可以将记忆创建放到后台，但做梦产生的任何结果可能并不立即可被 Claude 访问。</p>
+<p class="source" lang="en">There are many open questions about how to design memory systems for agents. One is when Claude should create memory. When Claude works on a task, it can write to a memory store (e.g., a folder, file, or database), capturing salience at the source and making important details immediately available for future turns or sessions. But logging notes in the moment inevitably draws Claude’s attention away from its main task. In contrast, dreaming can push memory creation to the background, but any outputs from dreaming may not be immediately accessible to Claude.</p>
+</div>
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">另一个问题是如何可靠地保持记忆的更新。Claude可能会做出错误的预测，或者将错误的规则写入记忆中。随着环境的变化，记忆也可能出现偏差并变得无关紧要。做梦是一种纠正这些错误的方法（图8），但需要计算资源。让Claude持续检查所有记忆可能并不实际。相反，或许应该专注于那些可能发生变化的信息，或者仔细调整做梦的节奏（例如，根据记忆被访问的频率）。</p>
+<p class="source" lang="en">Another question is how to keep memory reliably up to date. Claude can make incorrect predictions or write rules to memory that are wrong from the start. Memory can also drift and become irrelevant as the environment changes. Dreaming is one way to fix these mistakes (Figure 8), but it requires compute. Directing Claude to continuously check all its memories might not be practical. It may be important instead to focus dreaming on information that’s likely to change or to carefully tune the cadence of dreaming (e.g., based on how often memories are accessed).</p>
+</div>
+<div class="pair" id="p-64">
+<p class="target" lang="zh-CN">将文本检索作为 Claude 记忆的基础也是合理的。将表示方式（例如维基）与搜索功能结合使用（见图 10）有时可以有效。但 Claude 需要利用计算能力来维护记忆表示，以确保它们不会累积错误或产生幻觉。</p>
+<p class="source" lang="en">It’s also reasonable to consider transcript search as the foundation of Claude’s memory. Combining representations (e.g., wikis) with search (Figure 10) can sometimes be effective. But Claude needs to use compute to maintain memory representations and make sure they don’t accumulate errors or hallucinations.</p>
+</div>
+<div class="pair" id="p-65">
+<p class="target" lang="zh-CN">尽管Claude对显著性的判断有所提高，但没有任何模型能够真正预知未来对话中会发生什么。梦境功能让Claude有机会回顾过去，利用计算能力整理记忆，纠正错误，并建立便于后续会话访问记忆的表示方式。随着Claude能力不断提升，其记忆系统也会不断进化，我们在设计Claude的记忆系统方面仍有很多需要学习的地方。</p>
+<p class="source" lang="en">Even though Claude’s judgment about salience has improved, no model can really know what will happen in future turns. Dreaming gives Claude an opportunity to look backward and use compute to organize its memory, correct mistakes, and maintain representations that allow future sessions to access memory more readily. Memory systems will evolve as Claude gets more capable, and we still have a lot to learn about designing Claude’s memory systems.</p>
+</div>
+<div class="pair" id="p-66">
+<p class="target" lang="zh-CN">请参阅我们的烹饪书籍，以开始探索梦想和知识维基。</p>
+<p class="source" lang="en">See our cookbooks for getting started with dreaming and knowledge wikis.</p>
+</div>
+<div class="pair" id="p-67">
+<p class="target" lang="zh-CN">作者与致谢</p>
+<p class="source" lang="en">Authors &amp; acknowledgements</p>
+</div>
+<div class="pair" id="p-68">
+<p class="target" lang="zh-CN">致谢</p>
+<p class="source" lang="en">Acknowledgements</p>
+</div>
+<div class="pair" id="p-69">
+<p class="target" lang="zh-CN">由兰斯·马丁撰写，并由凯特琳·洛夫、汤姆·奇弗斯、丽贝卡·希斯科特、杰克·伊顿和布莱克·威尔逊提供编辑指导。我们感谢巴里·张、西奥多拉·楚、李达良、马赫什·穆拉格、杰克·诺布尔、拉维·特里维迪、蒂娜·瓦奇奥夫斯基、布拉德·阿布拉姆斯、亨利·德·瓦伦斯、杰里米·福克斯、马特·贝尔、艾伦·李、克里斯·戈尔戈尔斯基、尤金·严、阿图尔·雷诺、张伟和陈凯文提供了有益的讨论和贡献，也感谢大卫·赫希提供了《克劳德玩宝可梦》的素材。图表由莫妮卡·图乔夫斯卡绘制。</p>
+<p class="source" lang="en">Written by Lance Martin with editorial guidance from Caitlin Love, Tom Chivers, Rebecca Hiscott, Jake Eaton, and Blake Wilson. We’re grateful to Barry Zhang, Theodora Chu, Daliang Li, Mahesh Murag, Jake Noble, Ravi Trivedi, Tina Vachovsky, Brad Abrams, Henry de Valence, Jeremy Fox, Matt Bell, Allen Li, Chris Gorgolewski, Eugene Yan, Artur Renault, Wei Zhang, and Kevin Chen for helpful discussions and contributions, and to David Hershey for Claude Plays Pokémon. Figures by Monika Tuchowska.</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://www.anthropic.com/research/components-of-agent-memory" target="_blank" rel="noopener noreferrer">https://www.anthropic.com/research/components-of-agent-memory</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><span></span><a href="../viewers/redesigning-source-control-at-anthropic.html">Redesigning source control at Anthropic →</a></nav>
+  <footer class="footer">本站为公开 AI 工程博客的非官方中英对照归档。中文译文仅作辅助阅读，请以英文原文为准；文章内容版权归原作者所有。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>
