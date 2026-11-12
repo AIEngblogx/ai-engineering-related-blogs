@@ -1,0 +1,770 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>AlphaGenome 2: Deciphering how cells read DNA to better understand disease · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ AlphaGenome 2: Deciphering how cells read DNA to better understand disease</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item current" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html" aria-current="page"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item current" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html" aria-current="page"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></details>
+<main class="main"><article class="page">
+  <h1>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</h1>
+  <p class="subline">原文：<a href="https://deepmind.google/blog/alphagenome-2-deciphering-how-cells-read-dna-to-better-understand-disease" target="_blank" rel="noopener noreferrer">https://deepmind.google/blog/alphagenome-2-deciphering-how-cells-read-dna-to-better-understand-disease</a> · 2026-11-11 · Google DeepMind · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">亚当·加约索、娜塔莎·拉蒂舍娃、普什米特·科利和齐加·阿夫塞克</p>
+<p class="source" lang="en">Adam Gayoso, Natasha Latysheva, Pushmeet Kohli and Žiga Avsec</p>
+</div>
+<img src="https://lh3.googleusercontent.com/7eOcEXEyA41RlNbAgNmBUQLy34StN16i5xFpfAZ5hUxQmBQKZDYd3vVlnIbl_eK-4azSQ9QJBmi3wm2leu9zY0gflvcLBD5Vwdkmb6q9D1uwtfj-5A=w1440-h810-n-nu" alt="An isometric grid of glowing, translucent pink cubes on a dark background, showing varying levels of subdivision into smaller blocks." loading="lazy">
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">我们的下一代 DNA 序列模型将单细胞生物学与人类遗传学相结合，能够预测遗传变异如何影响数百种人类细胞类型。</p>
+<p class="source" lang="en">Our next-generation DNA sequence model bridges single-cell biology and human genetics, predicting how genetic variants affect hundreds of human cell types.</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">今天，我们正式发布 AlphaGenome 2，这是我们的下一代模型。该模型能够预测DNA序列及其变异对特定人类细胞类型的影响，为科学家提供了强大的新工具，以揭示疾病的细胞驱动因素。</p>
+<p class="source" lang="en">Today, we are announcing AlphaGenome 2, our next-generation model that predicts how DNA sequences and their variations impact specific human cell types, giving scientists a powerful new tool to uncover the cellular drivers of disease.</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">细胞是生命的基本单位。我们体内的每个细胞都携带相同的DNA蓝图，但每种细胞类型和状态——比如心脏肌肉细胞或对抗感染的免疫细胞——会开启或关闭不同的基因以完成其功能。像人类细胞图谱这样的全球项目正在对数百万细胞进行这种基因表达的研究，然而预测细微的DNA变异如何影响细胞中的表达仍然是一个未解决的挑战，而这是人类特征和疾病的关键因素。</p>
+<p class="source" lang="en">Cells are the building blocks of life. Every cell in our body carries the same DNA blueprint, yet each cell type and state—like a heart muscle cell or an immune cell fighting an infection—switches different genes on or off to do its job. Global efforts like the Human Cell Atlas are mapping this gene expression for millions of cells, but it is still an unsolved challenge to predict how subtle DNA variations affect this expression in cells, which is a key driver of human traits and disease.</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">去年，我们推出了 AlphaGenome 工具，用于预测 DNA 变异如何影响各种组织的分子活性。我们通过 AlphaGenome Atlas 平台进一步扩展了其应用范围，该平台包含人类基因组中所有90亿种单字母变化的预测结果。这些工具帮助研究人员优先处理并解释变异效应，从而推动对罕见疾病、复杂特征及基础生物学领域的研究。</p>
+<p class="source" lang="en">Last year, we launched AlphaGenome to predict how DNA variants affect molecular activity across broad tissues. We expanded its reach with AlphaGenome Atlas, a platform containing predictions for all 9 billion possible single-letter changes in the human genome. These tools help researchers prioritize and interpret variant effects, driving discoveries in rare diseases, complex traits, and fundamental biology.</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">通过从广泛组织平均数据缩小到单个细胞类型和细胞状态，并重新设计模型结构，AlphaGenome 2在变异预测性能上实现了重大改进。重要的是，它使研究人员能够预测与疾病相关的细胞中的变异影响，这些影响在广泛组织模型中无法被检测到，同时还能预测模型之前未见过的细胞和疾病状态。</p>
+<p class="source" lang="en">By zooming in from broad tissue averages to individual cell types and cell states, and redesigning the model’s architecture, AlphaGenome 2 represents a step-change improvement in variant predictive performance. Importantly, it allows researchers to predict variant effects in disease-relevant cells that would be missed in broad-tissue models, as well as predictions for cell and disease states that the model hasn’t seen before.</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">&lt;text&gt;
+AlphaGenome 2 能够识别比我们之前最先进的模型多出近两倍的改变基因表达的变异。该模型基于 68 种组织中的 1 亿多个细胞样本进行训练，将静态细胞图谱转化为人类遗传学的预测工具。AlphaGenome 2 目前可通过 AlphaGenome API 用于非商业研究，并处于商业研究阶段的私人预览阶段。
+&lt;/text&gt;</p>
+<p class="source" lang="en">AlphaGenome 2 identifies nearly twice as many variants that change gene expression in cells, compared to our previous state-of-the-art model. Trained on more than 100 million individual cell profiles across 68 tissues, the model turns static cell atlases into a predictive engine for human genetics. AlphaGenome 2 is available today for non-commercial research via the AlphaGenome API, and in private preview for commercial research.</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">针对特定细胞类型重新设计 AlphaGenome</p>
+<p class="source" lang="en">Redesigning AlphaGenome for specific cell types</p>
+</div>
+<img src="https://storage.googleapis.com/gdm-deepmind-com-prod-public/media/original_images/EUdRzfXXT2oOcMoR/ag1_vs_ag2_expr_cond_gdm_light_no_outline.gif" alt="An image for a chart comparing the predictive performance of AlphaGenome 1 and AlphaGenome 2." loading="lazy">
+<img src="https://storage.googleapis.com/gdm-deepmind-com-prod-public/media/original_images/i5gr1FY7VEAlDutm/ag1_vs_ag2_expr_cond_gdm_dark_no_outline.gif" alt="An image for a chart comparing the predictive performance of AlphaGenome 1 and AlphaGenome 2." loading="lazy">
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">比较 AlphaGenome 1 和 2 对细胞类型的处理方式。AlphaGenome 能够从 100 万个碱基对的 DNA 序列中生成固定且平行的大量组织和细胞系输出结果。AlphaGenome 2 是一个条件模型，它结合特定的生物学条件与输入 DNA 序列，该序列可以是从细胞类型参考目录中选择的，也可以是通过我们的细胞编码器根据科学家的单细胞实验实时生成的。</p>
+<p class="source" lang="en">Comparing how AlphaGenome 1 and 2 treat cell types. AlphaGenome produces fixed parallel outputs of bulk tissues and cell lines from a 1-million-letter DNA sequence. AlphaGenome 2 is a conditional model, taking a specific biological condition alongside an input DNA sequence, either chosen from a reference catalog of cell types or generated on the fly from a scientist’s own single-cell experiment via our cell encoder.</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">第一个 AlphaGenome 模型将一百万个字母的 DNA 序列用于预测数千项实验中的多种组织特性。虽然效率很高，但这种并行方法使得模型的能力分散，难以捕捉相近细胞类型之间的细微差异。</p>
+<p class="source" lang="en">The first AlphaGenome model took a million-letter DNA sequence and predicted properties across thousands of experiments from many tissues all at once. While efficient, this parallel approach spread the model’s capacity thin and made it hard to capture subtle differences between closely related cell types.</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">为了改进这一点，我们彻底重新设计了模型处理细胞类型的方式。AlphaGenome 2 不是并行预测，而是一个条件模型，它一次只预测一种条件下的 DNA 影响——该条件定义为一种组织、细胞类型或状态。除了百万字母的 DNA 序列外，它在整个架构的每个阶段都使用目标生物条件作为输入。这使其能够学习同一段 DNA 在不同细胞类型中是如何被不同方式读取的。</p>
+<p class="source" lang="en">To improve this, we fundamentally redesigned how cell types are treated by the model. Instead of predicting in parallel, AlphaGenome 2 is a conditional model that predicts DNA effects for one condition - defined as a tissue, cell type or state - at a time. Alongside the million-letter DNA sequence, it uses the target biological condition as input at every stage of its architecture. This allows it to learn how the same stretch of DNA is read differently across cell types.</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">条件模型还支持跨模态填补，使得 AlphaGenome 2 能够预测缺失的实验数据。该模型将细胞的生物状态与其输出结果分开，因此如果科学家只输入一个测量值，比如单细胞基因活性，AlphaGenome 2 就可以预测未测量的特性，如染色质可访问性。这可以帮助研究人员确定接下来应该进行哪些实验。</p>
+<p class="source" lang="en">A conditional model also allows cross-modality imputation, enabling AlphaGenome 2 to predict missing experimental data. The model separates a cell’s biological state from its outputs, so if a scientist inputs just one measurement, like single-cell gene activity, AlphaGenome 2 can then predict unmeasured properties, such as chromatin accessibility. This can then help researchers prioritize which experiments to do next.</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">我们使用人类和小鼠样本的批量数据及单细胞数据对 AlphaGenome 2 进行了训练，这些数据包含了超过 1.07 亿个细胞样本。与原始模型基于批量组织平均值的方法不同，AlphaGenome 2 能够识别特殊细胞内的活动情况——如不同的心肌细胞或血液免疫细胞——从而帮助发现仅在特定细胞类型中存在的关键 DNA 变异。</p>
+<p class="source" lang="en">We trained AlphaGenome 2 on both bulk and single-cell data from human and mouse samples, including over 107 million individual cell profiles. Moving beyond the bulk tissue averages of the original model, AlphaGenome 2 can resolve activity inside specialized cells—such as distinct heart muscle or blood immune cells—to help uncover crucial DNA variants that act only in specific cell types.</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">该模型预测了与 AlphaGenome 相同的核心实验数据，包括基因表达、组蛋白修饰和染色质可访问性，以及广泛需要的 DNA 甲基化数据。</p>
+<p class="source" lang="en">The model predicts the same core experimental readouts of DNA function as AlphaGenome — such as gene expression, histone modifications and chromatin accessibility — but also DNA methylation, a widely requested readout.</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">AlphaGenome 2令人兴奋的地方在于，它能够直接适应新的单细胞数据而无需重新训练，甚至从少量细胞样本中就能预测DNA变异在新细胞状态中的表现。</p>
+<p class="source" lang="en">What makes AlphaGenome 2 exciting is how it adapts directly to new single-cell data without retraining, predicting how DNA variants act in newly profiled cell states from even a small sample of cells</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">最先进的细胞类型预测和变异召回率</p>
+<p class="source" lang="en">State-of-the-art cell-type predictions and variant recall</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">AlphaGenome 2在预测特定细胞中的基因调控方面明显更出色，有助于研究人员确定与疾病相关的变异。</p>
+<p class="source" lang="en">AlphaGenome 2 is significantly better at predicting gene regulation in specific cells, helping researchers pinpoint disease-relevant variants.</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">在训练数据之外的基因组区域，AlphaGenome 2 能更清晰地解释不同细胞类型之间的基因表达差异，能够追踪基因表达的连续变化，例如人类血液干细胞如何成熟为红血细胞和免疫谱系。</p>
+<p class="source" lang="en">Improved cell type specificity On genome regions outside its training data, AlphaGenome 2 explains significantly more of how gene expression differs across cell types within a tissue—tracking continuous changes in gene expression, such as when human blood stem cells mature into red blood cells and immune lineages.</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">在 TenK10K 数据集中，该数据集包含 28 种主要免疫细胞类型的单细胞图谱，AlphaGenome 2 在针对单细胞数据和其他专业工具进行微调的原有 AlphaGenome 版本中，能够可靠地识别出几乎两倍的因果变异（30% 对 16%）和基因方向性效应（43% 对 23%）。这种精确性有助于研究人员发现被忽视的候选变异，从而推动新的发现。</p>
+<p class="source" lang="en">Improved variant effect prediction On the TenK10K dataset, a large single-cell map of 28 primary immune cell types, AlphaGenome 2 reliably identified nearly twice as many causal variants (30% vs. 16%) and directional gene effects (43% vs. 23%) as the original AlphaGenome fine-tuned on single-cell data and other specialized tools. This precision helps researchers find overlooked candidate variants for new discoveries.</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">确定与疾病相关的变异类型 一项具有里程碑意义的研究表明，一种遥远的调控开关变异通过激活肠道免疫细胞（巨噬细胞）中的 ETS2 基因，导致 IBD 的发生。AlphaGenome 2 通过计算方法预测了肠道中各种免疫细胞类型的状况，并发现了这种变异类型，它选择性地促进肠道巨噬细胞中的 ETS2 基因表达，而其他细胞类型和基因则基本不受影响。</p>
+<p class="source" lang="en">Pinpointing disease-relevant variants A recent landmark study showed that a variant in a distant regulatory switch drives IBD by overactivating the ETS2 gene in gut immune cells (macrophages). Making predictions across various immune cell types in the gut, AlphaGenome 2 reproduced this finding computationally. It singled out the causal variant and showed that it selectively boosts the ETS2 gene in gut macrophages, leaving other cell types and genes largely unaffected.</p>
+</div>
+<img src="https://lh3.googleusercontent.com/GlrX7yqP50KbOCbZdDJv_HKbpkebQ8TzvNJEDwETeqPFEw6TYw6VYaGx55CNxggP7z8N3IgXzbRTPDe5Mrho_pUZot5fcdb7-ln-cj3q708Jc_bBsA=w1440" alt="Three heatmaps comparing observed gene expression with Alphagenome 2 and Alphagenome 1 predictions. Each heatmap displays Z-scored expression levels of seven genes across nine hematopoietic cell types, ranging from erythroid cells (top) to B cells (bottom), with a blue-to-red color scale indicating low to high expression." loading="lazy">
+<img src="https://lh3.googleusercontent.com/av8Wtz_NpjG1MU-g8YYjIcvZkurqVzH8Hhs8XF01H1-EX4gF89ywla3WIGapEq7RyCHWOZFC4v258eNbt4PfwHzE22DQum0FQxigCEnCReYRghCWeA=w1440" alt="Three heatmaps comparing observed gene expression with Alphagenome 2 and Alphagenome 1 predictions. Each heatmap displays Z-scored expression levels of seven genes across nine hematopoietic cell types, ranging from erythroid cells (top) to B cells (bottom), with a blue-to-red color scale indicating low to high expression." loading="lazy">
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">AlphaGenome2的预测结果与观察到的基因表达更为接近。这张成熟红细胞的基因表达热图展示了行归一化（Z评分）的观测结果（左侧）、AG2预测结果（中间）以及基于单细胞数据进行的AG1微调预测结果（右侧）。在每张热图中，不同的基因位于水平行上，而造血分化的不同阶段则位于垂直行上。</p>
+<p class="source" lang="en">AlphaGenome2’s predictions are closer to observed gene expression. A heatmap of gene expression for maturing red blood cells, or hematopoesis, displaying row-normalized (Z-scored) observations (left), AG2 predictions (middle), and AG1 fine tuned on single cell data predictions (right). For each heatmap, different genes are on the horizontal row, while sequential stages in hematopoietic differentiation are on the vertical row.</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">分析新的细胞类型和状态，无需重新训练</p>
+<p class="source" lang="en">Analyzing new cell types and states without retraining</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">AlphaGenome 2 还可以自动适应全新的单细胞实验，无需重新训练。科学家可以将仅由几十个细胞产生的单细胞 RNA-seq 基因活动数据上传；这些基因活动数据会被压缩成细胞状态表示，然后用于调整模型对未见状态的预测。AlphaGenome 2 能够匹配或超越那些直接针对这些数据集训练的模型。</p>
+<p class="source" lang="en">AlphaGenome 2 can also generalize to entirely new single-cell experiments without needing to be retrained. Scientists can upload a single-cell RNA-seq snapshot of gene activity from just a few dozen cells; this gene activity is then compressed into a cell state representation, before being used to condition the model on unseen states. AlphaGenome 2 can match or outperform models trained or fine-tuned directly on those datasets.</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">这使得 AlphaGenome 2 能够预测变异对新细胞状态的影响以及基因调控情况，比如由疾病或疫苗接种引起的状态。例如，在一项 COVID-19 mRNA 疫苗研究提供的未见过的单细胞数据下，AlphaGenome 2 能够区分被疫苗激活的免疫 T 细胞和处于休息状态的 T 细胞。它还揭示了与严重 COVID-19 相关的变异在细胞处于激活状态时会更强地干扰基因活动——这种效应在细胞未激活时则无法观察到。</p>
+<p class="source" lang="en">This enables AlphaGenome 2 to predict variant effects and gene regulation for new cell states, such as those that occur from disease or vaccination. For example, given unseen single-cell data from a COVID-19 mRNA vaccine study, AlphaGenome 2 distinguished vaccine-activated immune T cells from resting ones. It also revealed that a variant linked to severe COVID-19 disrupts gene activity more strongly when cells are in this activated state — an effect that would be missed in unactivated cells.</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">连接人类遗传学与单细胞生物学</p>
+<p class="source" lang="en">Bridging human genetics and single-cell biology</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">更好的理解疾病的一种方法是将人类遗传学与细胞生物学联系起来。建立这种联系的关键部分需要将全基因组关联研究（GWAS）中发现的数千种与性状和疾病相关的变异与人体越来越多的单细胞图谱联系起来。</p>
+<p class="source" lang="en">One way to better understand disease is by linking human genetics to cell biology. An important part of building this link requires connecting the thousands of trait and disease-associated variants found in genome-wide association studies (GWAS) to the growing single-cell maps of the human body.</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">为了帮助研究人员无需自行进行大规模计算就能建立这些关联，我们预先计算了数百种人类细胞和组织状况中与性状相关的变异的 AlphaGenome 2 预测结果，从而解决了两个主要问题。</p>
+<p class="source" lang="en">To help researchers make these connections without running large-scale computations themselves, we precomputed AlphaGenome 2 predictions for trait-associated variants across hundreds of human cell and tissue conditions, tackling two major challenges:</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">在真实的人类细胞类型中绘制增强子与基因之间的关联：许多与疾病相关的变异位于被称为增强子的遥远调控开关中，因此很难追踪其影响。由于实验性 CRISPR 筛选大多使用稳定的实验室培养细胞系，科学家们通常缺乏人体特定细胞的这种调控图谱。AlphaGenome 2 将增强子-基因映射扩展到了主要的人类细胞类型，例如支持和保护神经元的脑星形胶质细胞，帮助研究人员将调控变异与其在疾病发生的具体细胞中的目标基因联系起来。</p>
+<p class="source" lang="en">Mapping enhancer–gene links in real human cell types: Many disease-linked variants sit in distant regulatory switches called enhancers, making their effects hard to trace. Because experimental CRISPR screens mostly use stable, lab-grown cell lines, scientists often lack these wiring diagrams for specific cells in the human body. AlphaGenome 2 extends enhancer-gene mapping to primary human cell types — such as brain astrocytes, which support and protect neurons — helping researchers connect regulatory variants to their target genes in the specific cells where disease unfolds.</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">确定因果性全基因组关联研究中的变异及其作用细胞：全基因组关联研究能够识别出与疾病相关的大段DNA区域，但研究人员往往无法准确找到具体的因果变异、目标基因和细胞类型。在从身高到2型糖尿病等多种复杂特征中，AlphaGenome 2的预计算变异评分有助于确定最有可能涉及的特定变异和细胞类型。当结果可靠时，该模型还能准确预测变异是否会提升或降低基因活性——这是理解该基因如何导致疾病的关键线索。</p>
+<p class="source" lang="en">Pinpointing causal GWAS variants and the cells where they act: Genome-wide association studies flag broad stretches of DNA linked to disease, but researchers can’t always then find the exact causal variant, target gene, and cell type with high confidence. Across a number of complex traits, ranging from height to type 2 diabetes, AlphaGenome 2’s precomputed variant scores help pinpoint the specific variants and cell types most likely to be involved. When confident, the model also accurately predicts whether a variant turns a gene’s activity up or down — a critical clue for understanding how that gene contributes to disease.</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">人类遗传学是药物发现中最强大的工具之一。全基因组关联分析在其中起着核心作用，但将关联信号转化为药物项目所需内容却很困难。DNA序列预测模型是填补这一空白的重要工具，AlphaGenome 2 在该领域取得了显著的进展。我们期待将其整合到我们的 Mystra 平台上。</p>
+<p class="source" lang="en">Human genetics is one of the most powerful tools in drug discovery. GWAS is central to that but it is difficult to move from an association signal to what a drug programme needs. DNA sequence prediction models are an important tool in helping bridge that gap, and AlphaGenome 2 represents an impressive advance in the field. We look forward to incorporating it in our Mystra platform.</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">与科学界一起展望未来</p>
+<p class="source" lang="en">Looking ahead with the scientific community</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">随着科学家在单细胞水平对人体进行更多研究，人工智能模型将变得更加强大。通过我们与 Wellcome Sanger 研究所等研究人员的合作，我们正在努力研究更广泛的人类细胞类型、发育谱系和异常细胞状态。我们期待看到来自不同领域的研究人员如何利用 AlphaGenome 2 及其改进的细胞类型特异性预测结果，来揭示遗传变异在细胞中的作用机制，以及这些发现对基础生物学和疾病研究有何意义。</p>
+<p class="source" lang="en">As scientists map more of the human body at the single-cell level, AI models will continue to become more powerful. Through our ongoing collaborations, including with researchers at the Wellcome Sanger Institute, we are working to profile an even wider spectrum of human cell types, developmental lineages, and perturbed cellular states. We look forward to seeing how researchers from across the community use AlphaGenome 2 and its improved cell-type specific predictions to uncover how genetic variants act across cells, and what that reveals about basic biology and disease.</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">AlphaGenome 2以及用于表达调控的交互式Colab教程现已通过AlphaGenome API提供用于非商业研究，并处于商业研究阶段的私人预览中。不久之后，我们将在Google Antigravity平台上的代理式开发平台中推出AlphaGenome 2 Skills。将专业模型如AlphaGenome 2与强大的代理式科学工具如Antigravity中的Gemini 4相结合，将帮助科学家加速研究并实现新发现。</p>
+<p class="source" lang="en">AlphaGenome 2, and interactive Colab tutorials for expression conditioning are available today for non-commercial research via the AlphaGenome API and in private preview for commercial research. And soon, we will release AlphaGenome 2 Skills in Google Antigravity, our agentic development platform. The combination of specialized models, like AlphaGenome 2, with powerful agentic science tools like Gemini 4 in Antigravity, will help scientists accelerate research and make new discoveries.</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">我们非常感谢那些信任的测试者对 AlphaGenome 2 的反馈，也感谢那些帮助创建用于训练它的数据集的个人和研究人员。我们希望突出一些有趣的 AlphaGenome 2 使用案例，让社区能够学习借鉴。请在 11 月 30 日前通过此表格与我们联系；被选中的项目可能有资格获得额外的配额和奖励。我们还希望根据社区的意见来制定未来的发展计划，请在我们的社区论坛分享您的反馈和想法。</p>
+<p class="source" lang="en">We are hugely grateful to our community of trusted testers for their feedback on AlphaGenome 2, as well as the many individuals and researchers that helped create the datasets used to train it. We&#39;d love to spotlight interesting AlphaGenome 2 use cases the community can learn from. Get in touch via this form by 30 November; selected projects may be eligible for additional quota and credits. We also want to be guided by community input to shape our future roadmap, please share your feedback and ideas in our community forum.</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">请注意，AlphaGenome和AlphaGenome 2仅适用于研究用途，尚未经过验证，也不适用于临床或诊断目的。</p>
+<p class="source" lang="en">Please note that AlphaGenome and AlphaGenome 2 are intended for research use only and have not been validated or approved for clinical or diagnostic purposes.</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">致谢</p>
+<p class="source" lang="en">Acknowledgements</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">核心研究工作得益于 Adam Gayoso、Anne Mottram、Alexander Karollus、Guido Novati、Pavol Drotár、John Reid、Laetitia Meng-Papaxanthos、Adam Kosiorek、Eirini Arvaniti、Vincent Dutordoir、Soham De、Tom Ward、Lai Hong Wong、Matteo Perino、Kyle Taylor、Jun Cheng、Natasha Latysheva、Joshua Pan、Dhavanthi Hariharan、Clare Bycroft、Lauren Nicolaisen、Demis Hassabis、Pushmeet Kohli和Žiga Avsec的贡献。</p>
+<p class="source" lang="en">The core research work was done thanks to the contributions of Adam Gayoso, Anne Mottram, Alexander Karollus, Guido Novati, Pavol Drotár, John Reid, Laetitia Meng-Papaxanthos, Adam Kosiorek, Eirini Arvaniti, Vincent Dutordoir, Soham De, Tom Ward, Lai Hong Wong, Matteo Perino, Kyle Taylor, Jun Cheng, Natasha Latysheva, Joshua Pan, Dhavanthi Hariharan, Clare Bycroft, Lauren Nicolaisen, Demis Hassabis, Pushmeet Kohli and Žiga Avsec</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">我们想感谢以下人士的支持和反馈，包括 Gabriella Stanton、Charlie Taylor、Raina Thomas、Lucas Tenório、Antonio García、Joseph Powell、Angli Xue、Trygve Bakken、Nelson Johansen、Junyue Cao、Ziyu Lu、Jacob Hepkema、Leopold Parts、Irina Voineagu、Souradeep Basu、Michal Zielinski、Jeff Cao、Ioannis Sarropoulos、Sarah Teichmann、Amanda Stafford和Eliseo Papa。</p>
+<p class="source" lang="en">We wish to thank the following people for their support and feedback including Gabriella Stanton, Charlie Taylor, Raina Thomas, Lucas Tenório, Antonio García, Joseph Powell, Angli Xue, Trygve Bakken, Nelson Johansen, Junyue Cao, Ziyu Lu, Jacob Hepkema, Leopold Parts, Irina Voineagu, Souradeep Basu, Michal Zielinski, Jeff Cao, Ioannis Sarropoulos, Sarah Teichmann, Amanda Stafford, Eliseo Papa.</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">最后，我们想感谢 Evie Gray、Adriana Fernandez Lara、Alex Wilkins、Danielle Breen、Dimple Vijaykumar、Muinat Abdul、Chris Kwaku-Abdullahi、Kathryn Seager、Ryan Smith、Ross West和Gaby Pearl在传播这项工作方面的专业贡献。</p>
+<p class="source" lang="en">Finally we wish to thank Evie Gray, Adriana Fernandez Lara, Alex Wilkins, Danielle Breen, Dimple Vijaykumar, Muinat Abdul, Chris Kwaku-Abdullahi, Kathryn Seager, Ryan Smith, Ross West and Gaby Pearl for their expertise in communicating this work.</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://deepmind.google/blog/alphagenome-2-deciphering-how-cells-read-dna-to-better-understand-disease" target="_blank" rel="noopener noreferrer">https://deepmind.google/blog/alphagenome-2-deciphering-how-cells-read-dna-to-better-understand-disease</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><span></span><a href="../viewers/gemini-4-carbon-is-now-available.html">Gemini 4 Carbon is now available →</a></nav>
+  <footer class="footer">文章版权归原作者所有，译文请以英文原文为准。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

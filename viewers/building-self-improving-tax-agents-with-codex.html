@@ -1,0 +1,991 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Building self-improving tax agents with Codex · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Building self-improving tax agents with Codex</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item current" href="../viewers/building-self-improving-tax-agents-with-codex.html" aria-current="page"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item current" href="../viewers/building-self-improving-tax-agents-with-codex.html" aria-current="page"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Building self-improving tax agents with Codex</h1>
+  <p class="subline">原文：<a href="https://openai.com/index/building-self-improving-tax-agents-with-codex" target="_blank" rel="noopener noreferrer">https://openai.com/index/building-self-improving-tax-agents-with-codex</a> · 2026-05-27 · OpenAI Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">2026年5月27日</p>
+<p class="source" lang="en">May 27, 2026</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">技术人员成员：Aravind Srinivasan 和 Samay Shamdasani（Thrive Holdings），Arthur Fernandes Araujo 和 John de Wasseige（OpenAI）</p>
+<p class="source" lang="en">By Members of Technical Staff: Aravind Srinivasan &amp; Samay Shamdasani (Thrive Holdings), Arthur Fernandes Araujo &amp; John de Wasseige (OpenAI)</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">可衡量的自我提升</p>
+<p class="source" lang="en">Measurable self-improvement</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">问题</p>
+<p class="source" lang="en">The problem</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">我们的方法：一个三部分的循环</p>
+<p class="source" lang="en">Our approach: a three-part loop</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">租赁房产示例</p>
+<p class="source" lang="en">Rental property example</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">1. 实践修正揭示了缺陷</p>
+<p class="source" lang="en">1. A practitioner correction reveals a failure</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">2. 产品痕迹将修改转化为评估</p>
+<p class="source" lang="en">2. Product traces turn corrections into evals</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">3. 这一发现对 Codex 来说成了需要克服的障碍</p>
+<p class="source" lang="en">3. The finding becomes a hill to climb for Codex</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">如何使用 Codex 构建这个循环</p>
+<p class="source" lang="en">How to use Codex to build this loop</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">向新领域扩展</p>
+<p class="source" lang="en">Expanding to new domains</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">可衡量的自我提升</p>
+<p class="source" lang="en">Measurable self-improvement</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">问题</p>
+<p class="source" lang="en">The problem</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">我们的方法：一个三部分的流程</p>
+<p class="source" lang="en">Our approach: a three-part loop</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">租赁房产示例</p>
+<p class="source" lang="en">Rental property example</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">1. 实践修正揭示了缺陷</p>
+<p class="source" lang="en">1. A practitioner correction reveals a failure</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">2. 产品痕迹将修改转化为评估</p>
+<p class="source" lang="en">2. Product traces turn corrections into evals</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">3. 这一发现对 Codex 来说成了需要克服的障碍</p>
+<p class="source" lang="en">3. The finding becomes a hill to climb for Codex</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">如何使用 Codex 构建这个循环</p>
+<p class="source" lang="en">How to use Codex to build this loop</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">向新领域扩展</p>
+<p class="source" lang="en">Expanding to new domains</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">Thrive Holdings和OpenAI通过结合实践专家知识和基于Codex的循环机制，共同开发了适用于克里特会计师的税务AI。</p>
+<p class="source" lang="en">How Thrive Holdings and OpenAI co-developed Tax AI for Crete accountants by fusing practitioner expertise with a Codex-driven loop</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">实际系统中的行为在生产环境中与实验室中的行为不同，这些差异在部署前很难预料。团队通常在产品发布后才会发现这些问题，然后需要花费数周时间检查边缘情况、调整提示词，并将生产反馈转化为可持久的产品改进。这种反馈循环是手动且缓慢的，只有工程师不断推动才能改善。但如今，通过精心设计的评估基础设施、直接接触实践者及真实环境，以及 Codex 的前沿代理技术能力，你可以构建能够自我改进的代理。</p>
+<p class="source" lang="en">Real-world systems behave differently in production than they do in a lab, breaking in ways that are hard to anticipate before deployment. Teams often discover those failures after launch, then spend weeks inspecting edge cases, adjusting prompts, and translating production feedback into durable product improvements. The feedback loop is manual and slow, and only improves when an engineer advances it. But today, with thoughtfully designed eval infrastructure, direct access to practitioners and real world environments, and the frontier agentic capabilities of Codex, you can build agents that self-improve.</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">在本文中，我们将详细介绍我们如何使用 Codex 来构建这种智能体。在过去的六个月里，OpenAI 向前部署了工程师和研究人员，与 Thrive Holdings 的工程师合作，共同开发了 Tax AI，并与 Crete⁠（在新窗口中打开）的30多家会计公司网络合作，帮助准备越来越复杂的税务申报文件。Tax AI 不是依赖工程师去发现并修复每个问题，而是使用 Codex 将生产使用转化为结构化的信号，从而推动自主改进。</p>
+<p class="source" lang="en">In this post, we’ll unpack how we used Codex to build this type of agent. Over the past six months, OpenAI forward deployed engineers and researchers along with Thrive Holdings’ engineers collaborated to build Tax AI alongside and for Crete⁠(opens in a new window)’s network of 30+ accounting firms to help prepare increasingly complex tax returns. Instead of relying on engineers to find and fix each failure, Tax AI uses Codex to turn production use into structured signals that fuel autonomous improvement.</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">克里特岛的税务从业者每个季节需要处理数万份税务申报表，这涉及到数百万份相关文件的工作。对于复杂程度中到大的申报项目，仅数据录入工作就可能需要八小时才能完成，通常还要处理混乱的数据来源、前一年的文件，以及手动提取和计算工作。他们指出，税务申报是税务季节最繁忙时期的一个主要瓶颈。</p>
+<p class="source" lang="en">Crete practitioners prepare tens of thousands of tax returns each season which requires working through millions of underlying documents. For medium- to large-complexity filings, data entry alone can take eight hours per return, often involving messy data sources, prior-year documents, and manual extraction and calculation. They pointed us to tax preparation as a significant bottleneck during the busiest stretch of tax season.</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">为了解决这个问题，Tax AI 处理了本纳税季参与试点的克里特岛企业提交的7,000份税务申报表。该系统自动处理了准备1040和1041税务申报表这一需要大量时间的流程，但更令人印象深刻的是，该系统本身比三个月前首次部署的版本明显更优秀。</p>
+<p class="source" lang="en">To solve this problem, Tax AI processed 7,000 tax returns across the Crete firms that participated in the pilot this tax season. The system automates much of the time-intensive process of preparing 1040 and 1041 tax returns, but even more compelling than the efficiency gains is that the system itself is measurably better than the version that was first deployed three months ago.</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">可衡量的自我提升</p>
+<p class="source" lang="en">Measurable self-improvement</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">在 Tax AI 中，从业者会上传源文件以及客户特定的备注。然后 Tax AI 会生成税务引擎提交文件，等待审核。它节省了从业者约三分之一的税务处理时间，能够以高达 97% 的准确率起草报税表，并提高了约 50% 的处理效率，使他们有更多时间陪伴客户。</p>
+<p class="source" lang="en">In Tax AI, practitioners upload source files along with any client-specific notes. Tax AI then creates a tax engine submission, ready for review. It saves practitioners about a third of their time on tax preparation, drafts returns with up to 97% accuracy, and increases throughput by about 50%, creating more room for them to spend time with clients.</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">我们可以通过了解 Tax AI 在无需后续修正的情况下完成报税表格的准确程度来量化这一改进。我们通过统计达到 75%、90% 或 100% 字段完成正确的报税表格的比例来衡量准确性。在推出时，只有四分之一的报税表格达到 75% 的字段完成正确率，但在六周内，有 86% 的报税表格达到了这一水平。系统在 90% 和 100% 字段完成正确的水平上的增长更为迅速。这些阈值让我们能够实际了解不同报税表格仍需要多少后续处理。</p>
+<p class="source" lang="en">We can quantify this improvement by understanding how accurately Tax AI can complete a return without needing correction later. We measure accuracy by checking what share of returns reach 75%, 90%, or 100% correct field completion. At launch, only a quarter of returns were at 75% correct field completion, but within six weeks, 86% hit that mark. The system showed even faster growth at the 90% and 100% correct field completion levels. These thresholds give us a practical view of how much practitioner follow-up different returns still require.</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">早期，Tax AI主要处理一些简单的工作，如W-2和1099文件。随着季节的推进，它开始处理更复杂的报税文件，包括K-1、时间表以及更棘手的特殊情况。每种新功能都能在每份报税文件中节省更多时间，因为所承担的任务更加复杂，手动完成需要更多时间。目前我们仍然看到持续的进步。</p>
+<p class="source" lang="en">Early on, Tax AI handled simpler work, like W-2s and 1099s. As the season went on, it moved into more complex returns with K-1s, schedules, and harder edge cases. Each new capability saved more time per return than the last because the tasks it took on were harder and more time consuming to do manually. We continue to see ongoing progress today.</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">接下来，我们将介绍我们的团队如何通过三个关键支柱来共同开发自改进的税务人工智能：1) 专家实践者的反馈，2) 生产追踪（从输入到最终输出的结构化历史记录），以及 3) 基于定制评估的Codex驱动迭代循环，从而实现持续且更快的产品开发。我们希望我们的经验能够对那些实践者专业知识对塑造整体系统质量及相关数据至关重要领域中的其他构建者有所帮助。</p>
+<p class="source" lang="en">Next, we’ll walk through how our teams co-engineered Tax AI to be self-improving by leaning on three critical pillars: 1) expert practitioner feedback, 2) production traces (a structured history from inputs through final output), and 3) a Codex-driven iteration loop based on tailored evals to enable continuous, faster product development. We hope our experience will be useful to other builders in domains where practitioner expertise is key to shaping the quality of the overarching system and the data running through it.</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">随着税务人工智能应用于更复杂的申报流程，在税务期间，得分达到75%、90%以及完全完成的申报比例持续上升。</p>
+<p class="source" lang="en">As Tax AI expanded into more complex filings, the share of scored returns reaching 75%, 90%, and full completion continued to rise through tax season.</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">问题</p>
+<p class="source" lang="en">The problem</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">当我们处理更复杂的税务申报部分时（如K-1表格、租赁房地产报表以及需要跨多个文件文件进行价值核对的文件），很明显真正的挑战在于产品是否能够让复杂的生产问题变得清晰可见、易于理解且可操作。</p>
+<p class="source" lang="en">As we pushed into harder parts of tax preparation (K-1s, rental real estate schedules, and tax forms where values had to be reconciled across multiple source files), it became obvious that the real challenge was whether the product could make complex production failures visible, understandable, and actionable.</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">在产品初期阶段，大部分修正都是手动完成的。技术人员可以纠正系统错误，但产品无法完全理解整体上下文：提交前更改的值可能反映了真正的提取错误、映射问题、缺少产品支持或预期的工作流程干扰。区分这些情况仍然需要工程团队的后续处理。工程师可以使用编程代理，但系统尚未设计成能够在改进循环中有效使用人工智能。我们还没有足够的信号来确定正确的改进方向。</p>
+<p class="source" lang="en">In the early days of the product, most of the correction was manual. Practitioners could correct system errors, but the product did not capture the full context: a changed value before filing might reflect a true extraction miss, a mapping problem, missing product support, or expected workflow noise. Sorting those cases out still required follow-up from the engineering team. Engineers could use coding agents, but the system was not yet designed to use AI meaningfully inside an improvement loop. We did not have the signal to identify the right hill to climb.</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">我们的方法：一个三部分的循环</p>
+<p class="source" lang="en">Our approach: a three-part loop</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">这促使我们围绕三个核心要素来设计该系统：</p>
+<p class="source" lang="en">That led us to design the system around three pillars:</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">与从业者保持亲近：执行工作的人需要指导产品学习的内容。他们的直觉和理解力能揭示哪些错误重要，并帮助确定工作流程中的哪些部分值得接下来重点关注。</p>
+<p class="source" lang="en">Stay close to practitioners: The people doing the work need to steer what the product learns. Their intuition and understanding reveal which errors matter and help inform which parts of the workflow are worth focusing on next.</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">与从业者保持亲近：执行工作的人需要指导产品学习的内容。他们的直觉和理解能够揭示哪些错误重要，并帮助确定工作流程中的哪些部分值得接下来重点关注。</p>
+<p class="source" lang="en">Stay close to practitioners: The people doing the work need to steer what the product learns. Their intuition and understanding reveal which errors matter and help inform which parts of the workflow are worth focusing on next.</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">构建产品，使生产过程能够提供证据：产品不仅要包含输入和输出，还需要涵盖从原始材料到提取字段和来源信息，再到下游提交和专家修正的整个流程。</p>
+<p class="source" lang="en">Build the product so production creates evidence: The product has to capture more than just inputs and outputs; it needs to capture the full path from source material, to extracted fields and provenance, to downstream submission and expert correction.</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">构建产品，使生产过程能够形成证据：产品不仅要涵盖输入和输出，还需要完整呈现从原始材料到提取字段和来源信息，再到下游提交和专家修正的整个流程。</p>
+<p class="source" lang="en">Build the product so production creates evidence: The product has to capture more than just inputs and outputs; it needs to capture the full path from source material, to extracted fields and provenance, to downstream submission and expert correction.</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">建立以 Codex 为驱动的改进循环：一旦生产问题被识别并明确归类，它们就能转化为具体发现、定制评估和明确的工程任务。Codex 可以协助调查、提出变更方案，并通过针对性和回归测试来验证这些变更，从而比纯手工迭代流程更快地推动产品发展。</p>
+<p class="source" lang="en">Create a Codex-driven improvement loop: Once production issues are visible and structured, they can become findings, tailored evals, and scoped engineering tasks. Codex can then help investigate, propose changes, validate them against targeted and regression evals, and move the product forward faster than a purely manual iteration cycle.</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">建立以 Codex 为驱动的改进循环：一旦生产问题被识别并明确分类，它们就能转化为具体发现、定制评估和明确的工程任务。Codex 可以帮助进行调查、提出变更，并通过针对性和回归测试来验证这些变更，从而比纯手工迭代流程更快地推动产品发展。</p>
+<p class="source" lang="en">Create a Codex-driven improvement loop: Once production issues are visible and structured, they can become findings, tailored evals, and scoped engineering tasks. Codex can then help investigate, propose changes, validate them against targeted and regression evals, and move the product forward faster than a purely manual iteration cycle.</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">下面的租赁房产示例展示了该循环在实际中的运作方式，会逐步说明如何将实践修正转化为有结构的发现，进而成为评估目标，最终成为Codex范围内的工程任务。</p>
+<p class="source" lang="en">The rental properties example below shows how that loop works in practice, walking you through how a practitioner correction becomes a structured finding, then an eval target, and finally a Codex-scoped engineering task.</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">租赁房产示例</p>
+<p class="source" lang="en">Rental property example</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">租赁物业收入在个人税务申报表的E表上报告。从工程学的角度来看，提取这一数据虽然描述起来简单，但执行起来却很困难。系统需要处理杂乱的源材料（手写笔记、电子邮件、电子表格和其他客户文件），提取出系统能够可靠映射到税务系统的租赁物业相关字段，并保留足够的证据以便相关人员审核或修正结果。下面的简化示例展示了这些源文件和提取结果可能呈现的样子。</p>
+<p class="source" lang="en">Rental property income is reported on Schedule E of an individual tax return. From an engineering perspective, the task of extracting it is simple to describe but hard to do well. The system has to read messy source material (handwritten notes, emails, spreadsheets, and other client files), extract the rental-property fields the system can confidently map to the tax engine, and preserve enough evidence that a practitioner can approve or correct the result. The simplified example below shows what those source files and extracted outputs might look like.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/2MA70PlQG2swhkqNb2iUcl/747a500ce8a8e9e0ff96a972b58904a6/Diagram2-desktop-light.svg?w=3840&amp;q=90" alt="&quot;&quot;" loading="lazy">
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">租赁房产来源包被标准化为引用字段，之后这些字段才会被映射到下游税务引擎概念中。</p>
+<p class="source" lang="en">A rental property source package is normalized into cited fields before those are mapped to downstream tax engine concepts.</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">1. 实践修正揭示了缺陷</p>
+<p class="source" lang="en">1. A practitioner correction reveals a failure</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">代理机构预测的价值与税务申报文件中的实际价值之间的差异，可能反映了真实的提取错误，但也可能源于执行人员的偏好、税务引擎中前一年申报文件带来的价值，或是申报流程其他环节引入或更改的价值。执行人员帮助我们识别这些情况，以便确定哪些操作需要执行人员修正，或需要阻止提交。</p>
+<p class="source" lang="en">A difference between the agent-predicted value and the actual value from the filed tax return might reflect a true extraction miss, but it could also be a practitioner preference, a value carried forward from a prior-year return in the tax engine, or a value introduced or changed elsewhere in the filing workflow. Practitioners helped us discern those cases so we could identify which actions required a practitioner correction or blocked a submission.</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">由于我们能够详细看到这些修正，我们将审查流程从失败后的终端步骤转变为一个持续的学习循环。我们设计了工作流程，将专家的操作作为结构化数据进行捕获。现在，每一次干预都会通过记录 Tax AI 提出的建议、从业者所做的修改以及最终被纳入申报文件的内容，来推动产品的改进过程。</p>
+<p class="source" lang="en">Because we could see these corrections in detail, we transformed the review process from a terminal, post-failure step into a continuous learning cycle. We designed the workflow to capture expert actions as structured data. Now, every intervention feeds the product&#39;s improvement loop by recording exactly what Tax AI proposed, what the practitioner modified, and what ultimately went into the filed return.</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">2. 产品痕迹将修正转化为评估</p>
+<p class="source" lang="en">2. Product traces turn corrections into evals</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">对于像租赁房产这样的复杂工作流程，系统必须保留源文件与提交文件之间的所有信息。在这个过程中，文件会被整理、分割和分类；租赁房产相关数据会被提取并引用回原始材料；这些数据会被映射到税务引擎中；而从业者仍可以在提交前对它们进行修正。这些产品级别的记录使得可以查明故障发生的具体位置。为了将从业者的修正结果转化为有价值的评估目标，系统会分三步处理这些修正内容：</p>
+<p class="source" lang="en">For a complex workflow like rental properties, the system has to preserve what happens between the source files and the filed return. Along that path, documents are organized, split, and classified; rental-property fields are extracted with citations back to the source material; those values are mapped into the tax engine; and practitioners may still correct them before filing. Those product-level traces make it possible to investigate where a failure occurred. To turn practitioner corrections into useful evaluation targets, the system processes them in three steps:</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">捕捉差异：将人工智能的输出与提交的纳税申报表进行对比，生成字段级审查行，以识别预期值、预测值以及差异是否具有可操作性。</p>
+<p class="source" lang="en">Capture the difference: Tax AI’s output is compared with the filed return to produce field-level review rows that capture the expected value, predicted value, and whether the difference appears actionable.</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">捕捉差异：将人工智能的输出与提交的纳税申报表进行比较，生成字段级审查行，以识别预期值、预测值以及差异是否具有可操作性。</p>
+<p class="source" lang="en">Capture the difference: Tax AI’s output is compared with the filed return to produce field-level review rows that capture the expected value, predicted value, and whether the difference appears actionable.</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">将相关故障分组：相似的审查行会被分组，以便区分反复出现的产品故障和预期的工作流程干扰。例如，重复的从业者修正可能表明 Tax AI 经常漏掉租金日相关的字段，处理“其他费用”不当，或者混淆了同一来源包中的多个租赁房产。</p>
+<p class="source" lang="en">Group related failures: Similar review rows are grouped to separate recurring product failures from expected workflow noise. For example, repeated practitioner corrections might show that Tax AI often misses fair-rental-day fields, mishandles “other expenses,” or confuses multiple rental properties across the same source package.</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">将相关故障分组：相似的审查行会被分组，以便区分反复出现的产品故障和预期的工作流程干扰。例如，反复的从业者修正可能表明 Tax AI 经常遗漏公平租赁日的字段，处理“其他费用”不当，或者混淆同一来源包中的多个租赁房产。</p>
+<p class="source" lang="en">Group related failures: Similar review rows are grouped to separate recurring product failures from expected workflow noise. For example, repeated practitioner corrections might show that Tax AI often misses fair-rental-day fields, mishandles “other expenses,” or confuses multiple rental properties across the same source package.</p>
+</div>
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">将重复的模式转化为评估目标：经过审查和测量后，重复的结果便成为 Codex 改进的明确评估目标。</p>
+<p class="source" lang="en">Turn repeated patterns into eval targets: Once reviewed and measured, repeated findings become clear eval targets for Codex to improve.</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">将重复的模式转化为评估目标：经过审查和测量后，重复的结果便成为 Codex 改进的明确评估目标。</p>
+<p class="source" lang="en">Turn repeated patterns into eval targets: Once reviewed and measured, repeated findings become clear eval targets for Codex to improve.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/14ohYkXRcxCQKGyNLJJJtz/049cb1f27efc305c10b22c4e76bab0a1/Diagram1-desktop-light.svg?w=3840&amp;q=90" alt="&quot;&quot;" loading="lazy">
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">租赁房产审查条目将重复的产品问题与预期干扰区分开来，然后将可操作的案例转化为评估目标，帮助Codex取得进展。</p>
+<p class="source" lang="en">Rental property review rows separate recurring product failures from expected noise, then turn the actionable cases into evaluation targets that give Codex a hill to climb.</p>
+</div>
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">3. 这一发现对 Codex 来说成了需要克服的障碍</p>
+<p class="source" lang="en">3. The finding becomes a hill to climb for Codex</p>
+</div>
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">第三个支柱是建立一个能够作用于这些新评估的工程循环。这就是 Codex 成为核心的地方。</p>
+<p class="source" lang="en">The third pillar is creating an engineering loop capable of acting on these new evals. This is where Codex becomes central.</p>
+</div>
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">假设我们的评估流程指出，Tax AI 始终未能正确填写“公平租赁天数”字段，而从业者则能够可靠地填写该字段。由于这一发现已经被整理成具有代表性源包和预期输出的针对性评估集，Codex 可以直接在产品框架内调查根本原因。</p>
+<p class="source" lang="en">Suppose our eval pipeline flags that Tax AI consistently misses the &quot;fair rental days&quot; field, while practitioners reliably fill it in. Because this finding has already been packaged into a targeted eval set, with representative source packages and expected outputs, Codex can investigate the root cause directly within the product scaffold.</p>
+</div>
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">Codex 的运作并非仅依靠次优的最终输出。它会同时检查跟踪信息、评估结果、代码仓库和技能。</p>
+<p class="source" lang="en">Codex isn’t working solely with a sub-par final output. It inspects the trace, eval, repo, and skills together:</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">调查管道问题：检查源包、提取模式、映射器行为以及代码路径，以确定问题是由于不支持的字段、遗漏的提取模式、源选择问题、映射器缺失或评分器问题引起的。</p>
+<p class="source" lang="en">Investigate the pipeline: Inspect source packages, extraction schemas, mapper behavior, and code paths to determine whether the issue is an unsupported field, a missed extraction pattern, a source-selection problem, a mapper gap, or a grader issue.</p>
+</div>
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">调查管道问题：检查源包、提取模式、映射器行为以及代码路径，以确定问题是由于不支持的字段、遗漏的提取模式、源选择问题、映射器缺失或评分器问题引起的。</p>
+<p class="source" lang="en">Investigate the pipeline: Inspect source packages, extraction schemas, mapper behavior, and code paths to determine whether the issue is an unsupported field, a missed extraction pattern, a source-selection problem, a mapper gap, or a grader issue.</p>
+</div>
+<div class="pair" id="p-64">
+<p class="target" lang="zh-CN">实施有针对性的修复措施：扩展提取模式，改进租赁房产文档的源选择，更新税务引擎映射器，或者优化评估工具，如果预期的工作流程噪声被视为错误的话。</p>
+<p class="source" lang="en">Implement targeted fixes: Extend the extraction schema, improve source selection for rental-property documents, update the tax-engine mapper, or refine the grader if expected workflow noise is being counted as a failure.</p>
+</div>
+<div class="pair" id="p-65">
+<p class="target" lang="zh-CN">实施有针对性的修复措施：扩展提取模式，改进租赁房产文档的源文件选择，更新税务引擎映射器，或者优化评估工具，如果预期的工作流程噪声被视为错误的话。</p>
+<p class="source" lang="en">Implement targeted fixes: Extend the extraction schema, improve source selection for rental-property documents, update the tax-engine mapper, or refine the grader if expected workflow noise is being counted as a failure.</p>
+</div>
+<div class="pair" id="p-66">
+<p class="target" lang="zh-CN">验证并提出：重新运行目标评估，执行更广泛的回归测试套件，并生成候选拉取请求供工程部门审查。</p>
+<p class="source" lang="en">Validate and propose: Rerun the targeted eval, run broader regression suites, and surface a candidate pull request for engineering review.</p>
+</div>
+<div class="pair" id="p-67">
+<p class="target" lang="zh-CN">验证并提出：重新运行目标评估，执行更广泛的回归测试套件，并生成候选Pull请求供工程部门审查。</p>
+<p class="source" lang="en">Validate and propose: Rerun the targeted eval, run broader regression suites, and surface a candidate pull request for engineering review.</p>
+</div>
+<div class="pair" id="p-68">
+<p class="target" lang="zh-CN">闭合循环：将重复的从业者修正转化为可量化的工程任务。如果证据不明确或无法安全自动化处理，该案例将返回给产品团队，而不是强制通过循环流程。</p>
+<p class="source" lang="en">Close the loop: Turn a recurring practitioner correction into a measurable engineering task. If the evidence is ambiguous or not safely automatable, the case routes back to the product team instead of being forced through the loop.</p>
+</div>
+<div class="pair" id="p-69">
+<p class="target" lang="zh-CN">闭合循环：将重复的从业者修正转化为可量化的工程任务。如果证据不明确或无法安全自动化处理，该案例将返回给产品团队，而不是被迫通过循环流程处理。</p>
+<p class="source" lang="en">Close the loop: Turn a recurring practitioner correction into a measurable engineering task. If the evidence is ambiguous or not safely automatable, the case routes back to the product team instead of being forced through the loop.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6on5WyXaXPhYX9JsuTgatH/9123a4810d89e65b975c293cf141dab8/Diagram3-desktop-light.svg?w=3840&amp;q=90" alt="&quot;&quot;" loading="lazy">
+<div class="pair" id="p-70">
+<p class="target" lang="zh-CN">端到端自我改进循环：生产日志会显示重复的现场级修正，这些修正成为故障信号，Codex可以与日志、评估、代码库和技能一起进行检查。可操作的模式会转化为有边界的评估和候选产品变更；不确定的情况则重新提交给工程师审核。每个成功实施的改进都会为下一个周期产生新的生产证据。</p>
+<p class="source" lang="en">The end-to-end self-improvement loop: production traces surface repeated field-level corrections, which become failure signals that Codex can inspect alongside the trace, evals, repo, and skills. Actionable patterns become bounded evals and candidate product changes; ambiguous cases route back to engineers for review. Each shipped improvement creates new production evidence for the next cycle.</p>
+</div>
+<div class="pair" id="p-71">
+<p class="target" lang="zh-CN">如何使用 Codex 构建这个循环</p>
+<p class="source" lang="en">How to use Codex to build this loop</p>
+</div>
+<div class="pair" id="p-72">
+<p class="target" lang="zh-CN">租赁房产示例体现了一种更广泛的可复用模式：利用生产成果和痕迹来提升智能体的能力。通过利用生产数据、源代码痕迹、预期的税务结果、相关的代码示例以及评估命令作为输入，Codex可以在数周到数月内显著提高性能与准确性。这一做法基于我们在harness工程学和Symphony方面所描述的原则，这些系统能够使任务对Codex来说更易于理解，提供特定的上下文和工具，并让验证和人工审查成为系统的一部分。</p>
+<p class="source" lang="en">The rental property example is emblematic of a broader reusable pattern: using production artifacts and traces to improve an agent’s capabilities. Given reviewed findings from production data, source traces, expected tax-engine output, relevant code examples, and eval commands as a set of inputs, Codex can materially improve on performance and accuracy over weeks and months. This builds on the principles described in our work on harness engineering and Symphony, which walk-through how to make tasks legible to Codex, provide scoped context and tools, and keep validation and human review part of the environment.</p>
+</div>
+<div class="pair" id="p-73">
+<p class="target" lang="zh-CN">该证据不会自动成为代码库任务。实践者修正可能反映出提取错误、映射问题、不支持的产品行为、税务判断或预期的工作流程干扰。只有在反复出现的差异被审查并归类为可操作的发现之后，系统才会将其转化为具有明确成功条件的有边界的任务。</p>
+<p class="source" lang="en">That evidence does not become a Codex task automatically. A practitioner correction may reflect an extraction miss, a mapping issue, unsupported product behavior, tax judgment, or expected workflow noise. Only after repeated differences have been reviewed and grouped into an actionable finding does the system turn them into a bounded task with a clear success condition.</p>
+</div>
+<div class="pair" id="p-74">
+<p class="target" lang="zh-CN">我们将这种自动化技术应用于产品的某个特定层。该层负责提取数据，并将源文档转换为税务流程。工程师仍负责架构设计、产品决策和产品发布。从业者则通过他们现有的工作来推动改进流程：修正提取的数据、审核退货情况以及批准最终文件。</p>
+<p class="source" lang="en">We apply this automation to a bounded layer of the product. This layer performs extraction and maps source documents into tax workflows. Engineers remain responsible for architecture, product decisions, and shipping. Practitioners steer the improvement loop through the work they already do: correcting extracted values, reviewing returns, and approving final filings.</p>
+</div>
+<div class="pair" id="p-75">
+<p class="target" lang="zh-CN">对于 Codex 来说，结果并非模糊的警报，而是一个有具体范围、包含证据、可编辑产品界面以及明确验证步骤的工程任务。一个典型的租赁房产任务的相关背景可以总结如下：</p>
+<p class="source" lang="en">For Codex, the result is not a vague alert but a scoped engineering task with evidence, editable product surfaces, and explicit validation gates. The context for a representative rental property task can be summarized as follows:</p>
+</div>
+<div class="pair" id="p-76">
+<p class="target" lang="zh-CN">1/candidates/FIND-RENTAL-0042/2│3├── repo/ [1]4│ └── branch: codex/fix-rental-00425│ │6│ ├── AGENTS.md7│ │8│ ├── tasks/FIND-RENTAL-0042/9│ │ ├── task.yaml10│ │ ├── EXEC_PLAN.md11│ │ └── RESULTS.md12│ │13│ ├── app/tax-ai/rental-income/ [2]14│ │ ├── agent.ts15│ │ ├── schema.ts16│ │ ├── provenance.ts17│ │ └── mapper.ts18│ │19│ ├── evals/ [3]20│ │ ├── datasets/fair-rental-days.yaml21│ │ ├── suites/fair-rental-days.yaml22│ │ ├── suites/rental-income-regression.yaml23│ │ └── graders/rental-income.yaml24│ │25│ ├── skills/ [4]26│ │ ├── eval-runner/27│ │ └── tax-field-docs/28│ │29│ └── docs/ [4]30│ ├── architecture/31│ └── task-environments/32│33└── scoped-tools/ [5]34 ├── production-trace35 ├── source-artifacts36 └── tax-engine-docs</p>
+<p class="source" lang="en">1/candidates/FIND-RENTAL-0042/2│3├── repo/ [1]4│ └── branch: codex/fix-rental-00425│ │6│ ├── AGENTS.md7│ │8│ ├── tasks/FIND-RENTAL-0042/9│ │ ├── task.yaml10│ │ ├── EXEC_PLAN.md11│ │ └── RESULTS.md12│ │13│ ├── app/tax-ai/rental-income/ [2]14│ │ ├── agent.ts15│ │ ├── schema.ts16│ │ ├── provenance.ts17│ │ └── mapper.ts18│ │19│ ├── evals/ [3]20│ │ ├── datasets/fair-rental-days.yaml21│ │ ├── suites/fair-rental-days.yaml22│ │ ├── suites/rental-income-regression.yaml23│ │ └── graders/rental-income.yaml24│ │25│ ├── skills/ [4]26│ │ ├── eval-runner/27│ │ └── tax-field-docs/28│ │29│ └── docs/ [4]30│ ├── architecture/31│ └── task-environments/32│33└── scoped-tools/ [5]34 ├── production-trace35 ├── source-artifacts36 └── tax-engine-docs</p>
+</div>
+<div class="pair" id="p-77">
+<p class="target" lang="zh-CN">受限的 Codex 任务环境将可写入的工作树 [1] 与只读的生产环境 [5] 分开。工作树包含 Codex 可以检查或修改的限定产品界面 [2]，定义任务成功的特定和回归评估 [3]，以及用于说明如何执行任务并遵循先前决策的可复用技能与文档 [4]。只读环境则提供生产日志、源文档、Tax AI 预测结果、最终报表以及税务引擎字段文档，这样 Codex 就可以调查故障情况，而无需修改基础证据。</p>
+<p class="source" lang="en">A bounded Codex task environment separates the writable worktree [1] from read-only production context [5]. The worktree contains the scoped product surface Codex can inspect or modify [2], the targeted and regression evals that define success [3], and reusable skills/docs that encode how to run the task and respect prior decisions [4]. The read-only context provides the production trace, source documents, Tax AI prediction, finalized return, and tax-engine field documentation, so Codex can investigate the failure without mutating the underlying evidence.</p>
+</div>
+<div class="pair" id="p-78">
+<p class="target" lang="zh-CN">扩展到新领域</p>
+<p class="source" lang="en">Expanding to new domains</p>
+</div>
+<div class="pair" id="p-79">
+<p class="target" lang="zh-CN">同样的流程也适用于租赁房产。租赁房产需要大约六周的时间以及大量的工程监督，才能达到90%的精确度和召回率，但这项工作产生了可重复使用的抽象概念、审查结果、评估规范和实现模式，使得支持类似复杂的计划，如计划C和计划A变得更加容易。</p>
+<p class="source" lang="en">The same loop applies beyond rental properties. Rental properties took about six weeks and substantial engineering oversight to reach 90% precision and recall, but that work produced reusable abstractions, review artifacts, eval conventions, and implementation patterns that made it easier to support similarly complex schedules such as Schedule C and Schedule A.</p>
+</div>
+<div class="pair" id="p-80">
+<p class="target" lang="zh-CN">税收人工智能证明了构建自我改进智能体的路径。从业者通过提供服务生成高价值的反馈信号。产品工作流程将这些信号作为结构化证据保存下来。基于评估的工程系统会在产品投入生产之前验证改进效果，而由智能体驱动的循环则使系统保持持续的自我改进过程。</p>
+<p class="source" lang="en">Tax AI proves a path to building self-improving agents. Practitioners generate high-value feedback signals by delivering the service. Product workflows preserve those signals as structured evidence. Eval-backed engineering systems validate improvements before they reach production, and an agent-powered loop keeps the system in a continuous self-improving flow.</p>
+</div>
+<div class="pair" id="p-81">
+<p class="target" lang="zh-CN">Thrive Holdings的架构使我们能够在特定行业中复制这种模式。作为所有者与运营者，我们的联合工程团队可以直接与Crete等企业的从业者和生产数据合作，而非作为供应商，而是作为合作伙伴。这意味着技术、产品和服务都集中在一个平台下，帮助我们加快步伐并打造卓越的产品。</p>
+<p class="source" lang="en">Thrive Holdings’ structure allows us to replicate this environment in specific industries. Holdings is both an owner and operator, so our combined engineering teams are able to work directly with practitioners and production data from inside businesses like Crete, not as a vendor but as partners. This means the technology, the product, and the service all sit under one roof to help us move faster and build exceptional products.</p>
+</div>
+<div class="pair" id="p-82">
+<p class="target" lang="zh-CN">去年花费了180小时准备税务工作的资深会计，今年只花了15小时。她将这15小时用于联系所有客户并详细解释他们的报税文件，这种高度个性化的服务服务在去年是无法实现的。剩下的时间则用于吸引新客户并扩展服务范围。</p>
+<p class="source" lang="en">One senior accountant who spent 180 hours on tax prep last year spent only 15 hours on it this year. She put that time in part toward calling every one of her clients and walking them through their returns, a level of high touch service that wasn’t possible a year ago. The rest of that time she used to take on new clients and expand to new service offerings.</p>
+</div>
+<div class="pair" id="p-83">
+<p class="target" lang="zh-CN">现在，我们的团队都在使用 Tax AI 中的三部分设计作为在 Thrive Holdings 的其他领域构建工作流程的蓝图（在新窗口中打开）；包括会计工作流程如记账和审计，以及运营工作流程如 IT 帮助台自动化。在不同的领域和行业中，自我改进的智能体具有更大的潜力。最好的智能体由人类引导，随着时间的推移，它们会变得更有能力、更受信任且更有价值。</p>
+<p class="source" lang="en">Together, our teams are now using the same three-part design from Tax AI as a blueprint for building workflows in other domains across Thrive Holdings⁠(opens in a new window); accounting workflows such as bookkeeping and audit, and operational workflows such as IT help desk automation. Across domains and industries, the broader promise of self-improving agents holds. The best agents are steered by people to learn to become more capable, more trusted, and more valuable over time.</p>
+</div>
+<div class="pair" id="p-84">
+<p class="target" lang="zh-CN">要了解更多参与该项目的 OpenAI 团队的信息，请与我们联系。</p>
+<p class="source" lang="en">To learn more about the OpenAI team that worked on this project, get in touch.</p>
+</div>
+<div class="pair" id="p-85">
+<p class="target" lang="zh-CN">2026</p>
+<p class="source" lang="en">2026</p>
+</div>
+<div class="pair" id="p-86">
+<p class="target" lang="zh-CN">法典</p>
+<p class="source" lang="en">Codex</p>
+</div>
+<div class="pair" id="p-87">
+<p class="target" lang="zh-CN">&lt;text&gt;
+作者
+&lt;/text&gt;</p>
+<p class="source" lang="en">Authors</p>
+</div>
+<div class="pair" id="p-88">
+<p class="target" lang="zh-CN">继续阅读</p>
+<p class="source" lang="en">Keep reading</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6G64B5haCxDuphl2iqwZ1N/4f8d319293f5e5e98b319e01b4fbdf59/scaling-git-at-openai-art-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Scaling Git at OpenAI — art card" loading="lazy">
+<div class="pair" id="p-89">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年11月2日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringNov 2, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3a839ECHaGsidJPLJqqm5s/55968ec17735b96514d1bb4851f43bf8/scaling-storage-one-billion-users-part-two-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II) — card" loading="lazy">
+<div class="pair" id="p-90">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学2026年10月23日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 23, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3aewhPPb5NQ5IqOKEkrtzA/7209065f6e6ccf3a0476b43feb8336e1/rethinking-ads-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rethinking the ad stack around a new user journey — Art card" loading="lazy">
+<div class="pair" id="p-91">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年10月21日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 21, 2026</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://openai.com/index/building-self-improving-tax-agents-with-codex" target="_blank" rel="noopener noreferrer">https://openai.com/index/building-self-improving-tax-agents-with-codex</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html">← Core dump epidemiology: fixing an 18-year-old bug</a><a href="../viewers/how-we-contain-claude-across-products.html">How we contain Claude across products →</a></nav>
+  <footer class="footer">文章版权归原作者所有，译文请以英文原文为准。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

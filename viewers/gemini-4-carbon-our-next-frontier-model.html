@@ -1,0 +1,773 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Gemini 4 Carbon: Our next frontier model · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Gemini 4 Carbon: Our next frontier model</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item current" href="../viewers/gemini-4-carbon-our-next-frontier-model.html" aria-current="page"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item current" href="../viewers/gemini-4-carbon-our-next-frontier-model.html" aria-current="page"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Gemini 4 Carbon: Our next frontier model</h1>
+  <p class="subline">原文：<a href="https://deepmind.google/blog/gemini-4-carbon-our-next-frontier-model" target="_blank" rel="noopener noreferrer">https://deepmind.google/blog/gemini-4-carbon-our-next-frontier-model</a> · 2026-10-28 · Google DeepMind · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">x.com</p>
+<p class="source" lang="en">x.com</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">Facebook</p>
+<p class="source" lang="en">Facebook</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">LinkedIn</p>
+<p class="source" lang="en">LinkedIn</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">邮件</p>
+<p class="source" lang="en">Mail</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">复制链接</p>
+<p class="source" lang="en">Copy link</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">Gemini 4 Carbon 是我们的最强模型，具有最先进的网络安全功能和长期处理能力。</p>
+<p class="source" lang="en">Gemini 4 Carbon is our strongest model with state-of-the-art cybersecurity and long horizon capabilities.</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">&lt;text&gt;
+科雷·卡武克乔格鲁
+&lt;/text&gt;</p>
+<p class="source" lang="en">Koray Kavukcuoglu</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">&lt;text&gt;
+SVP，Google DeepMind 和 Google 首席人工智能架构师
+&lt;/text&gt;</p>
+<p class="source" lang="en">SVP, Google DeepMind and Chief AI Architect, Google</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">x.com</p>
+<p class="source" lang="en">x.com</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">Facebook</p>
+<p class="source" lang="en">Facebook</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">LinkedIn</p>
+<p class="source" lang="en">LinkedIn</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">邮件</p>
+<p class="source" lang="en">Mail</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">复制链接</p>
+<p class="source" lang="en">Copy link</p>
+</div>
+<img src="https://storage.googleapis.com/gweb-uniblog-publish-prod/images/gemini_carbon_102726_header.width-200.format-webp.webp" alt="Faceted iridescent crystal surrounded by floating white number 4s." loading="lazy">
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">您的浏览器不支持音频元素。</p>
+<p class="source" lang="en">Your browser does not support the audio element.</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">今天，我们宣布了下一个前沿模型：Gemini 4 Carbon，这是我们最强大的模型，具备最先进的网络安全功能和长期处理能力。</p>
+<p class="source" lang="en">Today, we’re announcing the next frontier model: Gemini 4 Carbon, our strongest model with state-of-the-art cybersecurity and long horizon capabilities.</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">碳在最新更新的 v5.0 人工智能分析指数中排名第 1，得分为 59。它在编程和代理任务以及对网络安全防御至关重要的关键能力方面都取得了显著进步，在 SEC-bench Pro 测试中在发现漏洞方面获得了 88.2% 的领先优势，在 ExploitGym 测试中在利用漏洞方面获得了 54.8% 的领先优势，在 CWE-bench 测试中在补丁修复方面获得了 71.0% 的领先优势。在内部基准测试中，碳在生成安全代码方面表现出显著提升，在由我们团队参与的实际编程环境中，错误率和虚假报告率也降低了。</p>
+<p class="source" lang="en">Carbon ranks #1 on the recently updated v5.0 of Artificial Analysis Intelligence Index at 59. It shows significant gains across coding and agentic tasks as well as across key capabilities critical for cybersecurity defense, landing a firm lead in SEC-bench Pro (88.2%) for finding vulnerabilities, ExploitGym (54.8%) for exploitation, and CWE-bench (71.0%) for patching. On internal benchmarks, Carbon drives a strong uplift in generating secure code, and in live coding environments with our own teams it shows reduced misalignment and fabrication rates.</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">基于两周前推出的 Gemini 4 Argon，Carbon展示了我们推进技术边界的速度。我们的研究人员和模型正协同努力，以更快的方式提升能力，同时加强安全保障。</p>
+<p class="source" lang="en">Building on Gemini 4 Argon, which was launched two weeks ago, Carbon illustrates the pace at which we’re pushing the frontier forward. Our researchers and models are working hand in hand to advance capabilities faster, while strengthening our safeguards in tandem.</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">我们采取了一种有计划的推广策略，并积极参与美国政府自愿的模型预发布测试流程。从本周开始，我们将向部分网络防护人员提供 Carbon 的功能，并通过 Fairwind 计划逐步向其他可信合作伙伴开放访问权限。我们将继续收集反馈并优化安全限制，以便尽快通过产品界面将 Carbon 提供给开发者、企业和消费者。</p>
+<p class="source" lang="en">We&#39;re taking a deliberate approach to rollout and are actively engaged in the U.S. government’s voluntary process for pre-release model testing. Starting this week, we will make Carbon available to a subset of cyber defenders and will gradually phase access to additional trusted partners through our Fairwind Program. We’re continuing to gather feedback and iterate on guardrails before making Carbon available to developers, businesses, and consumers via our product surfaces as soon as possible.</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">Gemini 4 Carbon将以与Argon相同的初始价格推出，即每百万输入令牌2美元，每百万输出令牌10美元，而缓存输入令牌的价格则比输入令牌价格低95%。</p>
+<p class="source" lang="en">Gemini 4 Carbon will launch at the same introductory price 1 as Argon at $2 per million input tokens and $10 per million output tokens, with cached input tokens priced at 95% off input token price.</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">提升应对具有挑战性、长期任务时的编码和推理能力</p>
+<p class="source" lang="en">Improving coding and reasoning for challenging, long-horizon tasks</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">专为应对更为复杂、长期性的工程问题而设计，Carbon适用于持续性的代理式工作流。我们的团队已经看到，Carbon可以连续运行数天，在困境中坚持下来，从而处理复杂的多步骤工程任务，比如解决根本问题以及修复大型代码库和底层系统中的细微漏洞。</p>
+<p class="source" lang="en">Designed to take on much harder, long-horizon engineering problems, Carbon is built for sustained agentic workflows. Internally, our teams have seen Carbon run for days to persist through dead ends to tackle complex, multi-step engineering tasks like root-causing and patching subtle bugs across large codebases and low-level systems.</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">基于用户反馈，我们致力于提升模型在多种领域的性能，包括编程、代理式任务、科学任务，以及全栈网页开发和多模态理解。由于网页开发的输出和结果质量得到提升，Carbon的elo分数增加了89分，在WebDev Arena上排名升至第4位（1768位）。</p>
+<p class="source" lang="en">Building on user feedback, we focused on improving model performance across a variety of domains, including coding, agentic, and scientific tasks, as well as full-stack web development and multimodal understanding. With improved quality of output and artifacts in web development, Carbon jumps +89 elo points to land at #4 (1768) on WebDev Arena.</p>
+</div>
+<img src="https://storage.googleapis.com/gweb-uniblog-publish-prod/images/gemini_4_carbon__evals-table.width-1200.format-webp.webp" alt="Gemini 4 Carbon benchmark table" loading="lazy">
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">最先进的网络安全性能，有助于构建安全系统</p>
+<p class="source" lang="en">State-of-the-art cybersecurity performance to help build secure systems</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">Gemini 4 Carbon在网络安全能力方面实现了重大提升。它在网络安全防御整个生命周期中都能达到最先进的性能水平——包括漏洞检测、验证和修复。</p>
+<p class="source" lang="en">Gemini 4 Carbon delivers a significant leap in cybersecurity capabilities. It achieves state-of-the-art performance across the cybersecurity defense lifecycle — vulnerability detection, validation, and remediation.</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">我们的团队已经看到网络防御方面取得了显著成效。在内部基准测试中，Carbon在生成安全代码的成功率上比Argon高出2倍以上。另一个例子是，Chrome团队报告称，在生成高质量补丁时，Carbon的表现比另一个实验室的大型前沿模型好10倍以上。我们的领先云安全平台Wiz也发现，Carbon在网页渗透测试基准测试中表现突出，这是Wiz的“Scan for Good”计划的核心功能。</p>
+<p class="source" lang="en">Our teams are already seeing strong gains in cyberdefense. On internal benchmarks, Carbon achieves more than 2x uplift in success rate for generating secure code over Argon. As another example, the Chrome team has reported that Carbon performed more than 10X better than another lab&#39;s large frontier model when generating high quality patches. Wiz, our leading Cloud security platform, also observes Carbon leading on benchmarks for web penetration testing, a core capability for Wiz&#39;s Scan for Good initiative.</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">碳在关键外部基准测试中表现卓越（在不受限制的情况下进行评估）：</p>
+<p class="source" lang="en">Carbon excels across key external benchmarks (evaluated without guardrails):</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">发现真正的漏洞：网络安全防御的核心就是发现真正的漏洞。Carbon在SEC-bench Pro测试上获得了最先进的88.2%成绩，能够自主发现现实软件中隐藏的复杂缺陷。</p>
+<p class="source" lang="en">Finding real vulnerabilities: Core to cybersecurity defense is finding real vulnerabilities. Carbon achieves a state-of-the-art 88.2% on SEC-bench Pro, autonomously uncovering complex flaws buried in real-world software.</p>
+</div>
+<img src="https://storage.googleapis.com/gweb-uniblog-publish-prod/images/gemini_4_carbon_secbench-pro.width-1200.format-webp.webp" alt="SEC bench Pro chart" loading="lazy">
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">通过利用漏洞验证风险：为了确定哪些漏洞应优先修复或完全修复，网络防御者越来越依赖模型来检测哪些漏洞可以被利用。Carbon在流行的利用测试基准ExploitGym上取得了新的领先水平（54.8%）。</p>
+<p class="source" lang="en">Validating risk through exploitation: To prioritize which vulnerabilities to remediate first or remediate at all, cyber defenders increasingly rely on models to check which vulnerabilities are exploitable. Carbon sets a new state-of-the-art on the popular exploitation benchmark ExploitGym (54.8%).</p>
+</div>
+<img src="https://storage.googleapis.com/gweb-uniblog-publish-prod/images/gemini_4_carbon_exploitgym.width-1200.format-webp.webp" alt="chart showing ExploitGym benchmark" loading="lazy">
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">修复根本原因：最终在识别到漏洞后，修复根本原因是网络安全防御生命周期中的关键步骤。在 Collinear 的 CWE-bench 测试中，碳值达到了 71.0%，使验证结果直接转化为可实施的代码修复。</p>
+<p class="source" lang="en">Patching at the root cause: Ultimately after identifying the vulnerabilities, fixing the root cause is a critical step in the cybersecurity defense lifecycle. Carbon reaches 71.0% on Collinear’s CWE-bench, turning validated findings directly into working code fixes.</p>
+</div>
+<img src="https://storage.googleapis.com/gweb-uniblog-publish-prod/images/gemini_4_carbon_cwe-bench.width-1200.format-webp.webp" alt="chart showing CWE-bench" loading="lazy">
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">推进前沿模型的安全与保障</p>
+<p class="source" lang="en">Advancing frontier model safety &amp; security</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">Gemini 4 Carbon基于Argon的多层安全与保护机制，结合了模型训练、实时滥用防御、提示注入抵抗能力以及思维过程监控功能。特别是在与Argon的模型对齐方面取得了显著进展，我们在关于Argon的安全与保护报告中也描述了模型以对齐方式运行的特性。通过Carbon，我们努力在对齐方面更进一步，训练模型以正确的方式应对复杂或高压力任务。</p>
+<p class="source" lang="en">Gemini 4 Carbon builds on the same multi-layered safety and security stack of Argon — combining model training, real-time misuse defenses, prompt-injection resilience, and chain-of-thought monitoring. In particular, we made significant strides in model alignment with Argon, and reported its propensities to behave in an aligned way in our Safety and Security report for Argon. With Carbon, we challenged ourselves to go a step further on alignment, and trained the model to respond to complex or high-pressure tasks in the right way.</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">减少快捷方式利用和漏洞利用：通过 Carbon 技术，我们在确保代码编写性能高质量的同时，进一步降低了训练中的快捷方式尝试。在 Terminal-Bench 4.0 上，成功的作弊行为减少了 0.0%，作弊尝试则降至 0.4%——同时整体准确率也得到了提升。在由内部团队参与的实时编码环境中，我们观察到严重错误警报的数量减少了近 80%。</p>
+<p class="source" lang="en">Reducing shortcuts and loophole exploitation: With Carbon, we further mitigated shortcut attempts in training while ensuring high-quality coding performance. Carbon reduced successful cheating on Terminal-Bench 4.0 to 0.0%, with attempts to cheat dropping to 0.4% — all while improving overall accuracy. In live coding environments with our internal teams, we observed that high-severity misalignment alerts dropped by almost 80%.</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">更高的透明度与诚实性：在我们的内部测试中，Carbon 将无根据的声明减少了约 2 倍，比 Argon 更优。它直接将方法论上的注意事项纳入交付成果中，或者列出剩余需要完成的明确事项，从而阻止了那些缺乏证据的情况，而不是制造虚假信息或含糊其辞。</p>
+<p class="source" lang="en">Greater transparency and honesty: In our internal testing, Carbon cuts unsupported claims by approximately 2x over Argon. It puts methodological caveats directly into the deliverable or withholds blocked actions with a clear list of what remains required, rather than fabricating or hedging around missing evidence.</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">在模糊情况中更好地与用户协作：Carbon不会猜测或强行指定解决方案，而是先获取相关资料，并在采取行动前向用户展示差异，这样用户与 Carbon 的协作体验就会更好。</p>
+<p class="source" lang="en">Improved collaboration with the user in the face of ambiguity: Rather than guessing or forcing a path forward, Carbon retrieves the relevant sources and surfaces discrepancies to the user before acting — as a result, users should observe a much better collaborative experience with Carbon.</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">坚持不越界执行：碳技术同时减少了26%的过度执行和29%的服务不足，使得多步骤计划能够更可靠地全程执行，同时遵守项目限制并严格控制在范围之内。</p>
+<p class="source" lang="en">Following through without overstepping: Carbon simultaneously reduced overreach by 26% and under-service by 29% resulting in much more reliable execution of multi-step plans end-to-end while respecting project constraints and staying strictly within scope.</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">抵抗提示注入：虽然 Argon之前在提示注入抵抗性测试中以0.7%的攻击成功率领先于 Gray Swan的间接提示注入（IPI）测试，但 Carbon达到了0.0%的攻击成功率，成功抵御了所有评估的攻击尝试。</p>
+<p class="source" lang="en">Resisting prompt injection: While Argon previously led the Gray Swan’s Indirect Prompt Injection (IPI) Benchmark in prompt injection resistance with a very low 0.7% attack success rate, Carbon achieves 0.0% — resisting every evaluated attack attempt.</p>
+</div>
+<img src="https://storage.googleapis.com/gweb-uniblog-publish-prod/images/gemini_4_carbon_grey_swan.width-1200.format-webp.webp" alt="chart showing Gray Swan IPI benchmarks" loading="lazy">
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">即将面向开发者、企业和消费者推出</p>
+<p class="source" lang="en">Coming soon to developers, businesses, and consumers</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">推进技术边界的发展需要快速行动，同时注重部署的合理性。通过 Gemini 4 Carbon 技术，我们的目标是在不牺牲安全性和可靠性的情况下，实现软件工程和网络安全防护方面的重大进步。我们期待看到首批网络防护人员如何运用这一模型，并期望尽快将 Carbon 技术引入开发者、企业和消费者之中。</p>
+<p class="source" lang="en">Pushing the frontier forward requires moving fast while remaining deliberate about deployment. With Gemini 4 Carbon, our goal is to deliver meaningful leaps in software engineering and cybersecurity defense without compromising on safety or reliability. We’re eager to see how the initial cohort of cyber defenders use this model and we look forward to bringing Carbon to developers, businesses, and consumers soon.</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">Gemini 模型</p>
+<p class="source" lang="en">Gemini models</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://deepmind.google/blog/gemini-4-carbon-our-next-frontier-model" target="_blank" rel="noopener noreferrer">https://deepmind.google/blog/gemini-4-carbon-our-next-frontier-model</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/speeding-up-planning-decisions-with-ai.html">← Speeding up planning decisions with AI</a><a href="../viewers/genie-4-a-new-generation-of-world-simulation.html">Genie 4: A new generation of world simulation →</a></nav>
+  <footer class="footer">文章版权归原作者所有，译文请以英文原文为准。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

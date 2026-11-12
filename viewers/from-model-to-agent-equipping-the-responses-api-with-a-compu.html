@@ -1,0 +1,873 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>From model to agent: Equipping the Responses API with a computer environment · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ From model to agent: Equipping the Responses API with a computer environment</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item current" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html" aria-current="page"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item current" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html" aria-current="page"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></details>
+<main class="main"><article class="page">
+  <h1>From model to agent: Equipping the Responses API with a computer environment</h1>
+  <p class="subline">原文：<a href="https://openai.com/index/equip-responses-api-computer-environment" target="_blank" rel="noopener noreferrer">https://openai.com/index/equip-responses-api-computer-environment</a> · 2026-03-11 · OpenAI Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">我们目前正从使用擅长特定任务的模型，转向使用能够处理复杂工作流的智能体。通过提示模型，你只能获取经过训练的智能能力。然而，给模型提供计算机环境后，就可以实现更广泛的应用场景，比如运行服务、从 API 获取数据，或生成更有用的文件，如电子表格或报告。</p>
+<p class="source" lang="en">We&#39;re currently in a shift from using models, which excel at particular tasks, to using agents capable of handling complex workflows. By prompting models, you can only access trained intelligence. However, giving the model a computer environment can achieve a much wider range of use cases, like running services, requesting data from APIs, or generating more useful artifacts like spreadsheets or reports.</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">在构建智能体时会出现一些实际问题：中间文件应放在哪里，如何避免将大表格直接粘贴到提示中，如何在不引发安全问题的情况下让工作流网络访问，以及如何处理超时和重试问题而不需要自己搭建工作流系统。</p>
+<p class="source" lang="en">A few practical problems emerge when you try to build agents: where to put intermediate files, how to avoid pasting large tables into a prompt, how to give the workflow network access without creating a security headache, and how to handle timeouts and retries without building a workflow system yourself.</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">与其让开发者自行构建执行环境，我们而是构建了必要的组件，为 Responses API 提供计算机环境，从而能够可靠地执行实际任务。</p>
+<p class="source" lang="en">Instead of putting it on developers to build their own execution environments, we built the necessary components to equip the Responses API⁠(opens in a new window) with a computer environment to reliably execute real-world tasks.</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">OpenAI的Responses API，结合-shell工具和托管容器工作空间，旨在解决这些实际问题。该模型会提出步骤和命令；平台则在一个隔离的环境中执行这些操作，该环境包含用于输入和输出的文件系统、可选的结构化存储（如SQLite）以及受限的网络访问权限。</p>
+<p class="source" lang="en">OpenAI’s Responses API, together with the shell tool and a hosted container workspace, is designed to address these practical problems. The model proposes steps and commands; the platform runs them in an isolated environment with a filesystem for inputs and outputs, optional structured storage (like SQLite), and restricted network access.</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">在本文中，我们将详细介绍我们如何构建智能体计算机环境，并分享一些初步经验，说明如何将其用于更高效、更可重复且更安全的生产流程中。</p>
+<p class="source" lang="en">In this post, we’ll break down how we built a computer environment for agents and share some early lessons on how to use it for faster, more repeatable, and safer production workflows.</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">外壳工具</p>
+<p class="source" lang="en">The shell tool</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">一个好的智能体工作流始于一个紧密的执行循环：模型提议一个动作，如读取文件或通过 API 获取数据，平台执行该动作，结果则用于下一步操作。我们将从 Shell 工具开始——这是观察这个循环运作的最简单方式——然后介绍容器工作空间、网络技术、可复用技能以及上下文压缩。</p>
+<p class="source" lang="en">A good agent workflow starts with a tight execution loop: the model proposes an action like reading files or fetching data with API, the platform runs it, and the result feeds into the next step. We’ll start with the shell tool—the simplest way to see this loop in action—and then cover the container workspace, networking, reusable skills, and context compaction.</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">为了理解shell工具，首先了解语言模型如何通常使用工具是有用的：比如调用函数或与计算机交互。在训练过程中，模型会逐步看到工具使用的示例及其效果。这有助于模型学会判断何时使用工具以及如何使用它。当我们说“使用工具”时，实际上是指模型只是提出工具调用的建议，它无法自行执行该调用。</p>
+<p class="source" lang="en">To understand the shell tool, it’s first useful to understand how a language model uses tools in general: to do things like call a function or interact with a computer. During training, a model is shown examples of how tools are used and the resulting effects, step by step. This helps the model learn to decide when to use a tool and how to use it. When we say “using a tool”, we mean the model actually only proposes a tool call. It can&#39;t execute the call on its own.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/1j8ghdf39iWtEXQAL8Wjf5/37b3a6136cb493574a71ffe483a03467/OAI_Equip_Responses_API_with_a_computer_environment_The_shell_tool_is_just_another_tool_desktop-light__3_.svg?w=3840&amp;q=90" alt="The shell tool is &quot;just another tool&quot; with diagram" loading="lazy">
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">该shell工具使模型更加强大：它通过命令行与计算机交互，可以执行各种任务，从文本搜索到在电脑上发送API请求。基于熟悉的Unix工具，我们的shell工具能够完成预期中的任何操作，并且grep、curl和awk等实用程序可以直接使用。</p>
+<p class="source" lang="en">The shell tool makes the model dramatically more powerful: it interacts with a computer through the command line to carry out a wide range of tasks, from searching for text to sending API requests on your computer. Built on familiar Unix tooling, our shell tool can do anything you&#39;d expect, with utilities like grep, curl, and awk available out of the box.</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">与仅能执行 Python 的现有代码解释器相比，该shell工具能够支持更广泛的应用场景，比如运行 Go 或 Java 程序，或者启动 NodeJS 服务器。这种灵活性使得模型能够完成复杂的代理任务。</p>
+<p class="source" lang="en">Compared to our existing code interpreter, which only executes Python, the shell tool enables a much wider range of use cases, like running Go or Java programs or starting a NodeJS server. This flexibility lets the model fulfill complex agentic tasks.</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">协调代理循环</p>
+<p class="source" lang="en">Orchestrating the agent loop</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">单独而言，模型只能提出shell命令，但这些命令如何执行呢？我们需要一个协调器来获取模型输出、调用工具，并将工具响应通过循环反馈回模型，直到任务完成。</p>
+<p class="source" lang="en">On its own, a model can only propose shell commands, but how are these commands executed? We need an orchestrator to get model output, invoke tools, and pass the tool response back to the model in a loop, until the task is complete.</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">Responses API是开发者与 OpenAI 模型交互的方式。当与自定义工具结合使用时， Responses API 将控制权交还给客户端，而客户端需要自己配备 harness 来运行这些工具。不过，该 API 也可以直接用于模型与托管工具之间的协调操作。</p>
+<p class="source" lang="en">The Responses API is how developers interact with OpenAI models. When used with custom tools, the Responses API yields control back to the client, and the client requires its own harness for running the tools. However, this API can also orchestrate between the model and hosted tools out of the box.</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">当 Responses API 接收到提示时，它会整合模型上下文：用户提示、之前的对话状态以及工具指令。为了 shell 执行能够正常进行，提示中必须说明使用 shell 工具，并且所选模型必须经过训练，能够提出 shell 命令——GPT‑5.2 及更高版本的模型就是为此而训练的。有了这些上下文信息后，模型会决定下一步行动。如果选择 shell 执行，它会向 Responses API 服务返回一个或多个 shell 命令。API 服务会将这些命令传递给容器运行时，再将 shell 输出传回，并在下一个请求中将其纳入模型上下文。模型随后可以检查结果、发出后续命令或给出最终答案。Responses API 会重复这个循环，直到模型在没有额外 shell 命令的情况下完成任务。</p>
+<p class="source" lang="en">When the Responses API receives a prompt, it assembles model context: user prompt, prior conversation state, and tool instructions. For shell execution to work, the prompt must mention using the shell tool and the selected model must be trained to propose shell commands—models GPT‑5.2 and later are trained for this. With all of this context, the model then decides the next action. If it chooses shell execution, it returns one or more shell commands to Responses API service. The API service forwards those commands to the container runtime, streams back shell output, and feeds it to the model in the next request’s context. The model can then inspect the results, issue follow-up commands, or produce a final answer. The Responses API repeats this loop until the model returns a completion without additional shell commands.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/5XFQ2SSueNXO1UHX1Gx6J4/1065aa14107b9bb4682d44f0991cc832/OAI_Equip_Responses_API_with_a_computer_environment_Agent_loop__Responses_API_orchestrates_model_and_shell_execution_in_cont.svg?w=3840&amp;q=90" alt="Agent loop diagram: Responses API orchestrates model and shell execution in container" loading="lazy">
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">当 Responses API 执行 shell 命令时，它会与容器服务保持流连接。当输出产生后，API 会几乎实时地将输出传递给模型，以便模型决定是等待更多输出、执行另一个命令，还是直接给出最终响应。</p>
+<p class="source" lang="en">When the Responses API executes a shell command, it maintains a streaming connection to the container service. As output is produced, the API relays it to the model in near real time so the model can decide whether to wait for more output, run another command, or move on to a final response.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/5TOlwyV32C5GOvMzLCcuSq/2210a01520870c4e688fe27aece58d85/OAI_Equip_Responses_API_with_a_computer_environment_Streaming_shell_command_execution_output_desktop-light__3_.svg?w=3840&amp;q=90" alt="Streaming shell command execution output" loading="lazy">
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">Responses API 会传输 shell 命令的输出结果</p>
+<p class="source" lang="en">The Responses API streams shell command output</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">该模型可以在一步中提出多个shell命令，而Responses API可以通过独立的容器会话同时执行这些命令。每个会话独立地输出结果，API则将这些输出流组合成结构化的工具输出作为上下文。换句话说，代理循环可以并行处理各种任务，如搜索文件、获取数据以及验证中间结果。</p>
+<p class="source" lang="en">The model can propose multiple shell commands in one step, and the Responses API can execute them concurrently using separate container sessions. Each session streams output independently, and the API multiplexes those streams back into structured tool outputs as context. In other words, the agent loop can parallelize work, such as searching files, fetching data, and validating intermediate results.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/2gn7fUz2H2FbSbBsMYa58G/87622df28230c97e9d4cd29aec54380c/OAI_Equip_Responses_API_with_a_computer_environment_Responses_API_multiplexes_command_execution_sessions_desktop-light__3_.svg?w=3840&amp;q=90" alt="Responses API multiplexes command execution sessions" loading="lazy">
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">当命令涉及文件操作或数据处理时，shell输出可能会变得非常庞大，占用上下文资源，却无法提供有用的信息。为了控制这种情况，模型会为每个命令指定一个输出限制。Responses API会强制执行这个限制，并返回一个有限的结果，同时保留输出的开头和结尾，并标记掉省略的内容。例如，你可以将输出限制为1,000个字符，并保留开头和结尾。</p>
+<p class="source" lang="en">When the command involves file operations or data processing, shell output can become very large and consume context budgets without adding useful signals. To control this, the model specifies an output cap per command. The Responses API enforces that cap and returns a bounded result that preserves both the beginning and end of the output, while marking omitted content. For example, you might bound the output to 1,000 characters, with preserved beginning and end:</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">&lt;text&gt;
+开头的文本 ... 1000 字符被截断 ... 结尾的文本
+&lt;/text&gt;</p>
+<p class="source" lang="en">text at the beginning ... 1000 chars truncated ... text at the end</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">同时，并发执行和有限输出使得智能体循环既快速又高效利用上下文，从而让模型能够持续对相关结果进行推理，而不被原始的终端日志所困扰。</p>
+<p class="source" lang="en">Together, concurrent execution and bounded output make the agent loop both fast and context-efficient so the model can keep reasoning over relevant results instead of getting overwhelmed by raw terminal logs.</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">当上下文窗口填满时：压缩</p>
+<p class="source" lang="en">When the context window gets full: compaction</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">代理循环的一个潜在问题在于任务可能会运行很长时间。长时间运行的任务会填满上下文窗口，这对于在对话和不同代理之间传递上下文非常重要。想象一个代理调用技能、获得响应、添加工具调用和推理总结——有限的上下文窗口很快就会被填满。为了避免在代理继续运行时丢失重要信息，我们需要一种方法来保留关键细节并去除无关内容。我们不是在要求开发者设计和维护自定义总结或状态传递系统，而是在 Responses API 中加入了原生压缩功能，这种功能与模型的行为及其训练方式相契合。</p>
+<p class="source" lang="en">One potential issue with agent loops is that tasks can run for a long time. Long-running tasks fill the context window, which is important for providing context across turns and across agents. Picture an agent calling a skill, getting a response, adding tool calls and reasoning summaries—the limited context window quickly fills up. To avoid losing the important context as the agent continues running, we need a way to keep the key details and remove anything extraneous. Instead of requiring developers to design and maintain custom summarization or state-carrying systems, we added native compaction in the Responses API, designed to align with how the model behaves and how it&#39;s been trained.</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">我们最新的模型被训练用来分析之前的对话状态，并生成一个压缩项，该压缩项以加密且高效的令牌形式保存关键之前的状态。压缩之后，下一个上下文窗口由这个压缩项和早期窗口中的高价值部分组成。这样，即使在扩展的多步骤和工具驱动的会话中，工作流程也能在窗口边界之间保持连贯性。Codex利用这种机制来维持长时间运行的编码任务和迭代工具执行，而不会降低质量。</p>
+<p class="source" lang="en">Our latest models are trained to analyze prior conversation state and produce a compaction item that preserves key prior state in an encrypted token-efficient representation. After compaction, the next context window consists of this compaction item and high-value portions of the earlier window. This allows workflows to continue coherently across window boundaries, even in extended multi-step and tool-driven sessions. Codex relies on this mechanism to sustain long-running coding tasks and iterative tool execution without degrading quality.</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">压缩功能可以通过服务器内置的方式，也可以通过独立的 `/compact` 端点来实现。服务器端的压缩功能允许你设置阈值，系统会自动处理压缩时机，无需复杂的客户端逻辑。这允许更大的有效输入上下文窗口，从而能够容忍压缩前的轻微超量情况，这样接近极限的请求仍然可以被处理并压缩，而不是被拒绝。随着模型训练的发展，每个 OpenAI 模型的原生压缩解决方案也会随之升级。</p>
+<p class="source" lang="en">Compaction is available either built-in on the server or through a standalone `/compact` endpoint. Server-side compaction lets you configure a threshold, and the system handles compaction timing automatically, eliminating the need for complex client-side logic. It allows a slightly larger effective input context window to tolerate small overages right before compaction, so requests near the limit can still be processed and compacted rather than rejected. As model training evolves, the native compaction solution evolves with it for every OpenAI model release.</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">Codex在作为早期用户使用的同时，帮助我们构建了压缩系统。当某个Codex实例出现压缩错误时，我们会启动第二个实例进行排查。结果就是，Codex通过解决这些问题，得到了一种原生且高效的压缩系统。Codex能够自我检查并改进的能力，成为在OpenAI工作时的一个特别有趣的特点。大多数工具只需要用户学习如何使用它们；而Codex则与我们一起学习成长。</p>
+<p class="source" lang="en">Codex helped us build the compaction system while serving as an early user of it. When one Codex instance hit a compaction error, we&#39;d spin up a second instance to investigate. The result was that Codex got a native, effective compaction system just by working on the problem. This ability for Codex to inspect and refine itself has become an especially interesting part of working at OpenAI. Most tools only require the user to learn how to use them; Codex learns alongside us.</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">容器上下文</p>
+<p class="source" lang="en">Container context</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">现在我们来讨论状态和资源。容器不仅是执行命令的地方，还是模型的工作环境。在容器中，模型可以在网络政策控制下读取文件、查询数据库并访问外部系统。</p>
+<p class="source" lang="en">Now let’s cover state and resources. The container is not only a place to run commands but also the working context for the model. Inside the container, the model can read files, query databases, and access external systems under network policy controls.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/2rdxS5bXiQLnB1Vg05psLC/2ed0d4804552378d2b84afa12ce61b28/OAI_Equip_Responses_API_with_a_computer_environment_Inside_the_runtime_container_desktop-light__3_.svg?w=3840&amp;q=90" alt="A diagram that shows inside the runtime container: Files, databases, skills, and a policy-controlled network" loading="lazy">
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">文件系统</p>
+<p class="source" lang="en">File systems</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">容器环境的第一部分是用于上传、组织和管理资源的文件系统。我们构建了容器和文件⁠（在新窗口中打开）API，以便模型能够获取可用的数据信息，并帮助它选择有针对性的文件操作，而不是进行广泛的、噪音较大的扫描。</p>
+<p class="source" lang="en">The first part of container context is the file system for uploading, organizing, and managing resources. We built container and file⁠(opens in a new window) APIs to give the model a map of available data and help it choose targeted file operations instead of performing broad, noisy scans.</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">一种常见的错误做法是将所有输入直接放入提示上下文中。随着输入量的增加，过度填充提示变得昂贵且模型难以处理。更好的做法是将资源存储在容器文件系统中，让模型通过shell命令来决定要打开、解析或转换什么内容。就像人类一样，模型在有序的信息环境下表现更好。</p>
+<p class="source" lang="en">A common anti-pattern is packing all input directly into prompt context. As inputs grow, overfilling the prompt becomes expensive and hard for the model to navigate. A better pattern is to stage resources in the container file system and let the model decide what to open, parse, or transform with shell commands. Much like humans, models work better with organized information.</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">数据库</p>
+<p class="source" lang="en">Databases</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">容器上下文的第二部分是数据库。在许多情况下，我们建议开发者将结构化数据存储在数据库中，如 SQLite，然后对其进行查询。例如，与其将整个电子表格复制到提示中，你可以向模型提供表格的描述——存在的列及其含义——让模型自行提取所需的行数据。</p>
+<p class="source" lang="en">The second part of container context is databases. In many cases, we suggest developers store structured data in databases as SQLite and query them. Instead of copying an entire spreadsheet into the prompt, for example, you can give the model a description of the tables—what columns exist and what they mean—and let it pull the rows it needs.</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">例如，如果您询问“本季度哪些产品的销售下降了？”，模型可以只查询相关行，而不需要扫描整个电子表格。这样更快速、更经济，也更容易处理更大的数据集。</p>
+<p class="source" lang="en">For example, if you ask, “Which products had declining sales this quarter?” the model can query just the relevant rows instead of scanning the whole spreadsheet. This is faster, cheaper, more scalable to larger datasets.</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">网络访问</p>
+<p class="source" lang="en">Network access</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">容器环境的第三部分是网络访问，这是代理工作负载的重要组成部分。代理工作流可能需要获取实时数据、调用外部 API 或安装软件包。同时，让容器拥有无限制的网络访问权限可能会带来风险：它可能会将信息暴露到外部网站，无意中触及敏感的内部或第三方系统，或者使凭证泄露和数据窃取更加难以防范。</p>
+<p class="source" lang="en">The third part of the container context is network access, an essential part of agent workloads. Agent workflow may need to fetch live data, call external APIs, or install packages. At the same time, giving containers unrestricted internet access can be risky: it can expose information to external websites, unintentionally touch sensitive internal or third-party systems, or make credential leaks and data exfiltration harder to guard against.</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">为了在不限制代理功能的前提下解决这些问题，我们构建了托管容器，使用侧载出口代理。所有出站网络请求都会通过集中式策略层，该层实施允许列表和访问控制，同时保留流量监控。对于凭证，我们在出口处使用域名范围的机密值注入。模型和容器仅看到占位符，而原始机密值则不在模型可见的上下文中，仅适用于已批准的目标。这降低了泄露风险，同时仍允许经过认证的外部调用。</p>
+<p class="source" lang="en">To address these concerns without limiting agents&#39; usefulness, we built hosted containers to use a sidecar egress proxy. All outbound network requests flow through a centralized policy layer that enforces allowlists and access controls while keeping traffic observable. For credentials, we use domain-scoped secret injection at egress. The model and container only see placeholders, while raw secret values stay outside model-visible context and only get applied for approved destinations. This reduces the risk of leakage while still enabling authenticated external calls.</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">代理技能</p>
+<p class="source" lang="en">Agent skills</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">Shell命令非常强大，但许多任务都遵循相同的多步骤模式。代理在每次运行时都必须重新发现工作流程——重新规划、重新发送命令并重新学习规则——这导致结果不一致且执行效率低下。代理技能将这些模式封装为可复用、可组合的构建块。具体来说，一个技能就是一个文件夹包，包含‘SKILL.md’（包含元数据和说明）以及任何支持资源，如API规范和应用界面资源。</p>
+<p class="source" lang="en">Shell commands are powerful, but many tasks repeat the same multi-step patterns. Agents have to rediscover the workflow each run—replanning, reissuing commands, and relearning conventions—leading to inconsistent results and wasted execution. Agent skills⁠(opens in a new window) package those patterns into reusable, composable building blocks. Concretely, a skill is a folder bundle that includes ‘SKILL.md⁠(opens in a new window)’ (containing metadata and instructions) plus any supporting resources, such as API specs and UI assets.</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">这种结构与我们之前描述的运行时架构非常契合。容器提供了持久性文件和执行上下文，而shell工具则提供了执行接口。有了这两者，模型在需要时可以通过shell命令（`ls`、`cat`等）来查找技能文件，解释指令，并在同一个代理循环中运行技能脚本。</p>
+<p class="source" lang="en">This structure maps naturally to the runtime architecture we described earlier. The container provides persistent files and execution context, and the shell tool provides the execution interface. With both in place, the model can discover skill files using shell commands (`ls`, `cat`, etc.) when it needs to, interpret instructions, and run skill scripts all in the same agent loop.</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">我们在 OpenAI 平台上提供 API 来管理技能。开发者将技能文件夹作为版本化的包上传和存储，之后可以通过技能 ID 重新获取。在将提示发送给模型之前，Responses API 会加载该技能并将其纳入模型上下文。这个流程是确定性的：</p>
+<p class="source" lang="en">We provide APIs⁠(opens in a new window) to manage skills in the OpenAI platform. Developers upload and store skill folders as versioned bundles, which can later be retrieved by skill ID. Before sending the prompt to the model, the Responses API loads the skill and includes it in model context. This sequence is deterministic:</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">获取技能元数据，包括名称和描述。</p>
+<p class="source" lang="en">Fetch skill metadata, including name and description.</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">获取技能元数据，包括名称和描述。</p>
+<p class="source" lang="en">Fetch skill metadata, including name and description.</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">获取技能包，将其复制到容器中，然后解包。</p>
+<p class="source" lang="en">Fetch the skill bundle, copy it into the container, and unpack it.</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">获取技能包，将其复制到容器中，然后解包。</p>
+<p class="source" lang="en">Fetch the skill bundle, copy it into the container, and unpack it.</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">使用技能元数据和容器路径更新模型上下文。</p>
+<p class="source" lang="en">Update model context with skill metadata and the container path.</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">使用技能元数据和容器路径更新模型上下文。</p>
+<p class="source" lang="en">Update model context with skill metadata and the container path.</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">在判断某项技能是否相关时，模型会逐步探索其指令，并通过容器中的 shell 命令执行脚本。</p>
+<p class="source" lang="en">When deciding whether a skill is relevant, the model progressively explores its instructions, and executes its scripts through shell commands in the container.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/7gic678N6fNMJxo5Gu63Xp/0927d6d543c4427268891853a2d04b23/OAI_Equip_Responses_API_with_a_computer_environment_Skill_loading_pipeline_desktop-light__4_.svg?w=3840&amp;q=90" alt="Skill loading pipeline diagram: registry, bundle, runtime" loading="lazy">
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">如何创建智能体</p>
+<p class="source" lang="en">How agents are made</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">综合起来看：Responses API提供协调功能，shell工具提供可执行的操作，托管容器提供持久的运行环境，技能层提供可重复使用的工作流逻辑，而压缩功能则使代理能够在需要的情况下长时间运行。</p>
+<p class="source" lang="en">To put all the pieces together: the Responses API provides orchestration, the shell tool provides executable actions, the hosted container provides persistent runtime context, skills layer reusable workflow logic, and compaction allows an agent to run for a long time with the context it needs.</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">使用这些基本元素，一个提示词就能形成一个完整的端到端工作流：找到合适的技能，获取数据，将其转化为本地结构化的状态，高效查询数据，并生成可持久保存的结果。</p>
+<p class="source" lang="en">With these primitives, a single prompt can expand into an end-to-end workflow: discover the right skill, fetch data, transform it into local structured state, query it efficiently, and generate durable artifacts.</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">下图展示了该系统如何根据实时数据创建电子表格。</p>
+<p class="source" lang="en">The diagram below shows how this system works for creating a spreadsheet from live data.</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">创建你自己的智能体</p>
+<p class="source" lang="en">Make your own agent</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">对于将shell工具与计算机环境结合用于端到端工作流的详细示例，请参阅我们的开发者博客文章以及烹饪书，其中详细介绍了如何包装技能并通过Responses API来执行它。</p>
+<p class="source" lang="en">For an in-depth example of combining the shell tool and computer environment for end-to-end workflows, see our developer blog post⁠(opens in a new window) and cookbook⁠(opens in a new window) walking through packaging a skill and executing it through the Responses API.</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">我们很期待看到开发者利用这些基础元素构建出什么成果。语言模型的作用不仅仅在于生成文本、图像和音频——我们将继续改进平台，使其能够更高效地处理复杂的现实任务。</p>
+<p class="source" lang="en">We’re excited to see what developers build with this set of primitives. Language models are meant to do more than generating text, images, and audio–we’ll continue to evolve our platform to become more capable in handling complex, real-world tasks at scale.</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">2026</p>
+<p class="source" lang="en">2026</p>
+</div>
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">API平台</p>
+<p class="source" lang="en">API Platform</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">&lt;text&gt;
+作者
+&lt;/text&gt;</p>
+<p class="source" lang="en">Authors</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">继续阅读</p>
+<p class="source" lang="en">Keep reading</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6G64B5haCxDuphl2iqwZ1N/4f8d319293f5e5e98b319e01b4fbdf59/scaling-git-at-openai-art-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Scaling Git at OpenAI — art card" loading="lazy">
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年11月2日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringNov 2, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3a839ECHaGsidJPLJqqm5s/55968ec17735b96514d1bb4851f43bf8/scaling-storage-one-billion-users-part-two-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II) — card" loading="lazy">
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年10月23日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 23, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3aewhPPb5NQ5IqOKEkrtzA/7209065f6e6ccf3a0476b43feb8336e1/rethinking-ads-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rethinking the ad stack around a new user journey — Art card" loading="lazy">
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年10月21日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 21, 2026</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://openai.com/index/equip-responses-api-computer-environment" target="_blank" rel="noopener noreferrer">https://openai.com/index/equip-responses-api-computer-environment</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/harness-design-for-long-running-application-development.html">← Harness design for long-running application development</a><a href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html">Eval awareness in Claude Opus 4.6’s BrowseComp performance →</a></nav>
+  <footer class="footer">文章版权归原作者所有，译文请以英文原文为准。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

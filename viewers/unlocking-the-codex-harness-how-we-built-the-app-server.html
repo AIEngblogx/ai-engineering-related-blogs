@@ -1,0 +1,1037 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Unlocking the Codex harness: how we built the App Server · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Unlocking the Codex harness: how we built the App Server</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item current" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html" aria-current="page"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item current" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html" aria-current="page"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Unlocking the Codex harness: how we built the App Server</h1>
+  <p class="subline">原文：<a href="https://openai.com/index/unlocking-the-codex-harness" target="_blank" rel="noopener noreferrer">https://openai.com/index/unlocking-the-codex-harness</a> · 2026-02-04 · OpenAI Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">选择正确的协议JSON-RPC协议Codex作为MCP服务器跨供应商代理harness协议Codex应用服务器嵌入Codex的其他方式Codex执行代码Codex SDK</p>
+<p class="source" lang="en">Choosing the right protocolJSON-RPC protocolsCodex as an MCP serverCross-provider agent harness protocolsCodex App ServerOther ways to Embed CodexCodex ExecCodex SDK</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">JSON-RPC 协议代码库作为 MCP 服务器跨提供方代理框架协议代码库应用服务器</p>
+<p class="source" lang="en">JSON-RPC protocolsCodex as an MCP serverCross-provider agent harness protocolsCodex App Server</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">作为 MCP 服务器的 Codex</p>
+<p class="source" lang="en">Codex as an MCP server</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">跨提供方代理工具链协议</p>
+<p class="source" lang="en">Cross-provider agent harness protocols</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">代码库应用服务器</p>
+<p class="source" lang="en">Codex App Server</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">其他嵌入 Codex 的方法 Codex Exec Codex SDK</p>
+<p class="source" lang="en">Other ways to Embed CodexCodex ExecCodex SDK</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">《法典执行者》</p>
+<p class="source" lang="en">Codex Exec</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">代码库 SDK</p>
+<p class="source" lang="en">Codex SDK</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">推进这一进程</p>
+<p class="source" lang="en">Taking this forward</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">应用程序服务器的起源</p>
+<p class="source" lang="en">Origin of the App Server</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">代码库装置内部</p>
+<p class="source" lang="en">Inside the Codex harness</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">对话基本元素</p>
+<p class="source" lang="en">The conversation primitives</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">与客户端集成本地应用和 IDECodex WebTUI/Codex CLI</p>
+<p class="source" lang="en">Integrating with clientsLocal Apps &amp; IDEsCodex WebTUI/Codex CLI</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">本地应用与 IDE</p>
+<p class="source" lang="en">Local Apps &amp; IDEs</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">代码集 Web</p>
+<p class="source" lang="en">Codex Web</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">TUI/Codex CLI</p>
+<p class="source" lang="en">TUI/Codex CLI</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">选择正确的协议JSON-RPC协议Codex作为MCP服务器跨提供方代理harness协议Codex应用服务器嵌入Codex的其他方式Codex执行代码Codex SDK</p>
+<p class="source" lang="en">Choosing the right protocolJSON-RPC protocolsCodex as an MCP serverCross-provider agent harness protocolsCodex App ServerOther ways to Embed CodexCodex ExecCodex SDK</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">JSON-RPC 协议代码库作为 MCP 服务器跨提供商代理框架协议代码库应用服务器</p>
+<p class="source" lang="en">JSON-RPC protocolsCodex as an MCP serverCross-provider agent harness protocolsCodex App Server</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">作为 MCP 服务器的 Codex</p>
+<p class="source" lang="en">Codex as an MCP server</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">跨供应商代理工具链协议</p>
+<p class="source" lang="en">Cross-provider agent harness protocols</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">代码库应用服务器</p>
+<p class="source" lang="en">Codex App Server</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">其他嵌入 Codex 的方法 Codex Exec Codex SDK</p>
+<p class="source" lang="en">Other ways to Embed CodexCodex ExecCodex SDK</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">《法典执行者》</p>
+<p class="source" lang="en">Codex Exec</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">代码库 SDK</p>
+<p class="source" lang="en">Codex SDK</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">推进这一进程</p>
+<p class="source" lang="en">Taking this forward</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">OpenAI的编码代理Codex存在于多种不同的平台上：网页应用（在新窗口中打开）、命令行界面（在新窗口中打开）、IDE扩展（在新窗口中打开）以及新的Codex macOS应用。实际上，它们都依赖于相同的Codex harness——即支撑所有Codex体验的代理循环和逻辑。它们之间的关键连接是Codex应用服务器（在新窗口中打开），这是一个对客户端友好的双向JSON-RPC1 API。</p>
+<p class="source" lang="en">OpenAI’s coding agent Codex exists across many different surfaces: the web app⁠(opens in a new window), the CLI⁠(opens in a new window), the IDE extension⁠(opens in a new window), and the new Codex macOS app. Under the hood, they’re all powered by the same Codex harness—the agent loop and logic that underlies all Codex experiences. The critical link between them? The Codex App Server⁠(opens in a new window), a client-friendly, bidirectional JSON-RPC1 API.</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">在本文中，我们将介绍 Codex 应用服务器；我们将分享我们目前对如何将 Codex 功能融入产品中的最佳方法的经验，以帮助用户优化工作流程。我们将介绍应用服务器的架构和协议，以及它如何与不同的 Codex 界面集成，还会提供一些利用 Codex 的提示，无论您是想将 Codex 用作代码审查器、SRE 代理还是编码助手。</p>
+<p class="source" lang="en">In this post, we’ll introduce the Codex App Server; we’ll share our learnings so far on the best ways to bring Codex’s capabilities into your product to help your users supercharge their workflows. We’ll cover the App Server’s architecture and protocol and how it integrates with different Codex surfaces, as well as tips on leveraging Codex, whether you want to turn Codex into a code reviewer, an SRE agent, or a coding assistant.</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">应用服务器的起源</p>
+<p class="source" lang="en">Origin of the App Server</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">在深入讨论架构之前，了解应用服务器的背景故事很有帮助。最初，应用服务器是一种实用的方式，可以在不同产品之间重复使用代码库框架，后来逐渐演变成了我们的标准协议。</p>
+<p class="source" lang="en">Before diving into architecture, it’s helpful to know the App Server’s backstory. Initially, the App Server was a practical way to reuse the Codex harness across products that gradually evolved into our standard protocol.</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">Codex CLI最初是一个TUI（终端用户界面），这意味着通过终端来访问Codex。在开发VS Code扩展（一种更便于与Codex代理交互的方式）时，我们需要一种方式使用相同的harness，以便从IDE界面驱动相同的代理循环，而无需重新实现它。这意味着需要支持多种丰富的交互模式，而不仅仅是请求与响应，比如探索工作空间、在代理思考过程中实时显示进度以及生成差异文件。我们最初尝试将Codex作为MCP服务器来公开，但在适合VS Code的层面上维护MCP语义却很困难。因此，我们引入了JSON-RPC协议来模拟TUI循环，这成为了App Server的非官方第一个版本。当时，我们并没有预期其他客户端会依赖App Server，所以它并没有被设计成稳定的API。</p>
+<p class="source" lang="en">Codex CLI started as a TUI (terminal user interface), meaning Codex is accessed through the terminal. When we built the VS Code extension (a more IDE-friendly way to interact with Codex agents), we needed a way to use the same harness so as to drive the same agent loop from an IDE UI without re-implementing it. That meant supporting rich interaction patterns beyond request/response, such as exploring the workspace, streaming progress as the agent reasons, and emitting diffs. We first experimented with exposing Codex as an MCP server⁠(opens in a new window), but maintaining MCP semantics in a way that made sense for VS Code proved difficult. Instead, we introduced a JSON-RPC protocol that mirrored the TUI loop, which became the unofficial first version⁠(opens in a new window) of the App Server. At the time, we didn’t expect other clients to depend on the App Server, so it wasn’t designed as a stable API.</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">在接下来的几个月里，随着 Codex的采用越来越广泛，内部团队和外部合作伙伴希望能够在自己的产品中集成相同的 harness，以加速用户的软件开发流程。例如，JetBrains和Xcode需要具有IDE级别的代理体验，而Codex桌面应用则需要能够同时管理多个Codex代理。这些需求促使我们设计了一个平台界面，我们的产品与合作伙伴集成都能长期安全依赖。该界面需要易于集成且向后兼容，这意味着我们可以逐步改进协议，而不破坏现有客户端。</p>
+<p class="source" lang="en">As Codex adoption grew over the next few months, internal teams and external partners wanted the ability to embed the same harness in their own products in order to accelerate their users’ software development workflows. For example, JetBrains and Xcode wanted an IDE-grade agent experience, while the Codex desktop app needed to orchestrate many Codex agents in parallel. Those demands pushed us to design a platform surface that both our products and partner integrations could safely depend on over time. It needed to be easy to integrate and backward compatible, meaning we could evolve the protocol without breaking existing clients.</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">接下来，我们将介绍我们是如何设计架构和协议，以便不同的客户端能够使用同一个工具。</p>
+<p class="source" lang="en">Next, we’ll walk through how we designed the architecture and protocol so different clients can use the same harness.</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">代码库装置内部</p>
+<p class="source" lang="en">Inside the Codex harness</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">首先，让我们详细了解 Codex harness 内部的内容，以及 Codex App Server 如何将其暴露给客户端。在之前的 Codex 博客中，我们介绍了协调用户、模型和工具之间交互的核心 agent 循环。这是 Codex harness 的核心逻辑，但完整的 agent 体验还包含更多内容：</p>
+<p class="source" lang="en">First, let’s zoom in on what’s inside the Codex harness and how the Codex App Server exposes it to clients. In our last Codex blog, we broke down the core agent loop that orchestrates the interaction between the user, the model, and the tools. This is the core logic of the Codex harness, but there’s more to the full agent experience:</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">1. 线程生命周期与持久性。线程是用户与智能体之间的 Codex 对话。Codex 会创建、恢复、分叉和归档线程，并保存事件历史，以便客户端能够重新连接并呈现一致的时间线。</p>
+<p class="source" lang="en">1. Thread lifecycle and persistence. A thread is a Codex conversation between a user and an agent. Codex creates, resumes, forks, and archives threads, and persists the event history so clients can reconnect and render a consistent timeline.</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">2. 配置和认证。Codex 加载配置、管理默认设置，并执行如“使用 ChatGPT 登录”之类的认证流程，包括凭证状态。</p>
+<p class="source" lang="en">2. Config and auth. Codex loads configuration, manages defaults, and runs authentication flows like “Sign in with ChatGPT,” including credential state.</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">3. 工具执行和扩展功能。Codex 在沙箱环境中执行 shell/文件工具，并连接 MCP 服务器和技能等集成组件，使它们能够在一致的策略模型下参与代理循环。</p>
+<p class="source" lang="en">3. Tool execution and extensions. Codex executes shell/file tools in a sandbox and wires up integrations like MCP servers and skills so they can participate in the agent loop under a consistent policy model.</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">我们在这里提到的所有智能体逻辑，包括核心智能体循环，都存在于 Codex CLI 代码库中的“Codex core”部分（在新窗口中打开）。Codex core 既是存放所有智能体代码的库，也是运行时环境，可以启动以运行智能体循环，并管理一个 Codex 线程（对话）的持久性。</p>
+<p class="source" lang="en">All the agent logic we mentioned here, including the core agent loop, lives in a part of the Codex CLI codebase called “Codex core⁠(opens in a new window).” Codex core is both a library where all the agent code lives and a runtime that can be spun up to run the agent loop and manage the persistence of one Codex thread (conversation).</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">为了发挥作用，Codex 工具需要让客户能够访问。这就是 App Server 的作用所在。</p>
+<p class="source" lang="en">To be useful, the Codex harness needs to be accessible to clients. That’s where the App Server comes in.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/eErxEn4okb3oc65EvHHBM/b20e2d68b33dd7eb2fab590683bf5d09/OAI_Unlocking_the_Codex_harness_App_server_process_flow_desktop-light.svg?w=3840&amp;q=90" alt="Diagram titled “App server process flow.” A client sends JSON-RPC messages to a stdio reader, which dispatches requests to a Codex message processor. The processor interacts with a thread manager and core thread via lookup threads, thread handles, submitted requests, and events/updates, then returns responses back to the client." loading="lazy">
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">应用服务器既是客户端与服务器之间的 JSON-RPC 协议，也是一个长期运行的过程，用于托管 Codex 核心线程。从上面的图表可以看出，应用服务器进程包含四个主要组件：stdio 读取器、Codex 消息处理器、线程管理器以及核心线程。线程管理器为每个线程启动一个核心会话，而 Codex 消息处理器则直接与每个核心会话通信，以提交客户端请求和接收更新。</p>
+<p class="source" lang="en">The App Server is both the JSON-RPC protocol between the client and the server and a long-lived process that hosts the Codex core threads. As we can see from the diagram above, an App Server process has four main components: the stdio reader, the Codex message processor, the thread manager, and core threads. The thread manager spins up one core session for each thread, and the Codex message processor then communicates with each core session directly to submit client requests and receive updates.</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">一个客户端请求可能会引发许多事件更新，这些详细的事件使得我们能够基于应用服务器构建功能丰富的用户界面。此外，stdio读取器和Codex消息处理器充当了客户端与Codex核心线程之间的翻译层，它们将客户端JSON-RPC请求转换为Codex核心操作，监听Codex核心的内部事件流，然后将这些低级别事件转换为一组稳定、适合用户界面的JSON-RPC通知。</p>
+<p class="source" lang="en">One client request can result in many event updates, and these detailed events are what allow us to build a rich UI on top of the App Server. Furthermore, the stdio reader and the Codex message processor serve as the translation layer between the client and Codex core threads. They translate client JSON-RPC requests into Codex core operations, listen to Codex core’s internal event stream, and then transform those low-level events into a small set of stable, UI-ready JSON-RPC notifications.</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">客户端与应用服务器之间的 JSON-RPC 协议是双向的。一个典型的线程包含客户端请求和多个服务器通知。此外，当代理需要输入信息时，例如审批请求，服务器可以主动发起请求，然后暂停轮转，直到客户端做出响应。</p>
+<p class="source" lang="en">The JSON-RPC protocol between the client and the App Server is fully bidirectional. A typical thread has a client request and many server notifications. In addition, the server can initiate requests when the agent needs input, like an approval, and then pause the turn until the client responds.</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">对话基本元素</p>
+<p class="source" lang="en">The conversation primitives</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">接下来，我们将解析对话基本元素，即 App Server 协议的构建块。为代理循环设计 API 相当复杂，因为用户与代理之间的交互并非简单的请求与响应。一个用户请求可能会转化为一系列需要客户端准确表示的动作：用户的输入、代理的逐步进展以及过程中产生的成果（如差异文件）。为了使这种交互流易于集成并在不同用户界面之间保持弹性，我们选择了三种具有明确边界和生命周期的核心基本元素：</p>
+<p class="source" lang="en">Next, we’ll break down the conversation primitives, the building blocks of the App Server protocol. Designing an API for an agent loop is tricky because the user/agent interaction is not a simple request/response. One user request can unfold into a structured sequence of actions that the client needs to represent faithfully: the user’s input, the agent’s incremental progress, artifacts produced along the way (e.g., diffs). To make that interaction stream easy to integrate and resilient across UIs, we landed on three core primitives with clear boundaries and lifecycles:</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">1. 项目：项目是 Codex 中输入/输出的基本单位。项目有不同类型（例如，用户消息、代理消息、工具执行、审批请求、差异对比），并且每个项目都有明确的生命周期。</p>
+<p class="source" lang="en">1. Item: An item is the atomic unit of input/output in Codex. Items are typed (e.g., user message, agent message, tool execution, approval request, diff) and each has an explicit lifecycle:</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">项目/项目开始时的状态</p>
+<p class="source" lang="en">item/started when the item begins</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">项目/项目开始时启动</p>
+<p class="source" lang="en">item/started when the item begins</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">可选的项目/*/delta 事件作为内容流在（针对流式项目类型）中</p>
+<p class="source" lang="en">optional item/*/delta events as content streams in (for streaming item types)</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">可选的项目/*/delta 事件作为内容流在（针对流媒体项目类型）中。</p>
+<p class="source" lang="en">optional item/*/delta events as content streams in (for streaming item types)</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">项目在最终加载终端数据后完成/结束</p>
+<p class="source" lang="en">item/completed when the item finalizes with its terminal payload</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">项目在最终加载终端数据后完成/结束</p>
+<p class="source" lang="en">item/completed when the item finalizes with its terminal payload</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">这种生命周期允许客户端在启动后立即开始渲染，通过增量更新进行流式传输，并在完成时完成最终处理。</p>
+<p class="source" lang="en">This lifecycle lets clients start rendering immediately on started, stream incremental updates on delta, and finalize on completed.</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">2. 回合：回合是用户输入引发的代理工作单位。当客户端提交输入（例如，“运行测试并总结失败情况”）时，回合开始；当代理完成该输入的输出时，回合结束。一个回合包含一系列项目，代表过程中的中间步骤和产生的输出。</p>
+<p class="source" lang="en">2. Turn: A turn is one unit of agent work initiated by user input. It begins when the client submits an input (for example, “run tests and summarize failures”) and ends when the agent finishes producing outputs for that input. A turn contains a sequence of items that represent the intermediate steps and outputs produced along the way.</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">3. 线程：线程是用户与智能体之间持续进行代码库会话的持久容器，包含多个回合。可以创建、恢复、分割和存档线程。线程历史记录会被保存，以便客户端能够重新连接并呈现一致的时间线。</p>
+<p class="source" lang="en">3. Thread: A thread is the durable container for an ongoing Codex session between a user and an agent. It contains multiple turns. Threads can be created, resumed, forked, and archived. Thread history is persisted so clients can reconnect and render a consistent timeline.</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">现在，我们将看看客户与智能体之间的简化对话，该对话由基本元素表示：</p>
+<p class="source" lang="en">Now, we’ll look at a simplified conversation between a client and an agent, where the conversation is represented by primitives:</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/5vD305LbxZ3G1OHSoWOMYB/3610785989bdbafeb5398f001549d0d5/OAI_Unlocking_the_Codex_harness_1_Initialization_handshake_desktop-light.svg?w=3840&amp;q=90" alt="Diagram labeled “Client-server protocol message flow: Initialization handshake.” A client sends an initialize request with clientInfo to the server. The server replies with a result event containing the userAgent string “my_client/1.0.”" loading="lazy">
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">在对话开始时，客户端和服务器需要建立初始化握手。客户端必须在其他任何操作之前发送一个初始化请求，然后服务器通过响应进行确认。这样，服务器就有机会展示自身功能，双方可以在实际工作开始之前就就协议版本、功能标志和默认设置达成一致。以下是 OpenAI 的 VS Code 扩展中的示例数据内容：</p>
+<p class="source" lang="en">At the beginning of the conversation, the client and the server need to establish the initialize handshake. The client must send a single initialize request before any other method, and the server acknowledges with a response. This gives the server a chance to advertise capabilities and lets both sides agree on protocol versioning, feature flags, and defaults before the real work begins. Here’s an example payload from OpenAI’s VS Code extension:</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">1{2 &quot;method&quot;: &quot;初始化&quot;,3 &quot;id&quot;: 0,4 &quot;params&quot;: {5 &quot;clientInfo&quot;: {6 &quot;name&quot;: &quot;codex_vscode&quot;,7 &quot;title&quot;: &quot;Codex VS Code 扩展&quot;,8 &quot;version&quot;: &quot;0.1.0&quot;9 }10 }11}</p>
+<p class="source" lang="en">1{2 &quot;method&quot;: &quot;initialize&quot;,3 &quot;id&quot;: 0,4 &quot;params&quot;: {5 &quot;clientInfo&quot;: {6 &quot;name&quot;: &quot;codex_vscode&quot;,7 &quot;title&quot;: &quot;Codex VS Code Extension&quot;,8 &quot;version&quot;: &quot;0.1.0&quot;9 }10 }11}</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">这是服务器返回的内容：</p>
+<p class="source" lang="en">This is what the server returns:</p>
+</div>
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">1{2 &quot;id&quot;: 0,3 &quot;result&quot;: {4 &quot;userAgent&quot;: &quot;codex_vscode/0.94.0-alpha.7 (Mac OS 26.2.0; arm64) vscode/2.4.22 (codex_vscode; 0.1.0)&quot;5 }6}</p>
+<p class="source" lang="en">1{2 &quot;id&quot;: 0,3 &quot;result&quot;: {4 &quot;userAgent&quot;: &quot;codex_vscode/0.94.0-alpha.7 (Mac OS 26.2.0; arm64) vscode/2.4.22 (codex_vscode; 0.1.0)&quot;5 }6}</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6GFxYOY7QzdeoFtAV45izd/e821e0f39c72c78312f1a5dca030d983/OAI_Unlocking_the_Codex_harness_2_Thread_and_turn_lifecycle_desktop-light.svg?w=3840&amp;q=90" alt="Diagram titled “Client-server protocol message flow: Thread &amp; turn lifecycle.” The client sends thread/start and turn/start requests to the server. The server emits events—thread/started, turn/started, item/started, and item/completed—showing a turn where the user message is “run tests and summarize failures.”" loading="lazy">
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">当客户端提出新请求时，它首先会创建一个线程，然后创建一个轮次。服务器会发送进度通知（线程/开始和轮次/开始）。它还会返回其作为项目注册的输入，比如这里的用户消息。</p>
+<p class="source" lang="en">When a client makes a new request, it will first create a thread and then a turn. The server will send back notifications for progress (thread/started and turn/started). It will also send back inputs it registers as items, like the user message here.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/7CGQX4E1muzjm8rJFn37Fv/2878164be54ef6f58bb3306e44ab5d4e/OAI_Unlocking_the_Codex_harness_3_Tool_execution_with_optional_approval_desktop-light.svg?w=3840&amp;q=90" alt="Diagram titled “Client-server protocol message flow: Tool execution with optional approval.” During a tool call, the server emits item/started, then item/commandExecution/requestApproval with a reason (“run tests”). The client returns an approval event (allow/deny). The server then emits item/completed showing the command execution (&quot;pnpm test&quot;)." loading="lazy">
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">工具调用也会作为项目返回给客户端。此外，在服务器执行操作之前，它可能会通过发送服务器请求来请求客户端的批准。批准会暂停当前轮次，直到客户端回复“允许”或“拒绝”。这就是 VS Code 扩展中的批准流程的样子：</p>
+<p class="source" lang="en">Tool calls are also sent back to the client as items. Additionally, the server may ask for client approval before it can run an action by sending a server request. The approval will pause the turn until the client replies with either “allow” or “deny.” This is what the approval flow looks like in the VS Code extension:</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/YqPGKm3681x85dFetMXNs/68e7f2ac231f1f899b738512a3af6234/OAI_Unlocking_the_Codex_harness_Codex_integration_VS_Code_permission.png?w=3840&amp;q=90&amp;fm=webp" alt="Permission prompt in a dark-themed interface asking, “Do you want to allow me to run pnpm test for this workspace?” It lists options: 1) Yes, 2) Yes and don’t ask again for commands starting with pnpm test, and 3) No, with a Submit button at the bottom." loading="lazy">
+<img src="https://images.ctfassets.net/kftzwdyauwt9/5qq1HiRxrRNuKYLIjge0kd/aa81e1da0725ac138a04156a46ae34ca/OAI_Unlocking_the_Codex_harness_4_Streaming_agent_message_flow_desktop-light.svg?w=3840&amp;q=90" alt="Diagram titled “Client-server protocol message flow: Streaming agent message flow.” The server streams an assistant message in parts: item/started, two agentMessage/delta events (“ran 3 tests.”, “all passed”), then item/completed. The turn ends with turn/completed." loading="lazy">
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">最终，服务器会发送一个代理消息，然后以“turn/completed”结束该轮次。代理消息的delta事件会持续传递消息的片段，直到消息以“item/completed”状态完成。</p>
+<p class="source" lang="en">In the end, the server sends an agent message and then ends the turn with turn/completed. The agent message delta events stream pieces of the message back until the message is finalized with item/completed.</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">图表中的信息为了便于阅读而进行了简化。如果您想查看完整的转换结果对应的 JSON 数据，可以从 Codex CLI 仓库中运行测试客户端：</p>
+<p class="source" lang="en">The messages in the diagram are simplified for readability. If you want to see the JSON for a full turn, you can run the test client from the Codex CLI repo:</p>
+</div>
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">1代码本 调试 应用服务器 发送消息V2 “运行测试并总结失败情况”</p>
+<p class="source" lang="en">1codex debug app-server send-message-v2 &quot;run tests and summarize failures&quot;</p>
+</div>
+<div class="pair" id="p-64">
+<p class="target" lang="zh-CN">与客户合作</p>
+<p class="source" lang="en">Integrating with clients</p>
+</div>
+<div class="pair" id="p-65">
+<p class="target" lang="zh-CN">现在，让我们看看不同的客户端界面如何通过应用服务器嵌入 Codex。我们将介绍三种模式：本地应用和 IDE、Codex 网络运行时以及文本界面。</p>
+<p class="source" lang="en">Now, let’s look at how different client surfaces embed Codex via the App Server. We’ll cover three patterns: local apps and IDEs, Codex web runtime, and the TUI.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/5O2eFULLX4nHN5I5YavV6z/da150bc8c6b5ce1e4d76ffea6a0a2fd2/OAI_Unlocking_the_Codex_harness_Integrated_Codex_clients_desktop-light.svg?w=3840&amp;q=90" alt="Diagram titled “Codex clients integrated with Codex harness via app server.” First-party clients (Codex Desktop App, TUI/CLI, Web Runtime) and third-party integrations (JetBrains IDEs, VS Code, Xcode) communicate with the Codex harness through JSON-RPC calls." loading="lazy">
+<div class="pair" id="p-66">
+<p class="target" lang="zh-CN">三种方式均通过 stdio 使用 JSON-RPC（JSONL 格式）。JSON-RPC 使得根据所选语言构建客户端绑定变得简单。Codex 界面和合作伙伴集成已使用 Go、Python、TypeScript、Swift 和 Kotlin 等语言实现了 App Server 客户端。对于 TypeScript，可以通过运行以下命令直接从 Rust 协议生成定义：</p>
+<p class="source" lang="en">Across all three, the transport is JSON-RPC over stdio (JSONL). JSON-RPC makes it straightforward to build client bindings in the language of your choice. Codex surfaces and partner integrations have implemented App Server clients in languages including Go, Python, TypeScript, Swift, and Kotlin. For TypeScript, you can generate definitions directly from the Rust protocol by running:</p>
+</div>
+<div class="pair" id="p-67">
+<p class="target" lang="zh-CN">1codex 应用服务器生成-ts</p>
+<p class="source" lang="en">1codex app-server generate-ts</p>
+</div>
+<div class="pair" id="p-68">
+<p class="target" lang="zh-CN">对于其他语言，您可以生成一个 JSON Schema 包，并通过运行以下命令将其输入到您喜欢的代码生成器中：</p>
+<p class="source" lang="en">For other languages, you can generate a JSON Schema bundle and feed it into your preferred code generator by running:</p>
+</div>
+<div class="pair" id="p-69">
+<p class="target" lang="zh-CN">1代码库 应用服务器 生成JSON模式</p>
+<p class="source" lang="en">1codex app-server generate-json-schema</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/46bjlIFmumPZzRomG8CXUd/214fc14abb82d59a11a29926524a585f/OAI_Unlocking_the_Codex_harness_Codex_integration_in_VS_Code.png?w=3840&amp;q=90&amp;fm=webp" alt="Screenshot of VS Code with the Codex extension running. A Rust test file is open, and below it the Codex panel describes running just fmt and cargo test -p codex-app-server, reporting that formatting and tests are in progress while awaiting a final pass/fail result." loading="lazy">
+<div class="pair" id="p-70">
+<p class="target" lang="zh-CN">本地客户端通常会打包或获取特定平台的 App Server 二进制文件，将其作为长期运行的子进程启动，并保持一个用于 JSON-RPC 的双向 stdio 通道打开。例如，在我们的 VS Code 扩展和桌面应用中，所提供的文件包含特定平台的 Codex 二进制文件，并且被固定为经过测试的版本，这样客户端始终运行我们验证过的确切代码。</p>
+<p class="source" lang="en">Local clients typically bundle or fetch a platform-specific App Server binary, launch it as a long-running child process, and keep a bidirectional stdio channel open for JSON-RPC. In our VS Code extension and Desktop App, for example, the shipped artifact includes the platform-specific Codex binary and is pinned to a tested version so the client always runs the exact bits we validated.</p>
+</div>
+<div class="pair" id="p-71">
+<p class="target" lang="zh-CN">并非所有集成都能频繁推送客户端更新。一些合作伙伴如 Xcode 通过保持客户端稳定，并在需要时指向更新后的 App Server 二进制文件，来分离发布周期。这样，他们就可以采用服务器端的改进（例如 Codex 核心的自动压缩功能或新支持的配置键），并在不等待客户端发布的情况下推出错误修复。App Server 的 JSON-RPC 接口设计为向后兼容，因此旧客户端可以安全地与新服务器通信。</p>
+<p class="source" lang="en">Not every integration can ship client updates frequently. Some partners like Xcode decouple release cycles by keeping the client stable and allowing it to point to a newer App Server binary when needed. That way they can adopt server-side improvements (for example, better auto-compaction in Codex core or newly supported config keys) and roll out bug fixes without waiting for a client release. The App Server’s JSON-RPC surface is designed to be backward compatible, so older clients can talk to newer servers safely.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/2DuXipFbMbPQy01hANRb72/28c8330864f1111b3561339d59221ed9/OAI_Unlocking_the_Codex_harness_Codex_web.png?w=3840&amp;q=90&amp;fm=webp" alt="Screenshot of a Codex web interface showing an update titled “Update login success message.” The left panel summarizes changes, tests, and modified files, while the right panel displays a code diff for login.rs with updated login success message phrasing." loading="lazy">
+<div class="pair" id="p-72">
+<p class="target" lang="zh-CN">Codex Web使用Codex harness，但在容器环境中运行。工作线程负责为容器提供已下载的工作空间，在容器内启动App Server二进制文件，并通过stdio2通道维持一个长期存在的JSON-RPC连接。Web应用（在用户浏览器标签页中运行）通过HTTP和SSE与Codex后端通信，后者会传输由工作线程产生的任务事件。这样既能让浏览器端的界面保持轻量，又能确保在桌面和网页端具有一致的运行环境。</p>
+<p class="source" lang="en">Codex Web uses the Codex harness, but runs it in a container environment. A worker provisions a container with the checked-out workspace, launches the App Server binary inside it, and maintains a long-lived JSON-RPC over stdio2 channel. The web app (running in the user’s browser tab) talks to the Codex backend over HTTP and SSE, which streams task events produced by the worker. This keeps the browser-side UI lightweight while still giving us a consistent runtime across desktop and web.</p>
+</div>
+<div class="pair" id="p-73">
+<p class="target" lang="zh-CN">由于网络会话是短暂的（标签页关闭、网络断开），Web应用无法作为长期任务的真实来源。在服务器上保留状态和进度意味着即使标签页消失，工作也能继续。流协议和保存的线程会话使得新会话能够重新连接，从之前的位置继续工作，并在不重建客户端状态的情况下赶上进度。</p>
+<p class="source" lang="en">Because web sessions are ephemeral (tabs close, networks drop), the web app cannot be the source of truth for long-running tasks. Keeping state and progress on the server means work continues even if the tab disappears. The streaming protocol and saved thread sessions make it easy for a new session to reconnect, pick up where it left off, and catch up without rebuilding state in the client.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3jOA1oFRDJ8qbotZnCvlV6/c899a5997d295f2b820bde4f003afdbd/OAI_Unlocking_the_Codex_harness_Codex_CLI.png?w=3840&amp;q=90&amp;fm=webp" alt="Screenshot of a terminal running the Codex CLI. It shows the OpenAI Codex banner with model gpt-5.2-codex medium, a user command “explain app server to me,” and a “Working” status. Below, a suggestion appears: “write tests for @filename,” with options for shortcuts." loading="lazy">
+<div class="pair" id="p-74">
+<p class="target" lang="zh-CN">历史上，TUI是一个“原生”客户端，它与代理循环在同一进程中运行，并直接与 Rust 核心类型交互，而非通过应用-服务器协议。这使得早期迭代过程快速，但也使得 TUI成为一个特殊的情况。</p>
+<p class="source" lang="en">Historically, the TUI was a “native” client that ran in the same process as the agent loop and talked directly to Rust core types rather than the app-server protocol. That made early iteration fast, but it also made the TUI a special-case surface.</p>
+</div>
+<div class="pair" id="p-75">
+<p class="target" lang="zh-CN">现在 App Server 已经存在了，我们计划对 TUI 进行重构（在新窗口中打开），使其像其他客户端一样工作：启动 App Server 子进程，通过 stdio 传输 JSON-RPC 数据，并呈现相同的流事件和审批信息。这样就能实现工作流，其中 TUI 可以连接到在远程机器上运行的 Codex 服务器，使代理能够靠近计算设备，即使笔记本电脑休眠或断开连接也能继续工作，同时还能在本地提供实时更新和控制功能。</p>
+<p class="source" lang="en">Now that the App Server exists, we plan to refactor the TUI⁠(opens in a new window) to use it so it behaves like any other client: launch an App Server child process, speak JSON-RPC over stdio, and render the same streaming events and approvals. This unlocks workflows where the TUI can connect to a Codex server running on a remote machine, keeping the agent close to compute and continuing work even if the laptop sleeps or disconnects, while still delivering live updates and controls locally.</p>
+</div>
+<div class="pair" id="p-76">
+<p class="target" lang="zh-CN">选择正确的协议</p>
+<p class="source" lang="en">Choosing the right protocol</p>
+</div>
+<div class="pair" id="p-77">
+<p class="target" lang="zh-CN">Codex App Server将是我们未来维护的一级集成方式，但也有功能较为有限的其他集成方式。默认情况下，我们建议客户端使用 Codex App Server 来与 Codex 集成，但值得研究不同的集成方式并了解其优缺点。下面列出了最常见的驱动 Codex 的方式以及每种方式适用的场景。</p>
+<p class="source" lang="en">Codex App Server will be the first-class integration method we maintain moving forward, but there are also other methods with more limited functionality. By default, we’d recommend that clients use Codex App Server to integrate with Codex, but it’s worth taking a look at different integration methods and understanding their pros and cons. Below are the most common ways to drive Codex and when each might be a good fit.</p>
+</div>
+<div class="pair" id="p-78">
+<p class="target" lang="zh-CN">JSON-RPC 协议</p>
+<p class="source" lang="en">JSON-RPC protocols</p>
+</div>
+<div class="pair" id="p-79">
+<p class="target" lang="zh-CN">运行 Codex MCP 服务器（在新窗口中打开）并从任何支持 stdio 服务器的 MCP 客户端（例如 OpenAI Agents SDK）连接。如果你已经有一个基于 MCP 的工作流程，并希望将 Codex 作为可调用工具使用，那么这是一个很好的选择。缺点是只能使用 MCP 暴露的功能，因此那些依赖更丰富的会话语义的 Codex 特定交互（例如差异更新）可能无法通过 MCP 端点清晰地实现。</p>
+<p class="source" lang="en">Run codex mcp-server⁠(opens in a new window) and connect from any MCP client that supports stdio servers (e.g., OpenAI Agents SDK⁠(opens in a new window)). This is a good fit if you already have an MCP-based workflow and want to invoke Codex as a callable tool. The downside is that you only get what MCP exposes, so Codex-specific interactions that rely on richer session semantics (e.g., diff updates) may not map cleanly through MCP endpoints.</p>
+</div>
+<div class="pair" id="p-80">
+<p class="target" lang="zh-CN">一些生态系统提供了可移植的接口，能够支持多个模型提供者和运行时。如果你希望使用一个抽象层来协调多个代理，那么这种方式非常合适。不过，这种协议往往会收敛于共同的能力子集，这使得更丰富的交互关系难以表示，尤其是在涉及提供者特定的工具和会话语义时。这个领域正在快速发展，我们预计随着我们找到最佳原语来表示现实世界的代理工作流，更多通用标准将会出现（技能是一个很好的例子）。</p>
+<p class="source" lang="en">Some ecosystems offer a portable interface that can target multiple model providers and runtimes. This can be a good fit if you want one abstraction that coordinates multiple agents. The tradeoff is that these protocols often converge on the common subset of capabilities, which can make richer interactions harder to represent, especially when provider-specific tool and session semantics matter. This space is evolving quickly, and we expect that more common standards will emerge as we figure out the best primitives to represent real-world agent workflows (skills⁠(opens in a new window) is a good example of this).</p>
+</div>
+<div class="pair" id="p-81">
+<p class="target" lang="zh-CN">当您希望完整版 Codex 框架以稳定的、易于使用的界面事件流形式呈现时，请选择 App Server。您将获得完整的代理循环功能以及其他辅助功能，如 ChatGPT 登录、模型发现和配置管理。主要成本在于集成工作，因为您需要用自己的语言编写客户端端的 JSON-RPC 绑定。不过实际上，如果您提供 JSON 模式和文档，Codex 可以承担很多工作。我们合作过的许多团队能够很快使用 Codex 完成集成工作。</p>
+<p class="source" lang="en">Choose the App Server when you want the full Codex harness exposed as a stable, UI-friendly event stream. You get both the full functionality of the agent loop and other supporting features like Sign in with ChatGPT, model discovery, and configuration management. The main cost is integration work, since you need to build the client-side JSON-RPC binding in your language. In practice, however, Codex is able to do a lot of the heavy lifting if you feed it the JSON schema and documentation. Many teams we worked with were able to make to a working integration quickly using Codex.</p>
+</div>
+<div class="pair" id="p-82">
+<p class="target" lang="zh-CN">其他嵌入法典的方法</p>
+<p class="source" lang="en">Other ways to Embed Codex</p>
+</div>
+<div class="pair" id="p-83">
+<p class="target" lang="zh-CN">一种轻量、可脚本化的 CLI 模式，适用于一次性任务和持续集成运行。它非常适合自动化和管道流程，允许通过单一命令非交互式地完成操作，输出结构化日志，并给出明确的成功或失败信号。</p>
+<p class="source" lang="en">A lightweight, scriptable CLI mode for one-off tasks and CI runs. It’s a good fit for automation and pipelines where you want a single command to run to completion non-interactively, stream structured output for logs, and exit with a clear success or failure signal.</p>
+</div>
+<div class="pair" id="p-84">
+<p class="target" lang="zh-CN">一个 TypeScript 库，可用于从您的应用程序内部程序化地控制本地 Codex 代理。当您希望为服务器端工具和工作流程提供原生库接口，而无需构建单独的 JSON-RPC 客户端时，此库非常适用。由于它比 App Server 更早发布，目前支持的语言较少，功能也较有限。如果开发者有兴趣，我们可能会添加额外的 SDK 来封装 App Server 协议，这样团队可以在不编写 JSON-RPC 绑定代码的情况下覆盖更多功能面。</p>
+<p class="source" lang="en">A TypeScript library for programmatically controlling local Codex agents from within your own application. It’s best when you want a native library interface for server-side tools and workflows without building a separate JSON-RPC client. Since it shipped earlier than the App Server, it currently supports fewer languages and a smaller surface area. If there is developer interest, we may add additional SDKs that wrap the App Server protocol so teams can cover more of the harness surface without writing JSON-RPC bindings.</p>
+</div>
+<div class="pair" id="p-85">
+<p class="target" lang="zh-CN">推进这一进程</p>
+<p class="source" lang="en">Taking this forward</p>
+</div>
+<div class="pair" id="p-86">
+<p class="target" lang="zh-CN">在本文中，我们介绍了我们设计新代理交互标准的方法，以及如何将 Codex harness 转化为一个稳定且易于使用的协议。我们还说明了 App Server 如何暴露 Codex 核心功能，让客户端能够控制整个代理流程，并支持多种界面，包括 TUI、本地 IDE 集成和 Web 运行时。</p>
+<p class="source" lang="en">In this post, we shared how we approach designing a new standard for interacting with agents and how to turn the Codex harness into a stable, client-friendly protocol. We covered how the App Server exposes Codex core, lets clients drive the full agent loop, and powers a wide range of surfaces including the TUI, local IDE integrations, and the web runtime.</p>
+</div>
+<div class="pair" id="p-87">
+<p class="target" lang="zh-CN">如果这激发了将 Codex 融入您工作流程的想法，那么尝试使用 App Server 会非常值得。所有源代码都保存在 Codex CLI 开源仓库中（在新窗口中打开）。请随时分享您的反馈和功能请求。我们期待您的反馈，并努力让代理更加易于使用。</p>
+<p class="source" lang="en">If this sparked ideas for integrating Codex into your own workflows, it’s worth giving App Server a try. All the source code lives in the Codex CLI open-source repo⁠(opens in a new window). Feel free to share your feedback and feature requests. We’re excited to hear from you and to keep making agents more accessible to everyone.</p>
+</div>
+<div class="pair" id="p-88">
+<p class="target" lang="zh-CN">法典</p>
+<p class="source" lang="en">Codex</p>
+</div>
+<div class="pair" id="p-89">
+<p class="target" lang="zh-CN">2026</p>
+<p class="source" lang="en">2026</p>
+</div>
+<div class="pair" id="p-90">
+<p class="target" lang="zh-CN">作者</p>
+<p class="source" lang="en">Author</p>
+</div>
+<div class="pair" id="p-91">
+<p class="target" lang="zh-CN">致谢</p>
+<p class="source" lang="en">Acknowledgements</p>
+</div>
+<div class="pair" id="p-92">
+<p class="target" lang="zh-CN">特别感谢 Michael Bolin、Owen Lin、Eric Traut 和 Rasmus Rygaard 对本文的贡献，也感谢所有参与 App Server项目工作的 Codex 团队。</p>
+<p class="source" lang="en">Special thanks to Michael Bolin, Owen Lin, Eric Traut, and Rasmus Rygaard, who contributed to this post, and to the entire Codex team that worked on the App Server.</p>
+</div>
+<div class="pair" id="p-93">
+<p class="target" lang="zh-CN">脚注</p>
+<p class="source" lang="en">Footnotes</p>
+</div>
+<div class="pair" id="p-94">
+<p class="target" lang="zh-CN">1我们使用“JSON‑RPC lite”变体：它保留请求/响应/通知的结构，但省略“jsonrpc”: “2.0”头部，并以 JSONL 格式通过 stdio 传输，而非严格的 JSON‑RPC 2.0 格式。</p>
+<p class="source" lang="en">1We use a “JSON‑RPC lite” variant: it keeps the request/response/notification shape, but omits the &quot;jsonrpc&quot;: &quot;2.0&quot; header and is framed as JSONL over stdio rather than strict JSON‑RPC 2.0.</p>
+</div>
+<div class="pair" id="p-95">
+<p class="target" lang="zh-CN">我们使用“JSON‑RPC lite”变体：它保留请求/响应/通知的结构，但省略了“jsonrpc”: “2.0”头部，并以 JSONL 格式通过标准输入传输，而非严格的 JSON‑RPC 2.0 格式。</p>
+<p class="source" lang="en">We use a “JSON‑RPC lite” variant: it keeps the request/response/notification shape, but omits the &quot;jsonrpc&quot;: &quot;2.0&quot; header and is framed as JSONL over stdio rather than strict JSON‑RPC 2.0.</p>
+</div>
+<div class="pair" id="p-96">
+<p class="target" lang="zh-CN">2 “stdio”指的是容器内的应用服务器 stdin/stdout。在托管环境中，这些流通常通过持久网络连接（如类似 WebSocket 的方式）传输到容器运行时——因此即使不是真正的本地管道，它也能像 stdio 一样工作。</p>
+<p class="source" lang="en">2 “stdio” refers to the app-server’s stdin/stdout inside the container. In hosted setups, those streams are often tunneled over a persistent network connection (e.g., WebSocket-like) to the container runtime—so it behaves like stdio even if it isn’t a literal local pipe.</p>
+</div>
+<div class="pair" id="p-97">
+<p class="target" lang="zh-CN">“stdio”指的是容器内的应用服务器 stdin/stdout。在托管环境中，这些流通常通过持久性网络连接（如 WebSocket 类似机制）连接到容器运行时——因此即使不是真正的本地管道，它也表现得像 stdio 一样。</p>
+<p class="source" lang="en">“stdio” refers to the app-server’s stdin/stdout inside the container. In hosted setups, those streams are often tunneled over a persistent network connection (e.g., WebSocket-like) to the container runtime—so it behaves like stdio even if it isn’t a literal local pipe.</p>
+</div>
+<div class="pair" id="p-98">
+<p class="target" lang="zh-CN">继续阅读</p>
+<p class="source" lang="en">Keep reading</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6G64B5haCxDuphl2iqwZ1N/4f8d319293f5e5e98b319e01b4fbdf59/scaling-git-at-openai-art-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Scaling Git at OpenAI — art card" loading="lazy">
+<div class="pair" id="p-99">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年11月2日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringNov 2, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3a839ECHaGsidJPLJqqm5s/55968ec17735b96514d1bb4851f43bf8/scaling-storage-one-billion-users-part-two-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II) — card" loading="lazy">
+<div class="pair" id="p-100">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年10月23日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 23, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3aewhPPb5NQ5IqOKEkrtzA/7209065f6e6ccf3a0476b43feb8336e1/rethinking-ads-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rethinking the ad stack around a new user journey — Art card" loading="lazy">
+<div class="pair" id="p-101">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年10月21日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 21, 2026</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://openai.com/index/unlocking-the-codex-harness" target="_blank" rel="noopener noreferrer">https://openai.com/index/unlocking-the-codex-harness</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html">← Quantifying infrastructure noise in agentic coding evals</a><a href="../viewers/inside-openai-s-in-house-data-agent.html">Inside OpenAI’s in-house data agent →</a></nav>
+  <footer class="footer">文章版权归原作者所有，译文请以英文原文为准。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

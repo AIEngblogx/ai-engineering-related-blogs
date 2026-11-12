@@ -1,0 +1,893 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Speeding up agentic workflows with WebSockets in the Responses API · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Speeding up agentic workflows with WebSockets in the Responses API</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item current" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html" aria-current="page"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item current" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html" aria-current="page"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Speeding up agentic workflows with WebSockets in the Responses API</h1>
+  <p class="subline">原文：<a href="https://openai.com/index/speeding-up-agentic-workflows-with-websockets" target="_blank" rel="noopener noreferrer">https://openai.com/index/speeding-up-agentic-workflows-with-websockets</a> · 2026-04-22 · OpenAI Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">当您请求 Codex 修复错误时，它会扫描您的代码库中的相关文件，读取这些文件以构建上下文，进行编辑，并运行测试以验证修复是否有效。实际上，这意味着数十次 API 请求：确定模型的下一步操作，在您的计算机上运行工具，将工具输出发送回 API，然后重复这一过程。</p>
+<p class="source" lang="en">When you ask Codex to fix a bug, it scans through your codebase for relevant files, reads them to build context, makes edits, and runs tests to verify the fix worked. Under the hood, that means dozens of back-and-forth Responses API requests: determine the model’s next action, run a tool on your computer, send the tool output back to the API, and repeat.</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">所有这些请求加起来会导致用户花费大量时间等待 Codex 完成复杂任务。从延迟角度来看，Codex 智能体循环大部分时间都集中在三个主要阶段：在 API 服务中工作（以验证和处理请求）、模型推理，以及客户端操作（运行工具和构建模型上下文）。推理阶段是指模型在 GPU 上运行以生成新令牌的过程。过去，在 GPU 上运行 LLM 推理是智能体循环中最慢的部分，因此 API 服务的开销很容易被忽视。随着推理速度加快，智能体部署带来的累积 API 开销就更加明显了。</p>
+<p class="source" lang="en">All of these requests can add up to minutes that users spend waiting for Codex to complete complex tasks. From a latency perspective, the Codex agent loop spends most of its time in three main stages: working in the API services (to validate and process requests), model inference, and client-side time (running tools and building model context). Inference is the stage where the model runs on GPUs to generate new tokens. In the past, running LLM inference on GPUs was the slowest part of the agentic loop, so API service overhead was easy to hide. As inference gets faster, the cumulative API overhead from an agentic rollout is much more notable.</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">在本文中，我们将说明我们如何使用 API 使代理循环在端到端上快 40%，让用户能够感受到推理速度从每秒 65 个令牌提升到接近 1,000 个令牌的提升。我们通过缓存、减少不必要的网络传输、改进安全机制以快速识别问题，以及最重要的是建立一种与 Responses API 建立持久连接的方法，从而避免了需要多次同步 API 调用。</p>
+<p class="source" lang="en">In this post, we&#39;ll explain how we made agent loops using the API 40% faster end-to-end, letting users experience the jump in inference speed from 65 to nearly 1,000 tokens per second. We approached this through caching, eliminating unnecessary network hops, improving our safety stack to quickly flag issues, and—most importantly—building a way to create a persistent connection to the Responses API, instead of having to make a series of synchronous API calls.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/1God5X2eGKbrt1ZVXQD2GU/1644148d29b0154161d49dd4bedcba42/A_Codex_Agent_Loop_In_Practice.png?w=3840&amp;q=90&amp;fm=webp" alt="Diagram titled “A Codex agent loop in practice” showing an iterative flow between Codex and the Responses API, with tool calls (rg, sed, apply_patch, pytest) and results exchanged until the final message: “The bug has been fixed.”" loading="lazy">
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">当 API 成为瓶颈时</p>
+<p class="source" lang="en">When the API became the bottleneck</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">在 Responses API 中，之前的旗舰模型如 GPT‑5 和 GPT‑5.2 的运行速度约为每秒 65 个标记（TPS）。对于推出的 GPT‑5.3‑Codex‑Spark 这种快速编码模型，我们的目标则是快上一个数量级：超过 1,000 TPS，这得益于专为 LLM 推理优化的 Cerebras 硬件。为了确保用户能够体验到这个新模型的真正速度，我们必须降低 API 开销。</p>
+<p class="source" lang="en">In the Responses API, previous flagship models like GPT‑5 and GPT‑5.2 ran at roughly 65 tokens per second (TPS). For the launch of GPT‑5.3‑Codex‑Spark, a fast coding model, our goal was an order of magnitude faster: over 1,000 TPS, enabled by specialized Cerebras hardware optimized for LLM inference. To make sure users could experience the true speed of this new model, we had to reduce API overhead.</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">2025年11月左右，我们在 Responses API上进行了性能优化，成功降低了单个请求的关键路径延迟。</p>
+<p class="source" lang="en">Around November of 2025, we launched a performance sprint on the Responses API, landing many optimizations to the critical-path latency for a single request:</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">将渲染后的令牌和模型配置缓存到内存中，从而避免多轮响应时的昂贵令牌处理和网络调用</p>
+<p class="source" lang="en">Caching rendered tokens and model configuration in memory to skip expensive tokenization and network calls for multi-turn responses</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">将渲染后的令牌和模型配置缓存到内存中，从而避免多轮响应时的昂贵令牌处理和网络调用</p>
+<p class="source" lang="en">Caching rendered tokens and model configuration in memory to skip expensive tokenization and network calls for multi-turn responses</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">通过消除对中间服务的调用（例如图像处理分辨率）并直接调用推理服务本身，降低网络跳延迟</p>
+<p class="source" lang="en">Reducing network hop latency by eliminating calls to intermediate services (for example, image processing resolution) and directly calling the inference service itself</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">通过消除对中间服务的调用（例如图像处理分辨率处理）并直接调用推理服务本身，来降低网络跳延迟。</p>
+<p class="source" lang="en">Reducing network hop latency by eliminating calls to intermediate services (for example, image processing resolution) and directly calling the inference service itself</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">改进我们的安全机制，以便能够运行某些分类器，更快地标记对话</p>
+<p class="source" lang="en">Improving our safety stack so we could run certain classifiers to flag conversations faster</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">改进我们的安全机制，以便能够运行某些分类器来更快地标记对话</p>
+<p class="source" lang="en">Improving our safety stack so we could run certain classifiers to flag conversations faster</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">通过这些改进，我们观察到首次令牌时间（TTFT）提升了近45%，这反映了API的响应速度；但即便如此，这些改进仍不足以满足GPT‑5.3‑Codex‑Spark的需求。即使有这些改进，Responses API的开销相对于模型速度来说仍然太大——也就是说，用户必须在CPU运行API之前等待，才能使用提供模型的GPU。</p>
+<p class="source" lang="en">With these improvements, we saw close to a 45% improvement in time to first token (TTFT)—which reflects how responsive the API feels—but these improvements were still not fast enough for GPT‑5.3‑Codex‑Spark. Even with these improvements, Responses API overhead was too large relative to the speed of the model—that is, users had to wait for the CPUs running our API before they could use the GPUs serving the model.</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">更深层次的问题在于结构上的问题：我们将每个 Codex 请求视为独立项，在每次后续请求中处理对话状态和其他可复用上下文。即使大部分对话没有变化，我们仍然为与完整历史记录相关的工作支付费用。随着对话的延长，这种重复处理变得更加昂贵。</p>
+<p class="source" lang="en">The deeper issue was structural: we treated each Codex request as independent, processing conversation state and other reusable context in every follow-up request. Even when most of the conversation hadn&#39;t changed, we still paid for work tied to the full history. As conversations got longer, that repeated processing became more expensive.</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">建立持久连接</p>
+<p class="source" lang="en">Building a persistent connection</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">为了优化设计，我们重新考虑了传输协议：是否可以保持持久连接和缓存状态，而不是通过 HTTP 建立新连接，并在每次后续请求中发送完整的对话历史？这个想法是只发送需要验证和处理的新的信息，并将可复用状态缓存在内存中，以节省连接生命周期内的额外开销。这样就能减少重复工作的开销。</p>
+<p class="source" lang="en">To tighten up the design, we rethought the transport protocol: could we keep a persistent connection and cache state, rather than establishing a new connection over HTTP and sending the full conversation history for each follow-up request? The idea was to only send any new information requiring validation and processing and cache reusable state in memory for the lifetime of the connection. This would reduce overhead from redundant work.</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">我们考虑了几种不同的方法，包括 WebSockets 和 gRPC 双向流技术。我们选择了 WebSockets，因为作为一种简单的消息传输协议，用户无需改变 Responses API 的输入和输出格式。它适合开发者使用，并且与我们的现有架构兼容，对系统影响很小。</p>
+<p class="source" lang="en">We considered a few different approaches, including WebSockets and gRPC bidirectional streaming. We landed on WebSockets because as a simple message transport protocol, users wouldn&#39;t have to change their Responses API input and output shapes. It was developer-friendly and fit our existing architecture with little disruption.</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">第一个 WebSocket 原型改变了我们认为在 Responses API 延迟方面可能实现的情况。Codex 团队中一位在 API 堆栈方面具有丰富经验的工程师在一夜之间通过运行 Codex 代理完成了原型开发。</p>
+<p class="source" lang="en">The first WebSocket prototype changed what we thought was possible for Responses API latency. An engineer on the Codex team with deep expertise across the API stack pulled together a prototype by running a Codex agent overnight.</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">在该原型中，代理式部署被建模为单个长期运行的响应。利用 asyncio 功能，在工具调用被采样后，Responses API 会在采样循环中以异步方式阻塞，并发送 response.done 事件给客户端。执行完工具调用后，客户端会发送 response.append 事件来传递工具结果，从而解除采样循环的阻塞，让模型继续运行。</p>
+<p class="source" lang="en">In that prototype, agentic rollouts were modeled as a single long-running Response. Using asyncio features, the Responses API would asynchronously block in the sampling loop after a tool call was sampled, and the Responses API would send a response.done event back to the client. After executing the tool call, clients would send back a response.append event with the tool result, which unblocked the sampling loop and let the model continue.</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">这里的类比就是将本地工具调用视为托管工具调用。当模型进行网页搜索时，推理循环会暂停，调用网页搜索服务，并将服务响应放入模型上下文中。在我们的设计中，我们也做了同样的事情；但 instead of调用远程服务，我们通过 WebSocket 将模型的工具调用发送回客户端。当客户端响应后，我们将客户端的工具调用响应放入上下文中，然后继续采样。</p>
+<p class="source" lang="en">An analogy here is treating the local tool call as a hosted tool call. When the model calls web search, the inference loop blocks, calls a web search service, and puts the service response in the model context. In our design, we did the same thing; but instead of calling a remote service, we sent the model&#39;s tool call to the client back over the WebSocket. When the client responded, we put the client&#39;s tool call response into the context and continued to sample.</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">这种设计非常有效，因为它避免了在代理部署过程中重复进行 API 工作。我们可以一次性完成预推理工作，暂停以执行工具，最后再一次性完成后推理工作。</p>
+<p class="source" lang="en">This design was extremely effective because it eliminated repeated API work across an agent rollout. We could do preinference work once, pause for tool execution, and do postinference work once at the end.</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">很遗憾，这导致了一个不太熟悉且更复杂的 API 结构。我们希望开发者能够直接添加 WebSocket 支持，而无需重新编写他们的 API 集成代码以适应新的交互模式。</p>
+<p class="source" lang="en">Unfortunately, this came at the cost of a less familiar and more complicated API shape. We wanted developers to be able to drop in WebSocket support without having to rewrite their API integration around a new interaction mode.</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">在保持 API 熟悉性的同时，使堆栈具有可扩展性</p>
+<p class="source" lang="en">Keeping the API familiar while making the stack incremental</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">对于我们推出的版本，我们又回到了熟悉的模式：继续使用 response.create 并保留相同的主体，同时使用 previous_response_id 来延续之前回复的对话上下文。</p>
+<p class="source" lang="en">For the version we launched, we switched back to a familiar shape: keep using response.create with the same body, and use previous_response_id to continue the conversation context from the previous response’s state.</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">在 WebSocket 连接中，服务器会维护一个连接范围内的内存缓存，用于存储之前的响应状态。当后续响应.create包含 previous_response_id时，我们会从缓存中获取该状态，而不是从头开始重建整个对话。</p>
+<p class="source" lang="en">On a WebSocket connection, the server keeps a connection-scoped, in-memory cache of previous response state. When a follow-up response.create includes previous_response_id, we fetch that state from the cache instead of rebuilding the full conversation from scratch.</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">那个缓存状态包括：</p>
+<p class="source" lang="en">That cached state includes:</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">之前的响应对象</p>
+<p class="source" lang="en">The previous response object</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">之前的响应对象</p>
+<p class="source" lang="en">The previous response object</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">之前的输入和输出项</p>
+<p class="source" lang="en">Prior input and output items</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">先前的输入和输出项</p>
+<p class="source" lang="en">Prior input and output items</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">工具定义和命名空间</p>
+<p class="source" lang="en">Tool definitions and namespaces</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">工具定义和命名空间</p>
+<p class="source" lang="en">Tool definitions and namespaces</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">可重复使用的采样结果，如之前渲染过的标记</p>
+<p class="source" lang="en">Reusable sampling artifacts, like previously rendered tokens</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">可重复使用的采样痕迹，如之前渲染过的标记</p>
+<p class="source" lang="en">Reusable sampling artifacts, like previously rendered tokens</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/40pQw5qbW192gP19oIiA7k/49cd3ecd9e200f8ba00eb00ab4f633a8/From_sequential_requests_to_overlapped_execution__2_.png?w=3840&amp;q=90&amp;fm=webp" alt="Diagram titled “From sequential requests to overlapped execution” comparing a sequential request pipeline with a WebSocket-based approach where multiple requests overlap across validation, preinference, sampling, and postinference stages." loading="lazy">
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">通过重新使用内存中的之前响应状态，我们实现了几项重要的优化。</p>
+<p class="source" lang="en">By reusing the in-memory previous response state, we were able to land several major optimizations:</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">每次只让我们的安全分类器和请求验证器处理新输入，而不处理全部历史记录</p>
+<p class="source" lang="en">Making some of our safety classifiers and request validators process only new input, not the full history every time</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">每次只让我们的安全分类器和请求验证器处理新输入，而不处理全部历史记录</p>
+<p class="source" lang="en">Making some of our safety classifiers and request validators process only new input, not the full history every time</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">保留一个内存中的缓存，存储我们添加的渲染令牌，以便可以跳过不必要的分词操作</p>
+<p class="source" lang="en">Keeping an in-memory cache of rendered tokens that we append to so we can skip unnecessary tokenization</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">保留一个内存中的缓存，存储我们添加的渲染令牌，以便可以跳过不必要的令牌处理</p>
+<p class="source" lang="en">Keeping an in-memory cache of rendered tokens that we append to so we can skip unnecessary tokenization</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">在多个请求中重复使用我们成功的模型解析/路由逻辑</p>
+<p class="source" lang="en">Reusing our successful model resolution/routing logic across requests</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">在多个请求中复用我们成功的模型解析/路由逻辑</p>
+<p class="source" lang="en">Reusing our successful model resolution/routing logic across requests</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">像账单处理这样的重叠非阻塞后推理工作，以及后续请求</p>
+<p class="source" lang="en">Overlapping non-blocking postinference work like billing with subsequent requests</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">像账单处理这样的重叠非阻塞后推理工作，以及后续请求</p>
+<p class="source" lang="en">Overlapping non-blocking postinference work like billing with subsequent requests</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">目标是在尽可能接近最小开销原型的基础上，保持开发者已经熟悉和构建的 API 结构。</p>
+<p class="source" lang="en">The goal was to get as close as possible to the minimal-overhead prototype but with an API shape developers already understood and built around.</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">为速度设定新的标准</p>
+<p class="source" lang="en">Setting a new bar for speed</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">在经过两个月的 WebSocket 模式开发后，我们推出了 alpha版本，并让主要的编程代理公司开始使用，以便他们能够将其集成到自己的基础设施中，并逐步增加流量。alpha用户非常喜欢这个版本，他们报告说代理工作流得到了高达 40% 的改进。鉴于积极的 alpha反馈，我们准备正式发布。</p>
+<p class="source" lang="en">After a two-month sprint building WebSocket mode, we launched an alpha with key coding agent startups so they could integrate it into their infrastructure and safely ramp up traffic. Alpha users loved it, reporting up to 40% improvements⁠(opens in a new window) in their agentic workflows. Given the positive alpha feedback, we were ready to launch.</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">发布结果非常迅速。Codex迅速将大部分 Responses API 流量切换到 WebSocket 模式，从而显著降低了延迟。对于 GPT‑5.3‑Codex‑Spark，我们达到了 1,000 TPS 的目标，并出现了高达 4,000 TPS 的峰值，这表明 Responses API 能够在实际生产环境中跟上更快速的推理速度。这一效果也在开发者社区中迅速显现出来：</p>
+<p class="source" lang="en">The launch results were immediate. Codex quickly ramped up the majority of their Responses API traffic onto WebSocket mode, seeing significant latency improvements. For GPT‑5.3‑Codex‑Spark, we hit our 1,000 TPS target and saw bursts up to 4,000 TPS, showing that the Responses API could keep up with much faster inference in real production traffic. The impact showed up quickly in the developer community too:</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">Codex迅速将大部分流量转移到 WebSockets 上。使用最新模型如 GPT‑5.3‑Codex⁠（在新窗口中打开）、GPT‑5.4⁠（在新窗口中打开）及更高版本的用户，都能从 WebSocket 模式的速度优势中受益。</p>
+<p class="source" lang="en">Codex quickly ramped the majority of their traffic onto WebSockets. Codex users running the latest models such as GPT‑5.3‑Codex⁠(opens in a new window), GPT‑5.4⁠(opens in a new window), and beyond all benefit from WebSocket mode’s speed up.</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">Codex迅速将大部分流量转移到 WebSockets 上。使用最新模型如 GPT‑5.3‑Codex⁠（在新窗口中打开）、GPT‑5.4⁠（在新窗口中打开）等模型的 Codex 用户，都能从 WebSocket 模式的速度优势中受益。</p>
+<p class="source" lang="en">Codex quickly ramped the majority of their traffic onto WebSockets. Codex users running the latest models such as GPT‑5.3‑Codex⁠(opens in a new window), GPT‑5.4⁠(opens in a new window), and beyond all benefit from WebSocket mode’s speed up.</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">Vercel将WebSocket模式集成到了AI SDK中，延迟降低了高达40%⁠（在新窗口中打开）。</p>
+<p class="source" lang="en">Vercel integrated WebSocket mode into the AI SDK and saw latency decrease by up to 40%⁠(opens in a new window).</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">Vercel将WebSocket模式集成到了AI SDK中，延迟降低了高达40%⁠（在新窗口中打开）。</p>
+<p class="source" lang="en">Vercel integrated WebSocket mode into the AI SDK and saw latency decrease by up to 40%⁠(opens in a new window).</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">Cline的多文件工作流速度快了39%（在新窗口中打开）。</p>
+<p class="source" lang="en">Cline’s multi-file workflows are 39% faster⁠(opens in a new window).</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">Cline的多文件工作流速度快了39%（在新窗口中打开）。</p>
+<p class="source" lang="en">Cline’s multi-file workflows are 39% faster⁠(opens in a new window).</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">Cursor 上的 OpenAI 模型速度提高了 30%⁠（在新窗口中打开）。</p>
+<p class="source" lang="en">OpenAI models in Cursor became up to 30% faster⁠(opens in a new window).</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">Cursor 中的 OpenAI 模型速度提高了 30%⁠（在新窗口中打开）。</p>
+<p class="source" lang="en">OpenAI models in Cursor became up to 30% faster⁠(opens in a new window).</p>
+</div>
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">WebSocket模式是自2025年3月推出以来，Responses API中最重要的新功能之一。通过OpenAI API和Codex团队之间的紧密合作，我们在短短几周内就从概念阶段实现了实际运行。这不仅大幅降低了智能体部署的延迟，还满足了构建者的需求：随着模型推理速度加快，围绕推理的服务和系统也需要加快速度，以便将这些优势传递给用户。</p>
+<p class="source" lang="en">WebSocket mode is the one of the most significant new capabilities in the Responses API since its launch in March 2025. We went from idea to running in production in just a few weeks through close collaboration between OpenAI&#39;s API and Codex teams. It not only dramatically improves agent rollout latency but also supports a growing need for builders: as model inference gets faster, the services and systems that surround inference also need to speed up to transfer these gains to users.</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">2026</p>
+<p class="source" lang="en">2026</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">API平台</p>
+<p class="source" lang="en">API Platform</p>
+</div>
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">法典</p>
+<p class="source" lang="en">Codex</p>
+</div>
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">&lt;text&gt;
+作者
+&lt;/text&gt;</p>
+<p class="source" lang="en">Authors</p>
+</div>
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">&lt;text&gt;
+布莱恩·尤，阿什温·内森
+&lt;/text&gt;</p>
+<p class="source" lang="en">Brian Yu, Ashwin Nathan</p>
+</div>
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">致谢</p>
+<p class="source" lang="en">Acknowledgements</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">特别感谢 Responses API 和 Codex 团队，他们参与了 WebSocket 模式的开发工作。</p>
+<p class="source" lang="en">Special thanks to the Responses API and Codex teams, who worked on creating WebSocket mode.</p>
+</div>
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">继续阅读</p>
+<p class="source" lang="en">Keep reading</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6G64B5haCxDuphl2iqwZ1N/4f8d319293f5e5e98b319e01b4fbdf59/scaling-git-at-openai-art-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Scaling Git at OpenAI — art card" loading="lazy">
+<div class="pair" id="p-64">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年11月2日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringNov 2, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3a839ECHaGsidJPLJqqm5s/55968ec17735b96514d1bb4851f43bf8/scaling-storage-one-billion-users-part-two-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II) — card" loading="lazy">
+<div class="pair" id="p-65">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年10月23日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 23, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3aewhPPb5NQ5IqOKEkrtzA/7209065f6e6ccf3a0476b43feb8336e1/rethinking-ads-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rethinking the ad stack around a new user journey — Art card" loading="lazy">
+<div class="pair" id="p-66">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年10月21日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 21, 2026</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://openai.com/index/speeding-up-agentic-workflows-with-websockets" target="_blank" rel="noopener noreferrer">https://openai.com/index/speeding-up-agentic-workflows-with-websockets</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/an-update-on-recent-claude-code-quality-reports.html">← An update on recent Claude Code quality reports</a><a href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html">Scaling Managed Agents: Decoupling the brain from the hands →</a></nav>
+  <footer class="footer">文章版权归原作者所有，译文请以英文原文为准。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

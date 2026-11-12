@@ -1,0 +1,868 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item current" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html" aria-current="page"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item current" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html" aria-current="page"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</h1>
+  <p class="subline">原文：<a href="https://deepmind.google/blog/gemini-omni-12-flash-fast-and-cost-effective-with-longer-clips" target="_blank" rel="noopener noreferrer">https://deepmind.google/blog/gemini-omni-12-flash-fast-and-cost-effective-with-longer-clips</a> · 2026-11-05 · Google DeepMind · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">x.com</p>
+<p class="source" lang="en">x.com</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">Facebook</p>
+<p class="source" lang="en">Facebook</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">LinkedIn</p>
+<p class="source" lang="en">LinkedIn</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">邮件</p>
+<p class="source" lang="en">Mail</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">复制链接</p>
+<p class="source" lang="en">Copy link</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">Gemini Omni 1.2 Flash 带来了15秒的视频片段、更强的稳定性，以及更快、更经济高效的生成效果。</p>
+<p class="source" lang="en">Gemini Omni 1.2 Flash brings 15-second clips, stronger consistency, and faster, more cost-effective generation.</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">&lt;text&gt;
+阿尼什·南吉亚
+&lt;/text&gt;</p>
+<p class="source" lang="en">Anish Nangia</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">Google DeepMind产品经理</p>
+<p class="source" lang="en">Product Manager, Google DeepMind</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">x.com</p>
+<p class="source" lang="en">x.com</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">Facebook</p>
+<p class="source" lang="en">Facebook</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">LinkedIn</p>
+<p class="source" lang="en">LinkedIn</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">邮件</p>
+<p class="source" lang="en">Mail</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">复制链接</p>
+<p class="source" lang="en">Copy link</p>
+</div>
+<img src="https://storage.googleapis.com/gweb-uniblog-publish-prod/images/gemini-omni-1.2_FZLql41.width-200.format-webp.webp" alt="Text &quot;Gemini Introducing Gemini Omni 1.2 Flash&quot; surroudned by images of a beehive, animals in conversation, a squid, and a woman walking down a street" loading="lazy">
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">您的浏览器不支持音频元素。</p>
+<p class="source" lang="en">Your browser does not support the audio element.</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">我们正在推出 Gemini Omni 1.2 Flash 版本，该版本具备原生 15 秒视频创作功能、更优化的参考遵循能力以及多轮对话式编辑功能。此次更新使成本降低 30%，并能为您的专业项目提供更好的稳定性。您现在就可以在 Gemini API、Google Vids 和 Gemini for business 中开始使用这些功能，从而大规模生成高质量视频内容。</p>
+<p class="source" lang="en">We’re rolling out Gemini Omni 1.2 Flash, which offers native 15-second video creation, improved reference adherence, and multi-turn conversational editing. This update lowers costs by 30% and provides better consistency for your professional projects. You can start using these capabilities today across the Gemini API, Google Vids, and Gemini for business to produce high-quality video content at scale.</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">我们正在推出 Gemini Omni 1.2 Flash 版本，该版本支持十五秒长的视频，并且参考一致性得到了提升。</p>
+<p class="source" lang="en">We are launching Gemini Omni 1.2 Flash with support for fifteen-second videos and improved reference adherence.</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">现在可以通过多轮对话来编辑片段，这样就能更快地进行调整，而不需要从头开始。</p>
+<p class="source" lang="en">You can now edit clips through multi-turn conversations, which allows for faster adjustments without starting over.</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">我们将价格降低了30%，以便您以更低的成本制作高质量的视频内容。</p>
+<p class="source" lang="en">We reduced the price by 30% to help you produce high-quality video content at a lower cost.</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">该模型通常可用于 Gemini API 和 Google Cloud，满足您的生产需求。</p>
+<p class="source" lang="en">This model is generally available on the Gemini API and Google Cloud for your production needs.</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">一般概述</p>
+<p class="source" lang="en">General summary</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">要点列表</p>
+<p class="source" lang="en">Bullet points</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">&lt;text&gt;
+今天，我们正在推出 Gemini Omni 1.2 Flash 版本，并在 Gemini API 和 Gemini for business 平台上全面开放使用。Gemini Omni 1.2 Flash 提供了原生 15 秒视频创作功能、多轮对话编辑能力以及更强大的参考跟随功能。价格降低了 30%，从 Gemini Omni 1.1 版本降至每秒 0.07 美元，适用于 720p 视频。
+&lt;/text&gt;</p>
+<p class="source" lang="en">Today, we’re rolling out Gemini Omni 1.2 Flash, and making it generally available across the Gemini API and Gemini for business. Gemini Omni 1.2 Flash introduces native 15-second video creation, multi-turn conversational editing capabilities, and enhanced reference following. We have dropped the price 30% from Gemini Omni 1.1 making it available at $0.07 per second for 720p video.</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">以下是新内容的概述：</p>
+<p class="source" lang="en">Here’s an overview of what’s new:</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">快速且大规模应用时成本效益高</p>
+<p class="source" lang="en">Fast and cost-effective at scale</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">除了价格更低之外，工作流程还能降低成本：你可以以 360p 或 720p 的分辨率快速制作初稿，通过后续编辑来修正细节，而不是重新生成整个片段，然后将最好的作品放大到 1080p 或 4K 分辨率。</p>
+<p class="source" lang="en">Beyond the lower price, the workflow keeps costs down: you can draft fast at 360p or 720p, fix a detail with a follow-up edit instead of re-generating the entire clip, and then upscale your best creations to 1080p or 4K.</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">更长的片段，最长可达15秒</p>
+<p class="source" lang="en">Longer clips up to 15 seconds</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">现在您可以在 Omni 1.1 中直接生成和编辑时长最长为15秒的视频，而之前只能达到10秒。您还可以以1秒为间隔指定时长，范围从3秒到15秒，这样就能在一次生成中完成完整的故事讲述、制作产品说明或完整的社交媒体广告内容。</p>
+<p class="source" lang="en">You can now generate and edit videos natively up to 15 seconds long, up from 10 seconds with Omni 1.1. You can also specify duration in one-second increments from 3 to 15 seconds, giving you room to tell complete stories, create product explainers, or produce full social ad spots in a single generation.</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">更好的引用遵循性</p>
+<p class="source" lang="en">Better reference adherence</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">您可以通过结合角色、产品或风格图片、短动画片段（最长三秒）和音频提示来引导生成过程——Omni 1.2 Flash会全程保留这些细节。面部表情、服装、包装字体和品牌颜色在不同拍摄角度下保持一致，因此可以将现有的产品摄影或角色图转换为虚拟试穿片段、产品目录展示以及品牌视频广告。</p>
+<p class="source" lang="en">You can guide generation combining character, product, or style images, short motion clips (up to three seconds), and audio cues — and Omni 1.2 Flash holds onto those details from start to finish. Faces, garments, packaging typography, and brand colors stay consistent across camera angles, making it easy to turn existing product photography or character sheets into virtual try-on clips, catalog spins, and branded video ads.</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">将一款服装照片与三套服装的正反产品图片结合，Gemini Omni 1.2 Flash能够生成一个15秒的虚拟试穿序列，包含360度旋转和切换效果，同时保持模特的身份以及每件服装的剪裁、垂坠感和背面细节的一致性。</p>
+<p class="source" lang="en">Combining one model photo with front-and-back product shots of three outfits, Gemini Omni 1.2 Flash generates a 15-second virtual try-on sequence across 360-degree turns and match cuts while keeping the model’s identity and each garment’s cut, drape, and back details consistent.</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">更稳定的结果</p>
+<p class="source" lang="en">More consistent results</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">您可以在从第一帧到最后一帧的过程中保持更强烈的角色、物体和场景一致性，减少视觉变化或变形现象，尤其是在运动和镜头转换时。无论是在第一关键帧和最后关键帧之间进行插值，还是延长片段以构建更长的序列，产品、角色、道具和环境在每一镜中都能保持一致。</p>
+<p class="source" lang="en">You can maintain stronger character, object, and scene consistency from the first to the last frame, with less visual drift or morphing across motion and camera transitions. Whether you’re interpolating between a first and last keyframe, or extending a clip to build a longer sequence, products, characters, props, and environments stay consistent from shot to shot.</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">在相同的静态工作室灯光展示海报和五层动画提示下，Gemini Omni 1.1 Flash与参考图像的对齐程度不如1.2版本那么紧密。Gemini Omni 1.2 Flash则通过逐层叠加在粉红色背景布上，并放置在六边形基座上，组合出波纹玻璃、温暖灯丝、多面晶体以及卷轴式字母形状等元素，用于HALO、GLOW和LUMEN效果，同时确保每种材质、阴影和排版细节在最终帧中保持一致。</p>
+<p class="source" lang="en">Given the same static studio lighting exhibition poster and five-layer animation prompt, Gemini Omni 1.1 Flash does not match the reference image as closely as 1.2 does. Gemini Omni 1.2 Flash builds the poster sequentially layer by layer on the dusty-pink cyclorama rising the hexagonal plinth, assembling the ribbed glass, warm filament, faceted crystal, and coiled-cord letterforms for HALO, GLOW, and LUMEN, and locking every material, shadow, and typographic detail consistently through the final frame.</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">对话中的编辑更轻松</p>
+<p class="source" lang="en">Easier editing in conversation</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">你可以逐次优化同一个片段——比如更换产品或背景、调整光线或天气效果，或者改变宽高比——而无需从头开始。多轮对话式编辑适用于完整的15秒片段，使得针对不同受众和投放位置制作广告版本变得轻松，无需重新 briefing或重新生成。</p>
+<p class="source" lang="en">You can refine the same clip turn by turn — such as swapping a product or background, changing the lighting or weather, or switching the aspect ratio — instead of starting over from scratch. Multi-turn conversational editing works across full 15-second clips, making it easy to produce ad variants for different audiences and placements without re-briefing or re-generating.</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">从生成的片段开始，多轮对话提示会依次更换背景——从条纹帐篷到橡树森林，有白马的马厩，集市，还有石城堡——同时保留两个角色的表演、盔甲反射和镜头构图。</p>
+<p class="source" lang="en">Starting from one generated clip, multi-turn conversational prompts swap the background turn by turn — from a striped pavilion tent to an oak forest, a stable with a white horse, a market fair, and a stone castle — while keeping both characters’ performances, armor reflections, and camera framing intact.</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">更自然的语音</p>
+<p class="source" lang="en">More natural speech</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">您可以生成更加流畅、自然对话、更清晰的口型同步以及明显多声部控制的场景。无论您是在 Flow 中指导多角色对话，在 Gemini 中制作商业视频说明，还是在 Google Vids 中通过头像、音乐和旁白制作精致的专业视频，都会呈现这种效果。</p>
+<p class="source" lang="en">You can generate scenes with more fluid, natural-sounding dialogue, clearer lip-sync, and distinct multi-speaker conditioning. This will show up whether you’re directing multi-character dialogue in Flow, creating video explainers in Gemini for business, or creating polished, pro videos with avatars, music and narration in Google Vids.</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">基于一个音乐厅场景图像以及四个角色、嘴巴和一秒声音参考，Gemini Omni 1.2 Flash系统能够在15秒的动画场景中，将每个采样声音与正确的角色匹配，实现富有表现力的嘴唇同步和自然的喜剧节奏。</p>
+<p class="source" lang="en">Conditioned on one conservatory scene image alongside four character, mouth, and one-second voice references, Gemini Omni 1.2 Flash routes each sampled voice to the right character with expressive lip-sync and natural comedic timing across a 15-second animated scene.</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">更可控制，更具电影感的效果</p>
+<p class="source" lang="en">More controllable, cinematic look</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">你可以控制复杂的连续相机运动，比如广阔的 FPV 飞行视角、戏剧性的缩放效果以及旋转动作，从而减少不必要的跳跃剪辑，使画面更加稳定，并呈现出更精致、更具电影感的效果。</p>
+<p class="source" lang="en">You can direct complex, continuous camera movements like sweeping FPV flythroughs to dramatic zoom-outs and orbits with significantly fewer unwanted jump cuts, steadier scale, and a more polished, cinematic look.</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">在两张建筑参考照片的引导下，Gemini Omni 1.2 Flash 引导无人机进行连续的FPV飞行，穿过广场、青铜大门，然后沿着万神殿的穹顶向上飞到天窗处，全程没有快速切换镜头。</p>
+<p class="source" lang="en">Guided by two architectural reference photos, Gemini Omni 1.2 Flash directs one continuous FPV drone flight across the piazza, through the bronze doors, and up through the Pantheon’s coffered dome to the oculus with zero jump cuts.</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">更长的片段具有更平滑的运动和更严格的一致性</p>
+<p class="source" lang="en">Longer clips with smoother motion and tighter consistency</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">Gemini Omni 1.2 Flash可以生成长达15秒的片段，这些片段能够更紧密地连接各个元素。你可以滚动查看，从而确保角色、文字和镜头移动在更长的镜头中保持一致，并且多个转场和过渡效果不会中断。</p>
+<p class="source" lang="en">Gemini Omni 1.2 Flash generates clips up to 15 seconds long that hold references together better than before. You can scroll through to see characters, text, and camera moves stay consistent across longer shots, multiple turns and transitions with no cuts.</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">15秒长的视频片段：将一帧画面转换为4个镜头、15秒长的宏观科学说明视频，并配有准确拼写且带有运动轨迹标注的提示。</p>
+<p class="source" lang="en">15 second long clips: Turns one style frame into a 4-shot, 15-second macro science explainer with accurately spelled, motion-tracked callouts.</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">多轮动作转换：在第一轮中生成波纹状的章鱼形象，然后在第二轮中用一位服装与流畅动作完全一致的舞者来替换它。</p>
+<p class="source" lang="en">Multi-turn motion transfer: Generates a rippling octopus in Turn 1, then replaces it in Turn 2 with a dancer whose gown mirrors the exact fluid motion.</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">从开始到结束的帧一致性（1.1与1.2）：在1.2版本中，通过连续的拍摄动作将外部开始帧和内部结束帧连接在一起。你可以看到一些细微的变化，比如屋顶上的猫、变成筷子的汤勺，以及其他一些小的变化。</p>
+<p class="source" lang="en">First-to-last frame consistency (1.1 vs. 1.2): Connects an exterior start frame and interior end frame in one continuous camera push in 1.2 Flash. You can see subtle differences like the cats on the roof, the soup ladle turning into chopsticks, and some other minor changes.</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">未中断的崩溃缩放效果：在10秒的镜头中，从紧密的海岸特写连续过渡至空中岛屿全景，自然过渡，无剪辑。</p>
+<p class="source" lang="en">Unbroken crash zoom-out: Pulls continuously from a tight shoreline close-up to an aerial island vista in one 10-second shot with natural scale and zero cuts.</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">现实世界中的成果，从创意人士到全球品牌</p>
+<p class="source" lang="en">Real-world results, from creatives to global brands</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">企业、初创公司和创意团队已经在他们的工作流程中使用了 Gemini Omni 1.2 Flash。而 Gemini Omni 现在首次正式向公众提供，由 Google Cloud 的企业级基础设施和安全保障支持。该服务提供预配置吞吐量，输出内容带有难以察觉的 SynthID 水印。</p>
+<p class="source" lang="en">Businesses, startups, and creatives are already using Gemini Omni 1.2 Flash in their workflows. And for the first time, Gemini Omni is now generally available, backed by Google Cloud’s enterprise-grade infrastructure and security. Provisioned Throughput is available, and outputs carry an imperceptible SynthID watermark.</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">开始使用 Gemini Omni 1.2 Flash 吧</p>
+<p class="source" lang="en">Get started with Gemini Omni 1.2 Flash</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">在进一步改进快速运动场景、快速脚本切换和复杂物理效果等方面进行开发的过程中，Gemini Omni 1.2 Flash非常适合企业、开发人员和创作者大规模制作视频。您现在就可以开始使用Gemini Omni 1.2 Flash，因为它将应用于 Google的产品和开发平台中。</p>
+<p class="source" lang="en">While development is ongoing to further improve things like fast sports action, rapid script changes and complex physics, Gemini Omni 1.2 Flash is ideal for businesses, developers, and creators producing videos at scale. You can get started with Gemini Omni 1.2 Flash today as it rolls out across Google’s products and developer platforms:</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">对于使用 Gemini API 的开发者：可以在 Google AI Studio 中进行原型设计，探索互动入门应用，并查阅开发者文档和定价信息。</p>
+<p class="source" lang="en">For developers using the Gemini API: Prototype in Google AI Studio, explore interactive starter apps, and check out the developer documentation and pricing.</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">对于企业而言：可以在 Google Cloud 控制台中试用，并通过 API 构建企业级解决方案。</p>
+<p class="source" lang="en">For businesses: Try it in the Google Cloud console, and build enterprise solutions with the API.</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">对于使用 Google 应用的所有用户：在 Flow 中进行直接场景切换和多次编辑；使用 Google 账户或 Google Workspace 订阅在 Google Vids 中无需额外费用生成 15 秒视频片段；在 Gemini 应用中创建 15 秒视频（即将向 Google AI Ultra 订阅用户推出）；并在 Google Ads 中扩展视频广告活动。</p>
+<p class="source" lang="en">For everyone using Google apps: Direct scenes and multi-turn edits in Flow, generate 15-second clips at no additional cost in Google Vids with a Google account or Google Workspace subscription, create 15-second videos in the Gemini app (rolling out to Google AI Ultra subscribers), and scale video campaigns in Google Ads.</p>
+</div>
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">在您的收件箱中获取来自 Google 的最新新闻</p>
+<p class="source" lang="en">Get the latest news from Google in your inbox</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">注册我们的新闻简报，获取产品更新、活动信息、特别优惠等内容。</p>
+<p class="source" lang="en">Sign up for our newsletters with product updates, event information, special offers, and more.</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">完成啦。只差一步而已。</p>
+<p class="source" lang="en">Done. Just one step more.</p>
+</div>
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">检查你的收件箱以确认你的订阅。</p>
+<p class="source" lang="en">Check your inbox to confirm your subscription.</p>
+</div>
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">您也可以使用不同的电子邮件地址进行订阅。</p>
+<p class="source" lang="en">You can also subscribe with a different email address.</p>
+</div>
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">您的信息将按照谷歌的隐私政策使用。您可以在任何时间选择退出。</p>
+<p class="source" lang="en">Your information will be used in accordance with Google&#39;s privacy policy. You may opt out at any time.</p>
+</div>
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">开发者工具</p>
+<p class="source" lang="en">Developer tools</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">Gemini 模型</p>
+<p class="source" lang="en">Gemini models</p>
+</div>
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">人工智能</p>
+<p class="source" lang="en">AI</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://deepmind.google/blog/gemini-omni-12-flash-fast-and-cost-effective-with-longer-clips" target="_blank" rel="noopener noreferrer">https://deepmind.google/blog/gemini-omni-12-flash-fast-and-cost-effective-with-longer-clips</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/the-components-of-agent-memory.html">← The components of agent memory</a><a href="../viewers/agentic-cheminformatics-with-google-antigravity.html">Agentic cheminformatics with Google Antigravity →</a></nav>
+  <footer class="footer">文章版权归原作者所有，译文请以英文原文为准。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

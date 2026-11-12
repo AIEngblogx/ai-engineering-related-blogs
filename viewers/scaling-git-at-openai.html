@@ -1,0 +1,1404 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Scaling Git at OpenAI · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Scaling Git at OpenAI</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item current" href="../viewers/scaling-git-at-openai.html" aria-current="page"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item current" href="../viewers/scaling-git-at-openai.html" aria-current="page"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Scaling Git at OpenAI</h1>
+  <p class="subline">原文：<a href="https://openai.com/index/scaling-git-at-openai" target="_blank" rel="noopener noreferrer">https://openai.com/index/scaling-git-at-openai</a> · 2026-11-02 · OpenAI Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">2026年11月2日</p>
+<p class="source" lang="en">November 2, 2026</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">在投资 Git 生态系统的同时，构建代理级规模的源代码控制机制。</p>
+<p class="source" lang="en">Building agentic-scale source control while investing in the Git ecosystem.</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">&lt;text&gt;
+由技术人员成员 Aaron Friel、Taylor Blau 和 Ted Nyman 撰写
+&lt;/text&gt;</p>
+<p class="source" lang="en">By Aaron Friel, Taylor Blau, and Ted Nyman, Members of Technical Staff</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">为什么我们需要新的源代码控制系统？大规模 Git 工程技术；Git 对象存储基础指南</p>
+<p class="source" lang="en">Why we needed a new source control systemEngineering for Git at scaleGit object storage primer</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">大规模 Git 工程学</p>
+<p class="source" lang="en">Engineering for Git at scale</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">Git 对象存储基础指南</p>
+<p class="source" lang="en">Git object storage primer</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">现有的分布式 Git 服务模式包括三阶段提交和预写日志。</p>
+<p class="source" lang="en">Existing distributed Git service patternsThree-phase commit (3PC)Write-ahead log (WAL)</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">三相提交（3PC）</p>
+<p class="source" lang="en">Three-phase commit (3PC)</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">预写日志 (WAL)</p>
+<p class="source" lang="en">Write-ahead log (WAL)</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">构建 PandoRethinking 约束条件因果一致性（CC）比较方法扩展策略线速获取和克隆性能压缩及首字节时间</p>
+<p class="source" lang="en">Architecting PandoRethinking constraintsCausal consistency (CC)Comparing ApproachesScaling pushesLine-rate fetch and clone performanceCompaction and time to first byte</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">重新思考限制条件</p>
+<p class="source" lang="en">Rethinking constraints</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">因果一致性（CC）</p>
+<p class="source" lang="en">Causal consistency (CC)</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">比较方法</p>
+<p class="source" lang="en">Comparing Approaches</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">扩展推动</p>
+<p class="source" lang="en">Scaling pushes</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">线速获取和克隆性能</p>
+<p class="source" lang="en">Line-rate fetch and clone performance</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">压缩率和首次字节时间</p>
+<p class="source" lang="en">Compaction and time to first byte</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">建造潘多树</p>
+<p class="source" lang="en">Building Pando</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">部署 Pando</p>
+<p class="source" lang="en">Deploying Pando</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">为 Git 项目做出贡献</p>
+<p class="source" lang="en">Contributing back to the Git project</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">接下来是什么</p>
+<p class="source" lang="en">What’s next</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">为什么我们需要新的源代码控制系统？大规模 Git 工程技术；Git 对象存储基础入门</p>
+<p class="source" lang="en">Why we needed a new source control systemEngineering for Git at scaleGit object storage primer</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">大规模 Git 工程学</p>
+<p class="source" lang="en">Engineering for Git at scale</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">Git 对象存储基础指南</p>
+<p class="source" lang="en">Git object storage primer</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">现有的分布式 Git 服务模式包括三阶段提交（3PC）和预写日志（WAL）。</p>
+<p class="source" lang="en">Existing distributed Git service patternsThree-phase commit (3PC)Write-ahead log (WAL)</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">三相提交（3PC）</p>
+<p class="source" lang="en">Three-phase commit (3PC)</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">预写日志 (WAL)</p>
+<p class="source" lang="en">Write-ahead log (WAL)</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">构建 PandoRethinking 约束条件因果一致性（CC）比较不同方法扩展推送线速获取和克隆性能压缩及首字节到达时间</p>
+<p class="source" lang="en">Architecting PandoRethinking constraintsCausal consistency (CC)Comparing ApproachesScaling pushesLine-rate fetch and clone performanceCompaction and time to first byte</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">重新思考约束条件</p>
+<p class="source" lang="en">Rethinking constraints</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">因果一致性（CC）</p>
+<p class="source" lang="en">Causal consistency (CC)</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">比较方法</p>
+<p class="source" lang="en">Comparing Approaches</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">扩展推动</p>
+<p class="source" lang="en">Scaling pushes</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">线速获取和克隆性能</p>
+<p class="source" lang="en">Line-rate fetch and clone performance</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">压缩率和首次字节所需时间</p>
+<p class="source" lang="en">Compaction and time to first byte</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">建造潘多树</p>
+<p class="source" lang="en">Building Pando</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">部署 Pando</p>
+<p class="source" lang="en">Deploying Pando</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">为 Git 项目做出贡献</p>
+<p class="source" lang="en">Contributing back to the Git project</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">接下来是什么</p>
+<p class="source" lang="en">What’s next</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">过去一年里，我们的单仓库的大小和需求以惊人的速度增长。显然，我们需要改进我们的源代码控制系统，以适应 Codex 能够实现的并发工作水平。</p>
+<p class="source" lang="en">Over the past year, the size and demands on our monorepo have increased at a staggering pace. It was clear that we needed to revamp our source control system to scale to the level of concurrent work that Codex makes possible.</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">我们构建了 Pando，这是一个新的 Git 仓库后端，而没有中断任何工程工作，也没有改变团队使用 Git 的方式。现在，Pando 支持 OpenAI 的 monorepo 中的所有开发工作。Pando 旨在实现两个目标：首先，实现横向可扩展的写入功能，优化对多个分支的并发推送；其次，最大化读取吞吐量，使客户端能够快速下载数据，充分利用可用的网络带宽。</p>
+<p class="source" lang="en">We built Pando, a new backend for Git repositories, without interrupting any engineering work or changing how our team uses Git. Pando now powers all development in OpenAI’s monorepo. Pando is designed to meet two ambitious goals: first, horizontally scalable writes, optimized for concurrent pushes to many branches. And second, maximize read throughput, so clients can download data fast enough to fully saturate their available network bandwidth.</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">我们实现了这些目标，同时保持了与 Git 协议和客户端的一致性，使得我们的工程师和代理能够轻松地将 Pando 融入现有的工作流程中。在生产环境中，Pando 将平均推送延迟降低了近 5 倍，现在每天可以处理近一拍字节的 Git 数据。</p>
+<p class="source" lang="en">We met these goals while retaining compatibility with the Git protocol and client, enabling both our engineers and agents to seamlessly adopt Pando into their existing workflows. In production, Pando cut median push latency by nearly 5x. It now delivers nearly a petabyte of Git data per day.</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">在这里，我们将介绍我们构建新源代码控制系统的动机，以及为什么选择保持与 Git 的兼容性。我们将把我们的系统与常见的 Git 扩展方法进行比较，说明为什么 Pando 能够独特地满足 OpenAI 的扩展需求。我们还将讨论未来的计划，以及我们将如何继续为 Git 做出贡献，以支持大规模代理工作。</p>
+<p class="source" lang="en">Here, we’ll cover our motivations for building a new source-control system, along with why we chose to retain compatibility with Git. We’ll compare our system with common approaches to scaling Git, describing why Pando is uniquely capable of meeting OpenAI’s scalability needs. We also discuss what’s next, and how we’ll continue contributing to Git to support agent-scale work.</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">为什么我们需要一个新的源代码控制系统</p>
+<p class="source" lang="en">Why we needed a new source control system</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">Codex改变了 OpenAI 的开发节奏和规模，使得工程师能够并行完成更多工作。这意味着更多的分支和推送、更多的合并，以及从开发环境、研究项目和持续集成系统中进行的更多获取和克隆操作。</p>
+<p class="source" lang="en">Codex has changed the scale and pace of development at OpenAI, enabling engineers to do far more work in parallel. That means more branches and pushes, more merges, and more fetches and clones from development environments, research jobs, and CI.</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">这些需求越来越复杂了。一位工程师现在同时有多个更改准备在 CI 上处理，每次推送都可能触发多个获取相同提交的工作任务。</p>
+<p class="source" lang="en">These demands compound. One engineer now has several changes ready for CI at once, and each push can set several jobs fetching the same commit.</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">从去年年底开始，支持我们单仓库的系统开始难以维持正常运作。我们遇到加载和推送缓慢的问题，合并操作也经常失败，可靠性有时甚至低于90%。是Git本身的限制，还是我们服务单仓库的方式存在问题？Git起源于一个通过电子邮件交换内核补丁的社区。二十多年来，随着软件构建方式的改变，开发者们不断调整他们的工具以适应Git。当我们自己的单仓库出现问题时，能够继续利用这些成果进行开发对我们来说非常重要。</p>
+<p class="source" lang="en">Starting around the end of last year, the systems supporting our monorepo were struggling to keep up. We suffered slow fetches and pushes along with failed merges, with reliability at times falling below 90%. Had we reached a limit of Git itself, or of the way we served our monorepo? Git grew out of a community that exchanged patches to the kernel via email. For more than two decades, developers have adapted their tools around Git as the way they build software has changed. When we started to feel friction in our own monorepo, it mattered to us that we could keep building on that work.</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">我们找到了一种方法，在重建后端以并行处理不同分支的推送并同时为多个读者提供相同历史记录的同时，保持熟悉的工作流程。以 Git 作为我们的源代码控制工作流程的基础，意味着对客户端的改进可以超越 OpenAI 的范围。我们希望将我们从 Git 副本中得到的改进贡献到上游，与更广泛的社区分享。</p>
+<p class="source" lang="en">We saw a way to keep that familiar workflow while rebuilding the backend to handle pushes to different branches in parallel and serve the same history to many readers concurrently. Building on Git as the foundation of our source-control workflow meant that improvements to the client could be useful beyond OpenAI. We wanted to contribute those improvements from our copy of Git⁠(opens in a new window) to upstream, sharing them with the broader community.</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">大规模 Git 工程学</p>
+<p class="source" lang="en">Engineering for Git at scale</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">扩展源代码控制系统有两个关键方面：许多作者向不同的分支推送代码，而许多读者获取相同的历史记录。Pando 同时优化了这两个方面。</p>
+<p class="source" lang="en">Scaling a source control system has two essential dimensions: many writers pushing to different branches, and many readers fetching the same history. Pando optimizes for both.</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">首先，Pando 独立地更新每个分支。不相关的分支可以并行更新，而读取某个分支的读者将获得该版本所需的历史记录。代价是，查看多个分支的读者会看到这些分支在不同时间点的状态。</p>
+<p class="source" lang="en">First, Pando coordinates updates to each branch independently. Updates to unrelated branches can proceed in parallel, and a reader fetching a branch gets the history needed for that revision. The tradeoff is that a reader looking at several branches can see them at different points of time.</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">其次，Pando在获取过程中复用包文件（Git用于压缩多个对象的形式），而不是为每个客户端生成单独的包文件。客户端可以下载其已经拥有的某些对象，而服务器可以通过少量计算向多个客户端提供相同的数据。</p>
+<p class="source" lang="en">Second, Pando reuses packfiles (Git’s format for compressing multiple objects together) across fetches instead of generating an individual packfile for each client. A client may download some objects it already has, but the server can serve the same bytes to many clients with little computation.</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">这些选择使我们能够跨分支扩展写入操作，并从缓存中提供读取操作。为了了解它们如何协同工作，我们先从 Git 存储和传输历史记录的方式开始。</p>
+<p class="source" lang="en">These choices let us scale writes across branches and serve reads from caches. To see how they fit together, let’s start with how Git stores and transfers history.</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">Git 对象存储基础指南</p>
+<p class="source" lang="en">Git object storage primer</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">Git必须能够保持仓库中的两部分同步：对象和引用。</p>
+<p class="source" lang="en">Git must be able to keep two parts of a repository in sync: objects and references.</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">Git 仓库记录文件的快照以及连接这些快照的历史记录，形成对象图。对象可以是 blob、树、提交或标签。Blob 包含单个文件的内容，树则将 blob 或其他树关联起来，形成目录结构。提交指向一个根树以及零个或多个父提交，从而构成仓库的历史记录。</p>
+<p class="source" lang="en">A Git repository records snapshots of files and the history connecting them as a graph of objects. An object may be either a blob, tree, commit, or tag. Blobs hold the content of an individual file, and trees associate names with blobs or other trees to form a directory structure. Commits point to a root tree and zero or more parent commits, forming the history of your repository.</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">对象是通过其类型和内容哈希值来识别的。对象也是不可变的：记录更改后的文件会生成新的 blob，而未更改的文件和目录则可以使用现有的对象。</p>
+<p class="source" lang="en">Objects are identified by a hash of their type and contents. Objects are also immutable: recording a changed file creates a new blob, while unchanged files and directories can reuse existing objects.</p>
+</div>
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">分支和标签是引用或“refs”，用于指向提交。在分支上提交会生成一个新的提交，并更新该分支的引用以指向该提交。</p>
+<p class="source" lang="en">Branches and tags are references, or “refs”, that point to commits. Committing on a branch creates a new commit and updates the branch’s ref to point to it.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/2HM5lol94vaZXcGl7zXuf1/96c979a79f2b5971397cf3068a4767da/how-git-objects-reference-each-other-diagram-desktop-light.svg?w=3840&amp;q=90" alt="The branch refs/heads/main points to commit C2, whose parent is C1. C1 points to root tree T1, where parser.py refers to blob B1. C2 points to root tree T2, where parser.py refers to blob B2. In both root trees, docs/ refers to the same tree, T3. Its README.md entry points to blob B3, and usage.md points to blob B4." loading="lazy">
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">Git对象通过其ID相互引用，提交与树之间，以及树与树和 blob 之间建立关联。分支 refs/heads/main 指向提交 C2，而 C2 的父提交是 C1。C1 指向根树 T1，其中 parser.py 引用 blob B1。C2 指向根树 T2，其中 parser.py 引用 blob B2。在这两个根树中，docs/ 指向同一个树 T3。其 README.md 条目指向 blob B3，usage.md 则指向 blob B4。</p>
+<p class="source" lang="en">Git objects reference each other by their ID, commits to trees, and trees to trees and blobs. The branch refs/heads/main points to commit C2, whose parent is C1. C1 points to root tree T1, where parser.py refers to blob B1. C2 points to root tree T2, where parser.py refers to blob B2. In both root trees, docs/ refers to the same tree, T3. Its README.md entry points to blob B3, and usage.md points to blob B4.</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">Git 将对象以“松散”或“打包”两种状态存储。松散对象存储在由对象 ID 标识的单独文件中。打包对象则一起存储在 packfile 中，使得类似的对象可以作为差异数据相互存储。</p>
+<p class="source" lang="en">Git stores objects in either a “loose” or “packed” state. Loose objects are stored in individual files identified by their object ID. Packed objects are stored together in a packfile, enabling similar objects to be stored as deltas against one another.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/4xklltw3tJY3qRk8mzW0l3/f7f44a2cb856b00677a31506465e6d1a/storing-git-objects-in-packfiles-diagram-desktop-light.svg?w=3840&amp;q=90" alt="Two versions of parser.py appear under $GIT_DIR/objects . As loose objects, blob A contains parse(), and blob B contains both parse() and parse_file(). The packfile stores A in full and represents B as instructions to copy all of A and append parse_file(). The accompanying *.idx file locates both blobs in the packfile by object ID." loading="lazy">
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">Git 可以将 blob 存储为独立的文件，也可以将它们合并在一起，将其中一个 blob 编码为相对于另一个的 delta 形式。</p>
+<p class="source" lang="en">Git can store blobs as separate files or pack them together, encoding one blob as a delta against another.</p>
+</div>
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">在 Git 中，如果一个对象可以通过从那个提交出发，经过其父提交、树和 blob 的链接被找到，那么该对象就可以从提交中访问到。在获取过程中，客户端会告诉服务器它想要哪些提交以及已经拥有的哪些提交。服务器会找到可以从这些想要的提交中访问到的对象，排除客户端已经拥有的对象，然后将剩余对象以 Git 在磁盘上使用的格式作为包文件发送出去。完整的克隆过程开始时没有任何对象，因此需要克隆历史中所有的可访问对象。</p>
+<p class="source" lang="en">In Git, an object is reachable from a commit if Git can find it by following links from that commit through its parents, trees, and blobs. During a fetch, the client tells the server which commits it wants and which it already has. The server finds the objects reachable from the wanted commits, excludes those it knows the client already has, and sends the remainder as a packfile in the same format Git uses on disk. A full clone starts without any objects, so it needs all the objects reachable from the history being cloned.</p>
+</div>
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">推送通过请求服务器更新一个或多个引用，从而将对象向相反方向传输。客户端使用服务器发布的引用集，以避免发送服务器已经拥有的对象。因此，发送的包可能依赖于现有的对象：仅接收该包不足以重建新的历史记录。</p>
+<p class="source" lang="en">A push transfers objects in the other direction by asking the server to update one or more refs. The client uses the server’s set of advertised refs to avoid sending objects the server already has. The pack being sent can therefore depend on existing objects: receiving the pack alone is not enough to reconstruct the new history.</p>
+</div>
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">复制 Git 仓库意味着需要在多个服务器上保留对象和引用。在副本能够提供引用新值之前，它必须能够提供从该值可访问的对象。该服务还需要协调相互竞争的引用更新，即那些试图将同一分支从旧的终点移动到不同新提交中的推送操作。对仓库中的所有写入操作都采用单一顺序的系统可能会导致对不相关分支的推送等待。</p>
+<p class="source" lang="en">Replicating a Git repository means keeping both objects and references available across multiple servers. Before a replica can serve a reference’s new value, it must be able to supply the objects reachable from that value. The service also needs to coordinate competing reference updates, i.e., pushes that try to move the same branch from the same old tip to different new commits. Systems that impose a single order on all writes to a repository can make pushes to unrelated branches wait on one another.</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">现有的分布式 Git 服务模式</p>
+<p class="source" lang="en">Existing distributed Git service patterns</p>
+</div>
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">在设计 Pando 时，我们评估了使用 Git 进行源代码控制扩展的传统方法：一种通过三阶段提交（3PC，一种在多个节点之间协调提交的协议）来协调仓库副本的引用更新；另一种则通过共享预写日志（WAL，写入变更的记录但在应用之前）以 blob 存储的形式来安排更新。</p>
+<p class="source" lang="en">While designing Pando, we evaluated conventional approaches for scaling source control using Git: one that coordinates ref updates across repository replicas using three-phase commit (3PC, a protocol for coordinating a commit across multiple nodes), and one that orders updates through a shared write-ahead log (WAL, a record of changes written before they’re applied) in blob storage.</p>
+</div>
+<div class="pair" id="p-64">
+<p class="target" lang="zh-CN">三相提交 (3PC)</p>
+<p class="source" lang="en">Three-phase commit (3PC)</p>
+</div>
+<div class="pair" id="p-65">
+<p class="target" lang="zh-CN">在我们构建的三相提交设计中，Git 服务会在多个副本上保存完整的仓库副本。当任何服务器收到推送时，传入的包文件会被复制并并行发送到所有副本。为了发布推送，大多数副本必须接受引用更新。负责管理的服务器是协调器，而协调器与每个副本之间需要多次通信。</p>
+<p class="source" lang="en">In the three-phase commit design we modeled, the Git service keeps a complete copy of the repository on several replicas. When any server receives a push, the incoming packfile is copied and sent to all replicas in parallel. To publish the push, a majority of replicas must accept the ref update. The server managing this is the coordinator, and it requires multiple rounds of communication between the coordinator and each other replica.</p>
+</div>
+<div class="pair" id="p-66">
+<p class="target" lang="zh-CN">为了接受参考更新，每个副本都会锁定其对应的参考版本副本，并确认它仍然指向客户端所期望的提交点。然后，协调器会向接受更新的副本发送预提交消息。一旦多数副本确认了预提交消息，协调器就会指示它们执行更新。任何已更新的副本随后可以从其本地仓库副本中发布新的分支尖端信息。</p>
+<p class="source" lang="en">To accept a reference update, each replica locks its copy of the ref and checks that it still points to the commit the client expects. The coordinator then sends a pre-commit message to the replicas that accept. Once a majority acknowledges the pre-commit message, the coordinator tells them to perform the update. Any up-to-date replica can then advertise the new branch tip from its local copy of the repository.</p>
+</div>
+<div class="pair" id="p-67">
+<p class="target" lang="zh-CN">保留完整的副本使得可以在本地提供读取服务，并且确保客户端无论选择哪个副本都能获得一致的观点。因此，引用内容是逐一更新的，每次推送都需要多次往返操作来协调各副本之间的引用更新。</p>
+<p class="source" lang="en">Keeping complete replicas makes it possible to serve reads locally, and guarantees that clients get a consistent view of all references no matter which replica they pick. As a consequence, references are updated one at a time, and each push requires multiple round trips to coordinate the ref update among replicas.</p>
+</div>
+<div class="pair" id="p-68">
+<p class="target" lang="zh-CN">等待达到法定人数会导致复制磁盘的性能和通信延迟上升。随着写入量增加，复制副本必须跟上传入的数据包以及读取流量的需求。</p>
+<p class="source" lang="en">Waiting for a quorum puts replica disk performance and communication latency on the push path. As write volume grows, the replicas must keep up with incoming packs as well as read traffic.</p>
+</div>
+<div class="pair" id="p-69">
+<p class="target" lang="zh-CN">预写日志 (WAL)</p>
+<p class="source" lang="en">Write-ahead log (WAL)</p>
+</div>
+<div class="pair" id="p-70">
+<p class="target" lang="zh-CN">在基于 WAL 的设计中，Git 服务使用 blob 存储中的共享清单来安排仓库中的更新顺序。当服务器收到推送时，它会将传入的包文件上传到 blob 存储中，并在其本地仓库副本中准备引用更新。为了发布推送，它会在 blob 存储中的共享清单中添加一项记录，该记录包含引用更新并指向包文件。然后，Git 服务器使用比较与交换操作更新清单。这会原子性地替换清单，或者拒绝该更改。如果其他写入者在此期间已经更新了清单，服务器会读取中间的项，确认其引用更新仍然有效，然后使用已上传的包文件重新尝试。</p>
+<p class="source" lang="en">In the WAL-based design we modeled, the Git service uses a shared manifest in blob storage to order updates across the repository. When a server receives a push, it uploads the incoming packfile to a blob store and prepares the ref update in its local copy of the repository. To publish the push, it adds an entry to a shared manifest stored in the blob store that records the ref update and points to the packfile. The Git server then updates the manifest using a compare-and-swap operation. This atomically replaces the manifest, or otherwise rejects the change. If another writer has updated it in the meantime, the server reads the intervening entries, checks that its ref update is still valid, and retries using the packfile it already uploaded.</p>
+</div>
+<div class="pair" id="p-71">
+<p class="target" lang="zh-CN">作者可以并行上传他们的包文件，但即使是对不相关分支的推送也需要更新相同的清单文件。成功的比较和交换过程所需的往返时间限制了仓库能够发布新清单文件的频率。低延迟的 blob 存储使得这一步骤更加快速。批量处理可以让一个清单文件同时更新多个引用，但会带来更新队列和延迟增加的问题。</p>
+<p class="source" lang="en">Writers can upload their packfiles in parallel, but even pushes to unrelated branches require updating the same manifest. The round-trip time for a successful compare-and-swap limits how often the repository can publish a new manifest. A low-latency blob store makes this step fast. Batching lets one manifest update several refs at the same time, at the cost of queueing updates and increasing latency.</p>
+</div>
+<div class="pair" id="p-72">
+<p class="target" lang="zh-CN">Blob存储可以并行接收包文件，但共享清单的更新仍然会相互竞争。仅增加Blob存储的容量并不能解决这一瓶颈问题。每个副本在本地提供服务之前，仍需从Blob存储中读取和索引包文件。如果传入的写入操作速度超过这个处理速度，副本就会落后，客户端等待获取新推送的提交信息的时间也会延长。</p>
+<p class="source" lang="en">The blob store can receive packfiles in parallel, but updates to the shared manifest still compete with one another. Increasing the blob store’s capacity alone doesn’t resolve that bottleneck. Each replica still needs to read and index packs from the blob store before it can serve them locally. If incoming writes outpace that work, replicas fall behind and clients wait longer to fetch newly pushed commits.</p>
+</div>
+<div class="pair" id="p-73">
+<p class="target" lang="zh-CN">构建 Pando 架构</p>
+<p class="source" lang="en">Architecting Pando</p>
+</div>
+<div class="pair" id="p-74">
+<p class="target" lang="zh-CN">这让我们提到了 Pando。Pando是一种用于服务 Git 仓库的新架构，旨在能够同时支持大量客户端的扩展。其运作方式如下：</p>
+<p class="source" lang="en">That brings us to Pando. Pando is a new architecture for serving Git repositories with the goal of scaling to many clients pushing simultaneously. Here’s how it works:</p>
+</div>
+<div class="pair" id="p-75">
+<p class="target" lang="zh-CN">重新思考约束条件</p>
+<p class="source" lang="en">Rethinking constraints</p>
+</div>
+<div class="pair" id="p-76">
+<p class="target" lang="zh-CN">在开发 Pando 之前，我们直觉上认为可以在不损害 Git 功能的情况下满足需求，但确实不得不做出一些妥协，而这些内容是大多数 Git 系统认为理所当然的需求。</p>
+<p class="source" lang="en">Prior to developing Pando, we had a hunch that we could meet our requirements without compromising on Git, but we did need to compromise on some of the things that most Git systems assume to be requirements:</p>
+</div>
+<div class="pair" id="p-77">
+<p class="target" lang="zh-CN">仓库范围内的一致性：要提供所有引用的一致的实时快照，需要整个仓库的协调。在所有引用更新一起进行的系统中，发送到无关分支的推送会在同一个协调点产生冲突。</p>
+<p class="source" lang="en">Repository-wide consistency: Providing a consistent, point-in-time snapshot of all refs requires coordination across the repository. In a system that orders all ref updates together, pushes to unrelated branches contend on a single coordination point.</p>
+</div>
+<div class="pair" id="p-78">
+<p class="target" lang="zh-CN">仓库范围内的一致性：要提供所有引用的一致的实时快照，需要整个仓库之间的协调。在所有引用更新一起进行的系统中，向不相关的分支推送更改会在同一个协调点产生冲突。</p>
+<p class="source" lang="en">Repository-wide consistency: Providing a consistent, point-in-time snapshot of all refs requires coordination across the repository. In a system that orders all ref updates together, pushes to unrelated branches contend on a single coordination point.</p>
+</div>
+<div class="pair" id="p-79">
+<p class="target" lang="zh-CN">每个客户端都有独特的包文件：如果两个具有不同本地历史记录的客户端获取相同的分支，服务器可能需要为每个客户端生成不同的包，以避免发送他们已经拥有的对象。生成这些响应会消耗 CPU 和磁盘 I/O 资源，因此难以应对大量读者的情况。</p>
+<p class="source" lang="en">Unique packfiles for every client: If two clients with different local histories fetch the same branch, the server may need to generate a different pack for each to avoid sending objects they already have. Creating these responses costs CPU and disk I/O, making it difficult to scale to high volumes of readers.</p>
+</div>
+<div class="pair" id="p-80">
+<p class="target" lang="zh-CN">每个客户端都有独特的包文件：如果两个具有不同本地历史记录的客户端获取相同的分支，服务器可能需要为每个客户端生成不同的包，以避免发送他们已经拥有的对象。生成这些响应会消耗 CPU 和磁盘 I/O 资源，使得处理大量读者变得困难。</p>
+<p class="source" lang="en">Unique packfiles for every client: If two clients with different local histories fetch the same branch, the server may need to generate a different pack for each to avoid sending objects they already have. Creating these responses costs CPU and disk I/O, making it difficult to scale to high volumes of readers.</p>
+</div>
+<div class="pair" id="p-81">
+<p class="target" lang="zh-CN">相反，Pando 提供了一种宽松的一致性模型（因果一致性）来扩展写入操作，并重复使用包文件来扩展读取操作。</p>
+<p class="source" lang="en">Instead, Pando provides a relaxed consistency model (causal consistency) to scale writes, and reuses packfiles to scale reads.</p>
+</div>
+<div class="pair" id="p-82">
+<p class="target" lang="zh-CN">因果一致性（CC）</p>
+<p class="source" lang="en">Causal consistency (CC)</p>
+</div>
+<div class="pair" id="p-83">
+<p class="target" lang="zh-CN">当客户端向分支推送内容时，Pando 会将传入的 packfile 作为不可变的 Blob 存储在 Blob 存储中。每次分支移动时，Pando 会在元数据存储中记录一个引用版本，其中包含新的 tip、提供该版本的 pack 以及该 pack 所依赖的所有之前的引用版本。Blob 存储和元数据存储都具有水平扩展能力。</p>
+<p class="source" lang="en">When a client pushes to a branch, Pando stores the incoming packfile as an immutable blob in a blob store. Each time the branch moves, Pando records a ref version containing the new tip, the pack that supplied it, and any earlier ref versions the pack depends on in a metadata store. Both the blob store and metadata store are horizontally scalable.</p>
+</div>
+<div class="pair" id="p-84">
+<p class="target" lang="zh-CN">从 Pando 获取提交或引用需要将一组版本文件（packfiles）重新传输到客户端，从而重建创建该版本文件的客户端状态。这会在整个仓库中提供较弱的一致性，但能为单个引用的更新提供可串行化性。客户端只有在同时推送到同一个引用时才会产生冲突。读取多个分支的客户端不能假设这些读取描述的是仓库中的单一时间点。</p>
+<p class="source" lang="en">Fetching a commit or reference from Pando requires replaying a set of ref versions (packfiles) to the client, reconstructing the state of the client that created the ref version being fetched. This provides a weaker form of consistency across the entire repository, while providing serializability for updates to individual refs. Clients only conflict when pushing to the same ref simultaneously. A client reading several branches cannot assume those reads describe a single point in time across the repository.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/5wDkqDPp9fjzOjtAQRDRzw/117b2f107fd11818f7e9154c958b0878/representing-branches-in-pando-diagram-desktop-light.svg?w=3840&amp;q=90" alt="On the left, three successive trunk packs contain commits A, B and C; D and E; and F. On the right, trunk and topic diverge at C. Trunk advances to G, while topic advances through D, E, and F. The latest topic pack contains D, E, and F. A dashed outline marks D and E as also present in the earlier topic pack. The blue arrow marks the new pack’s dependency on trunk at G. F’s Git parent is E." loading="lazy">
+<div class="pair" id="p-85">
+<p class="target" lang="zh-CN">向主分支推送内容会生成一个增量包，其中包含一个或多个提交。向侧分支推送时，会包含该主题之前的提交，因此拥有所 advertised 的主分支版本的客户端可以通过一个包来获取该主题。</p>
+<p class="source" lang="en">A push to trunk adds an incremental pack, containing one or more commits. Each push to a side branch includes the topic’s earlier commits again, so a client with the advertised trunk version can fetch the topic in one pack.</p>
+</div>
+<div class="pair" id="p-86">
+<p class="target" lang="zh-CN">这是一种因果一致性机制。为了获取引用，读者会观察生成该引用的作者历史。在推送过程中，Pando 控制客户端和服务器共同认可的历史内容，从而确保客户端能够更轻松地生成可共享的包文件。</p>
+<p class="source" lang="en">This is a form of causal consistency. In order to fetch a reference, the reader observes the history of the writer that produced it. During a push, Pando controls what shared history the client and server agree on, ensuring clients produce more easily shared packfiles.</p>
+</div>
+<div class="pair" id="p-87">
+<p class="target" lang="zh-CN">因此，Pando无法提供 Git 操作过程中所有引用在某一时刻的状态，也无法显示克隆或获取过程中引用更新的顺序。具体来说，假设 foo 和 bar 分支在完整克隆的协商过程中都被更新了。在协商过程中，一个客户端可能看到 foo 处于版本 1，bar 处于版本 2，而另一个客户端则看到 foo 处于版本 2，bar 处于版本 1。实际上，用户和代理对引用更新的全局顺序不敏感，而是依赖于单个引用更新的顺序。</p>
+<p class="source" lang="en">As a consequence, Pando doesn’t provide a point-in-time state of all references during Git operations or an ordering of ref updates within a clone or fetch. Concretely, suppose that branches foo and bar are both updated during the negotiation of a full clone. During the negotiation, one client may observe foo at version 1 and bar at version 2, while another client observes foo at version 2 and bar at version 1. In practice, users and agents are agnostic to the global ordering of ref updates, and instead depend on the order of updates to a single reference.</p>
+</div>
+<div class="pair" id="p-88">
+<p class="target" lang="zh-CN">比较方法</p>
+<p class="source" lang="en">Comparing Approaches</p>
+</div>
+<div class="pair" id="p-89">
+<p class="target" lang="zh-CN">在这个三个一致性模型的模拟中，我们配置了 1,000 个客户端各自选择不同的分支，然后反复提交独特的提交记录，同时测量总运行时间以及提交到获取的延迟。后者是工作负载中的一个重要指标，因为它反映了用户和代理进行协作或使用依赖版本控制的其他系统的往返时间。模拟中使用的硬件包括从普通到高级的虚拟机和 Blob 存储系统。在这个模拟中，我们对三阶段提交的仓库级一致性进行了放宽处理。</p>
+<p class="source" lang="en">In this simulation of the three consistency models we configure 1,000 clients to each select a distinct branch and then repeatedly push unique commits, measuring total wall clock duration and push to fetch latency. The latter is an important metric for workloads, as it measures round trip time for users and agents to collaborate or to use other systems which rely on version control. The simulation models hardware ranging from commodity to premium virtual machines and blob storage systems. In this simulation, we’ve relaxed repository-wide consistency for three-phase commit.</p>
+</div>
+<div class="pair" id="p-90">
+<p class="target" lang="zh-CN">模拟 Git 服务器实现</p>
+<p class="source" lang="en">Simulating Git Server Implementations</p>
+</div>
+<div class="pair" id="p-91">
+<p class="target" lang="zh-CN">跟随每个作者进行多次推送，分别测量独立读者能否查看每个提交。</p>
+<p class="source" lang="en">Follow each writer through repeated pushes, and separately measure when an independent reader can check out each commit.</p>
+</div>
+<div class="pair" id="p-92">
+<p class="target" lang="zh-CN">三相提交</p>
+<p class="source" lang="en">Three-phase commit</p>
+</div>
+<div class="pair" id="p-93">
+<p class="target" lang="zh-CN">每个方块代表一位作家。所有选中的架构都承受相同的任务负载。当推送消息被确认时，方块会变淡，当作家完成任务时则变为蓝色。图表显示了在模拟时间内完成的作家数量；独立读者可以在之后继续获取数据。使用箭头键选择作家，Home或End键跳转，Escape键则清除选择。</p>
+<p class="source" lang="en">Each square represents one writer. All selected architectures run the same workload. Squares lighten as pushes are acknowledged and turn blue when a writer finishes. The chart shows writers finished over simulated time; independent readers can continue fetching afterward. Use arrow keys to select a writer, Home or End to jump, and Escape to clear.</p>
+</div>
+<div class="pair" id="p-94">
+<p class="target" lang="zh-CN">0 / 10,000 次推送已被确认 · 0 次获取</p>
+<p class="source" lang="en">0 / 10,000 pushes acknowledged · 0 fetched</p>
+</div>
+<div class="pair" id="p-95">
+<p class="target" lang="zh-CN">选择一个正方形来查看作者。</p>
+<p class="source" lang="en">Select a square to inspect that writer.</p>
+</div>
+<div class="pair" id="p-96">
+<p class="target" lang="zh-CN">对象存储 WAL</p>
+<p class="source" lang="en">Object-store WAL</p>
+</div>
+<div class="pair" id="p-97">
+<p class="target" lang="zh-CN">每个方块代表一位作者。所有选定的架构都承受相同的负载。当推送消息被确认时，方块会变淡，当作者完成时则变为蓝色。图表显示了在模拟时间内作者完成的情况；独立读者可以在之后继续获取数据。使用箭头键选择作者，Home或End键跳转，Escape键清除选择。</p>
+<p class="source" lang="en">Each square represents one writer. All selected architectures run the same workload. Squares lighten as pushes are acknowledged and turn blue when a writer finishes. The chart shows writers finished over simulated time; independent readers can continue fetching afterward. Use arrow keys to select a writer, Home or End to jump, and Escape to clear.</p>
+</div>
+<div class="pair" id="p-98">
+<p class="target" lang="zh-CN">0 / 10,000 次推送已被确认 · 0 次获取</p>
+<p class="source" lang="en">0 / 10,000 pushes acknowledged · 0 fetched</p>
+</div>
+<div class="pair" id="p-99">
+<p class="target" lang="zh-CN">选择一个正方形来查看该作者。</p>
+<p class="source" lang="en">Select a square to inspect that writer.</p>
+</div>
+<div class="pair" id="p-100">
+<p class="target" lang="zh-CN">潘多</p>
+<p class="source" lang="en">Pando</p>
+</div>
+<div class="pair" id="p-101">
+<p class="target" lang="zh-CN">每个方块代表一位作者。所有选定的架构都执行相同的任务。当推送被确认时，方块会变淡，当作者完成任务时则变为蓝色。图表显示了在模拟时间内完成任务的作者；独立读者可以在之后继续获取数据。使用箭头键选择作者，Home或End键跳转，Escape键清除选择。</p>
+<p class="source" lang="en">Each square represents one writer. All selected architectures run the same workload. Squares lighten as pushes are acknowledged and turn blue when a writer finishes. The chart shows writers finished over simulated time; independent readers can continue fetching afterward. Use arrow keys to select a writer, Home or End to jump, and Escape to clear.</p>
+</div>
+<div class="pair" id="p-102">
+<p class="target" lang="zh-CN">0 / 10,000 次推送已被确认 · 0 次获取</p>
+<p class="source" lang="en">0 / 10,000 pushes acknowledged · 0 fetched</p>
+</div>
+<div class="pair" id="p-103">
+<p class="target" lang="zh-CN">选择一个正方形来查看该写入内容。</p>
+<p class="source" lang="en">Select a square to inspect that writer.</p>
+</div>
+<div class="pair" id="p-104">
+<p class="target" lang="zh-CN">作者通过验证获取进行写作进度</p>
+<p class="source" lang="en">Writer progress through verified fetches</p>
+</div>
+<div class="pair" id="p-105">
+<p class="target" lang="zh-CN">三阶段提交</p>
+<p class="source" lang="en">Three-phase commit</p>
+</div>
+<div class="pair" id="p-106">
+<p class="target" lang="zh-CN">对象存储 WAL</p>
+<p class="source" lang="en">Object-store WAL</p>
+</div>
+<div class="pair" id="p-107">
+<p class="target" lang="zh-CN">潘多</p>
+<p class="source" lang="en">Pando</p>
+</div>
+<div class="pair" id="p-108">
+<p class="target" lang="zh-CN">等待</p>
+<p class="source" lang="en">Waiting</p>
+</div>
+<div class="pair" id="p-109">
+<p class="target" lang="zh-CN">推动</p>
+<p class="source" lang="en">Pushing</p>
+</div>
+<div class="pair" id="p-110">
+<p class="target" lang="zh-CN">所有推送均已确认</p>
+<p class="source" lang="en">All pushes acknowledged</p>
+</div>
+<div class="pair" id="p-111">
+<p class="target" lang="zh-CN">合成式教学模型，而非生产基准。这意味着从第一次尝试到多次重试，直到独立读者验证提交，都包含获取数据的过程。它包括等待读者时段，并排除构建和测试环节。如果启用合并功能，作者完成工作还包括必要的获取数据和主分支合并。</p>
+<p class="source" lang="en">Synthetic teaching models, not production benchmarks. Mean push to fetch covers topic pushes, from the first attempt through retries until an independent reader verifies that commit. It includes waiting for a reader slot and excludes builds and tests. With merges enabled, writer completion includes the required fetches and trunk merge.</p>
+</div>
+<div class="pair" id="p-112">
+<p class="target" lang="zh-CN">实验设置</p>
+<p class="source" lang="en">Experiment settings</p>
+</div>
+<div class="pair" id="p-113">
+<p class="target" lang="zh-CN">准备模拟……</p>
+<p class="source" lang="en">Preparing simulation…</p>
+</div>
+<div class="pair" id="p-114">
+<p class="target" lang="zh-CN">结果</p>
+<p class="source" lang="en">Results</p>
+</div>
+<div class="pair" id="p-115">
+<p class="target" lang="zh-CN">进行比较以查看记录结果。</p>
+<p class="source" lang="en">Play the comparison to see the recorded results.</p>
+</div>
+<div class="pair" id="p-116">
+<p class="target" lang="zh-CN">合成式教学模型，而非生产基准。意味着从第一次尝试到重试，直到独立读者验证提交，都包含获取数据的过程。这包括等待读者时段，并且不包括构建和测试。如果启用合并功能，作者完成工作包括必要的获取数据和主分支合并。</p>
+<p class="source" lang="en">Synthetic teaching models, not production benchmarks. Mean push to fetch covers topic pushes, from the first attempt through retries until an independent reader verifies that commit. It includes waiting for a reader slot and excludes builds and tests. With merges enabled, writer completion includes the required fetches and trunk merge.</p>
+</div>
+<div class="pair" id="p-117">
+<p class="target" lang="zh-CN">运行这个模拟，将 Pando 与其他两种方法进行比较。选择从普通硬件到高端硬件的基础设施、客户数量以及其他设置，以观察它们之间的差异。</p>
+<p class="source" lang="en">Run this simulation comparing Pando with two other approaches. Choose infrastructure from commodity to premium hardware, number of clients, and more settings to see how they compare.</p>
+</div>
+<div class="pair" id="p-118">
+<p class="target" lang="zh-CN">在负载下，建模的三相提交系统由于磁盘饱和，写入延迟明显更高；出于相同的原因，预写日志系统在读取延迟方面也明显更高，因为服务器难以跟上日志文件的读取速度。在我们的单代码库的实际测试以及此模拟中，Pando都能支持数千个客户端同时操作，而不会影响负载下的性能。</p>
+<p class="source" lang="en">The modeled three-phase commit system shows significantly greater write latency under load as their disks saturate; meanwhile, write-ahead log systems show significantly greater read latency for the same reason, as servers struggle to keep up with reading from the journal. In both real world testing on our monorepo and in this simulation, Pando supports many thousands of clients able to push concurrently without impacting performance under load.</p>
+</div>
+<div class="pair" id="p-119">
+<p class="target" lang="zh-CN">在处理推送时，Pando 在将数据包流式传输到 blob 存储中时验证该数据包，而不将其解压到本地仓库中。当客户端开始获取时，Pando 会选择读者所需的存储包，然后读者即可下载这些包。无需服务器将数据包解压并打包到本地仓库中，也无需进行耗时的解压和打包操作。由于这些服务器主要负责协商和包文件选择，Pando 服务器可以在普通硬件上运行。</p>
+<p class="source" lang="en">On handling a push, Pando validates the incoming packfile while streaming it to blob storage, without unpacking it into a local repository. When a client begins a fetch Pando selects the stored packs the reader needs, and the reader downloads them. No server needs to apply packfiles to a local repository or perform costly unpack and packing operations. Because these servers primarily perform negotiation and packfile selection, Pando servers can run on commodity hardware.</p>
+</div>
+<div class="pair" id="p-120">
+<p class="target" lang="zh-CN">这允许 Pando 扩展到客户、客户与 Pando 之间的网络以及 Blob 存储服务的极限。当容量足够时，独立分支工作的客户可以各自以自身连接速度最快的方式传输数据包。为了以这样的速度服务更多客户，我们可以增加 Pando 服务器，并同时扩展元数据存储和 Blob 存储。</p>
+<p class="source" lang="en">This allows Pando to scale to the limits of clients, the network between clients and Pando, and the blob storage service. With enough capacity, clients working on independent branches can each transfer packs as fast as their own connection allows. To serve more clients at that rate, we can add Pando servers and scale the metadata store and blob store alongside them.</p>
+</div>
+<div class="pair" id="p-121">
+<p class="target" lang="zh-CN">在 Pando 中推送和获取分支</p>
+<p class="source" lang="en">Pushing and Fetching a Branch in Pando</p>
+</div>
+<div class="pair" id="p-122">
+<p class="target" lang="zh-CN">Pando将作者的包文件存储在 blob 存储中，并将参考版本记录在元数据服务中。当获取时，Pando会选择读者需要的包，然后 Express 负责提供这些包。</p>
+<p class="source" lang="en">Pando stores the writer’s packfile in blob storage and records the ref version in metadata service. On fetch, Pando selects the packs the reader needs, and Express serves them.</p>
+</div>
+<div class="pair" id="p-123">
+<p class="target" lang="zh-CN">推送流传输，获取分支</p>
+<p class="source" lang="en">Stream the pushFetch the branch</p>
+</div>
+<div class="pair" id="p-124">
+<p class="target" lang="zh-CN">包文件字节数</p>
+<p class="source" lang="en">Packfile bytes</p>
+</div>
+<div class="pair" id="p-125">
+<p class="target" lang="zh-CN">元数据</p>
+<p class="source" lang="en">Metadata</p>
+</div>
+<div class="pair" id="p-126">
+<p class="target" lang="zh-CN">请求 / 确认</p>
+<p class="source" lang="en">Request / acknowledgment</p>
+</div>
+<div class="pair" id="p-127">
+<p class="target" lang="zh-CN">包文件 URI 地址</p>
+<p class="source" lang="en">Packfile URIs</p>
+</div>
+<div class="pair" id="p-128">
+<p class="target" lang="zh-CN">一个代理程序编辑文件并在本地创建提交，然后执行 git push，从而生成包含这些更改的包文件以更新分支。Pando接收该包文件并将其传输到 blob 存储中。通过一次解码验证传入的推送，Pando使用多键事务在元数据存储中记录引用版本，并原子性地更新引用指针。这使得 Pando 能够提供“读自己的写”一致性。整个写入操作需要 O(1) 的元数据读取和写入操作。</p>
+<p class="source" lang="en">An agent edits files and creates a commit locally and runs git push, which creates a packfile of those changes to update a branch. Pando receives the pack and streams it to blob storage. After validating the incoming push with a single pass decode, Pando uses a multi-key transaction to record a ref version in our metadata store and atomically update the ref pointer. This enables Pando to provide “read-your-own-write” consistency. This entire write operation requires O(1)O(1)O(1) metadata reads and writes.</p>
+</div>
+<div class="pair" id="p-129">
+<p class="target" lang="zh-CN">当其他客户端获取分支时，Pando会根据客户端已有的历史记录选择一组已存储的包。此操作需要 O(log⁡Δ)O(\log \Delta)O(logΔ) 次的元数据读取，其中 Δ\DeltaΔ表示客户端现有内容与需求内容在版本差异中的最短距离。服务器会返回包文件的 URI，客户端则通过存储包文件的区域缓存服务 Express 进行下载。</p>
+<p class="source" lang="en">When another client fetches the branch, Pando selects a set of stored packs using the history the client already has. This operation requires O(log⁡Δ)O(\log \Delta)O(logΔ) metadata reads, Δ\DeltaΔ being the shortest distance in ref versions between what the client has and what the client wants. The server returns packfile URIs, and the client downloads them through a service, Express, that stores packfiles in regional caches.</p>
+</div>
+<div class="pair" id="p-130">
+<p class="target" lang="zh-CN">这种设计依赖于 Pando 架构的三个核心服务：推送、获取和压缩。</p>
+<p class="source" lang="en">This design relies on the three central services of Pando’s architecture: pushes, fetches, and compaction.</p>
+</div>
+<div class="pair" id="p-131">
+<p class="target" lang="zh-CN">扩展推动</p>
+<p class="source" lang="en">Scaling pushes</p>
+</div>
+<div class="pair" id="p-132">
+<p class="target" lang="zh-CN">当客户端推送时，传统的 Git 服务器就像一名扑克玩家展示所有牌，向客户端透露它所有的分支。然后，客户端收集提交、树和 blob 文件，创建一个 packfile，排除那些服务器已经拥有的对象。</p>
+<p class="source" lang="en">When a client pushes, a conventional Git server is like a poker player showing all of its cards, revealing to the client every branch it has. The client then gathers the commits, trees, and blobs to create a packfile that excludes objects it knows the server already has.</p>
+</div>
+<div class="pair" id="p-133">
+<p class="target" lang="zh-CN">增加引用数量可能会减少推动效果，也会使包更难重复使用，因为另一个客户端可能会缺少作者遗漏的对象。</p>
+<p class="source" lang="en">Advertising more refs can make the push smaller. It can also make the pack harder to reuse, because another client may be missing objects the writer left out.</p>
+</div>
+<div class="pair" id="p-134">
+<p class="target" lang="zh-CN">Pando采取了不同的策略。它不会展示所有的分支，而是只向客户展示一部分分支。这是出于两个原因：</p>
+<p class="source" lang="en">Pando takes a different approach. Instead of showing its full hand, it only advertises a select set of branches to the client. This is done for two reasons:</p>
+</div>
+<div class="pair" id="p-135">
+<p class="target" lang="zh-CN">提供每个引用的一致视图非常昂贵。有数百万个分支，仅引用广告就可能超过 100 MiB。要实现这一点，每台服务器要么维护当前的映射关系，这需要大量的协调开销，要么进行与引用数量相匹配的数据库查询。</p>
+<p class="source" lang="en">Providing a consistent view of every ref is expensive. With millions of branches, the ref advertisement alone can exceed 100 MiB. Providing this requires each server to either maintain a current mapping, requiring significant coordination overhead, or a database query that scales with the number of refs.</p>
+</div>
+<div class="pair" id="p-136">
+<p class="target" lang="zh-CN">提供每个引用的一致视图非常昂贵。由于有数百万个分支，仅引用公告就可能超过 100 MiB。要实现这一点，每台服务器要么维护当前的映射关系，这需要大量的协调开销，要么进行与引用数量成正比的数据库查询。</p>
+<p class="source" lang="en">Providing a consistent view of every ref is expensive. With millions of branches, the ref advertisement alone can exceed 100 MiB. Providing this requires each server to either maintain a current mapping, requiring significant coordination overhead, or a database query that scales with the number of refs.</p>
+</div>
+<div class="pair" id="p-137">
+<p class="target" lang="zh-CN">通过向客户端提供仅部分引用信息，客户端将生成一个包，该包仅依赖于服务器明确允许客户端排除的内容。通过跟踪这些依赖关系，Pando可以在一次推送中通过将其作为后续请求的响应来使用客户端生成的包文件。</p>
+<p class="source" lang="en">By providing only a subset of the refs to the client, the client will generate a pack that depends only on what the server explicitly allows the client to exclude. Tracking the dependencies allows Pando to reuse the packfile a client generates in one push by serving it as the response to a subsequent fetch.</p>
+</div>
+<div class="pair" id="p-138">
+<p class="target" lang="zh-CN">通过向客户端提供仅一部分引用信息，客户端将生成一个包文件，该文件仅依赖于服务器明确允许客户端排除的内容。通过跟踪这些依赖关系，Pando可以在一次推送中通过将其作为后续请求的响应来服务客户端生成的包文件，从而重复使用该包文件。</p>
+<p class="source" lang="en">By providing only a subset of the refs to the client, the client will generate a pack that depends only on what the server explicitly allows the client to exclude. Tracking the dependencies allows Pando to reuse the packfile a client generates in one push by serving it as the response to a subsequent fetch.</p>
+</div>
+<div class="pair" id="p-139">
+<p class="target" lang="zh-CN">作为 Git 服务器在展示更多引用时，客户端在推送时会有更多的来源可以排除对象，从而能够生成更小的包文件。然而，重新使用这些包文件要求服务器能够证明客户端获取的所有依赖项都存在。否则，包文件可能会遗漏客户端需要的对象。</p>
+<p class="source" lang="en">As a Git server advertises more refs, clients pushing have more sources from which to exclude objects, enabling them to produce smaller packs. However, reusing these packfiles requires the server to be able to prove the clients fetching have each of the dependencies. Otherwise, the packfile may omit objects the client needs.</p>
+</div>
+<div class="pair" id="p-140">
+<p class="target" lang="zh-CN">另一方面，如果 Git 服务器完全不提供任何内容，客户端将生成一个包含仓库完整历史记录的 packfile。该 packfile 可以被其他任何客户端使用，但这样做的代价是使得获取任何分支实际上相当于完整的克隆操作。</p>
+<p class="source" lang="en">On the other hand, if a Git server advertises none at all, the client would generate a packfile containing the repository’s full history. That packfile can be used by any other client, but at the significant cost of making fetching any branch effectively a full clone.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3H8EcvD2zWlkO6LDnf4Zzy/90597498322b48ae7215638f012fe716/how-advertised-refs-affect-packfile-size-diagram-desktop-light.svg?w=3840&amp;q=90" alt="Curve showing how advertised references affect packfile size, from full history with none, through advertising trunk, to only new objects with all references." loading="lazy">
+<div class="pair" id="p-141">
+<p class="target" lang="zh-CN">增加广告引用数量会导致包文件体积变小。大部分体积减少可以来自只广告一个引用的情况。</p>
+<p class="source" lang="en">Advertising more refs results in smaller packfiles. Most of the size reduction can come from advertising just one.</p>
+</div>
+<div class="pair" id="p-142">
+<p class="target" lang="zh-CN">默认情况下，当客户端推送新的功能分支时，Pando只会将指定的主干分支作为基础进行公告。这样公告的大小与仓库新增分支的数量相同，但也会带来一些问题。如果工程师多次将代码推送到同一个分支，或者将一个功能分支叠加在另一个分支上，客户端就不得不重新发送所有不在主干分支中的内容。</p>
+<p class="source" lang="en">By default, when a client pushes a new feature branch, Pando advertises only a designated trunk branch as a base. This keeps the advertisement the same size as the repository gains branches, but comes with tradeoffs. When an engineer either pushes to a single branch many times, or stacks one feature branch on top of another the client has to resend everything outside of the trunk.</p>
+</div>
+<div class="pair" id="p-143">
+<p class="target" lang="zh-CN">这导致连续的分支推送量更大，包含可能冗余的对象，并消耗额外的客户端带宽。在我们的单仓库项目中，以这种方式生成的平均包文件大小不到 20 KiB，第 99 百分位数则不到 3 MiB。对我们来说，这是一种合理的权衡，因为已经拥有所宣传的 trunks 历史的读者可以只使用那个包文件来获取分支。</p>
+<p class="source" lang="en">This causes successive branch pushes to be larger, containing potentially-redundant objects, and uses additional client bandwidth. In our monorepo, the median packfile produced this way was under 20 KiB, and the 99th percentile was under 3 MiB. For us, this was a sensible trade-off because a reader that already has the advertised trunk history can fetch the branch with that one packfile.</p>
+</div>
+<div class="pair" id="p-144">
+<p class="target" lang="zh-CN">在选择了要向客户端推广的引用集之后，Pando接受更新并更新其元数据存储。Pando将元数据更新分为同步和异步两部分。同步元数据更新确保客户端能够立即获取新更新的提交信息。这会生成一个新的引用版本，并更新指向该新版本的引用指针映射，同时存储新的提示信息、用于协商包文件的依赖项，以及推送的包文件链接。</p>
+<p class="source" lang="en">After choosing the set of refs to advertise to the client, Pando accepts the push and updates its metadata store. Pando splits the metadata update into synchronous and asynchronous portions. The synchronous metadata update ensures clients can immediately fetch the newly updated commit. This writes a new ref version and updates the ref pointer mapping to that new version storing that new tip, the dependencies used to negotiate the packfile, and a link to the packfile that was pushed.</p>
+</div>
+<div class="pair" id="p-145">
+<p class="target" lang="zh-CN">同时，异步工作也会记录在相同的事务中，例如调度压缩操作。对于非常大的推送操作，只有部分提交内容会以同步方式写入。这样，无论推送的大小如何，我们只需对元数据存储进行固定数量的读写操作即可。</p>
+<p class="source" lang="en">At the same time, asynchronous work is recorded in the same transaction, such as scheduling compaction. For very large pushes, only a subset of commits are written synchronously. This allows us to require only a constant number of reads and writes to the metadata store, regardless of the size of the push.</p>
+</div>
+<div class="pair" id="p-146">
+<p class="target" lang="zh-CN">重要的是，Pando服务器可以独立接受对无关引用文件的推送。唯一需要保护的键是引用指针，我们通过类似原子比较与交换的操作来保护它。我们可以通过增加Pando服务器、元数据存储扩展单元或 blob存储来提升写入吞吐量。</p>
+<p class="source" lang="en">Importantly, Pando servers can accept pushes to unrelated refs independently. The only contended key is the ref pointer, which we guard using an atomic compare-and-swap-like operation. We can scale up write throughput by adding Pando servers, metadata store scaling units, or blob stores.</p>
+</div>
+<div class="pair" id="p-147">
+<p class="target" lang="zh-CN">线速获取和克隆性能</p>
+<p class="source" lang="en">Line-rate fetch and clone performance</p>
+</div>
+<div class="pair" id="p-148">
+<p class="target" lang="zh-CN">当客户端执行获取操作时，它会向服务器提供两组提交 ID，在协议中被称为“有”和“无”。在传统的 Git 服务器中，服务器会计算“有”的提交 ID所能访问的对象与“无”的提交 ID所能访问的对象之间的差异，对其进行压缩，然后将结果发送给客户端。虽然开源 Git 服务器在本地有各种索引来加速这一操作，但这些压缩文件的计算成本较高，且通常难以被缓存。</p>
+<p class="source" lang="en">When a client performs a fetch, it provides the server with two sets of commit IDs, known in the protocol as haves and wants. In a conventional Git server, the server computes the set difference among the objects reachable by the haves and those reachable by the wants, compresses them, and sends the result to the client. While the open-source Git server has a variety of indexes locally to accelerate this operation, these packfiles can be expensive to compute and are generally resistant to caching.</p>
+</div>
+<div class="pair" id="p-149">
+<p class="target" lang="zh-CN">取而代之的是，Pando利用推送到上的提交映射来查找客户端的拥有者和需求，并将它们转换为包含这些提交的版本号集合。每个版本号都关联着Pando之前接收到的包文件。服务器利用这些信息来确定客户端需要什么，从而选择能够覆盖客户端所需对象集的包文件。</p>
+<p class="source" lang="en">Instead, Pando uses the commit mappings recorded on pushes to look up the client’s haves and wants, resolving them to a set of ref versions that contain those commits. Each of those ref versions links to a packfile previously received by Pando. The server uses this to solve for what the client needs, selecting the packfiles that cover the set of objects the client needs.</p>
+</div>
+<div class="pair" id="p-150">
+<p class="target" lang="zh-CN">Pando 会对比客户现有的内容和他们的需求，然后选择所需的存储包文件——包括任何缺失的分支依赖项。</p>
+<p class="source" lang="en">Pando compares what a client has with what it wants, then selects the stored packfiles needed—including any missing branch dependencies.</p>
+</div>
+<div class="pair" id="p-151">
+<p class="target" lang="zh-CN">获取 27 个主包。</p>
+<p class="source" lang="en">Fetch 27 trunk packs.</p>
+</div>
+<div class="pair" id="p-152">
+<p class="target" lang="zh-CN">选择一个分支以包含其主干依赖项。</p>
+<p class="source" lang="en">Select a branch to include its trunk dependencies.</p>
+</div>
+<div class="pair" id="p-153">
+<p class="target" lang="zh-CN">Pando 将 Git 协议的所有者及其引用版本序列进行映射。想要创建侧分支意味着需要关注该侧分支对主干的依赖关系。</p>
+<p class="source" lang="en">Pando maps the Git protocol’s haves and wants to a sequence of ref versions. Wanting a side branch implies wanting up to its dependencies on the trunk.</p>
+</div>
+<div class="pair" id="p-154">
+<p class="target" lang="zh-CN">Git 协议在克隆或获取操作中仅允许在 HTTP 响应中发送一个 packfile。然而，Git 协议的一个被忽视的功能——packfile-uri，允许服务器返回链接以单独下载额外的 pack。Pando 完全使用这一功能，并将空 packfile 直接传输进去。为了支持这一功能，OpenAI 对 packfile-uri 进行了多项改进，并将其贡献到了上游代码库中。</p>
+<p class="source" lang="en">The Git protocol only allows a single packfile to be sent in the HTTP response on a clone or fetch. However, an under-appreciated feature of the Git protocol, packfile-uri, allows a server to return links to download additional packs separately. Pando uses this exclusively, and transmits an empty packfile inline. To support this feature, OpenAI contributed a number of improvements to packfile-uri upstream.</p>
+</div>
+<div class="pair" id="p-155">
+<p class="target" lang="zh-CN">OpenAI系统分布在多个地理区域，因此我们在每个区域都设置了Pando集群，并配备了本地缓存。Express包交付服务缓存了我们的blob存储，另一项服务则缓存了元数据存储。这些缓存使得Pando能够完全从集群中的缓存状态中处理对提交ID或特定读取操作的请求。我们采用一致哈希机制将包文件请求路由到Express服务器，缓存命中率超过99%。</p>
+<p class="source" lang="en">OpenAI systems operate in many geographic regions, so we maintain Pando clusters with local caches in each. A pack delivery service, Express, caches our blob store, and a separate service caches the metadata store. These caches enable Pando to serve requests for a commit ID or a special read of a ref entirely from the cached state in that cluster. We use consistent hashing to route requests for a packfile to Express servers, with cache hit rates of over 99%.</p>
+</div>
+<div class="pair" id="p-156">
+<p class="target" lang="zh-CN">这种缓存系统具有极高的吞吐量，能够使客户端和 Pando 之间的网络限制达到极限。通过使用这些 packfile URI 和本地缓存，我们验证表明，仅使用标准的云提供商虚拟机时，克隆和获取操作就能使 10 Gbps 网络链接达到饱和状态。</p>
+<p class="source" lang="en">This system of caches provides extremely high throughput, capable of saturating the network limit between clients and Pando. Using these packfile URIs and local caches, we’ve validated that using only standard cloud provider virtual machines, we see clone and fetch operations saturate 10 Gbps network links.</p>
+</div>
+<div class="pair" id="p-157">
+<p class="target" lang="zh-CN">压缩率和首次字节时间</p>
+<p class="source" lang="en">Compaction and time to first byte</p>
+</div>
+<div class="pair" id="p-158">
+<p class="target" lang="zh-CN">对于大多数 Git 服务器来说，重新打包和垃圾回收是保持不断增长的仓库性能所必需的。这两个步骤可以释放空间，但会消耗大量的计算资源和 I/O 资源。</p>
+<p class="source" lang="en">For most Git servers, repacking and garbage collection are necessary to maintain the performance of a growing repository. Both of these steps reclaim space, but are compute- and I/O-intensive.</p>
+</div>
+<div class="pair" id="p-159">
+<p class="target" lang="zh-CN">在像 OpenAI 的单仓库这样的快速更新仓库中，对于自上次获取以来发生的每一次推送，要发送一个单独的包文件 URI 是不现实的。每天，客户端需要下载数万个包文件才能跟上其主分支的更新。</p>
+<p class="source" lang="en">In a fast-moving repository like OpenAI’s monorepo, it is infeasible to send an individual packfile URI for every push that has occurred since the last fetch. Each day, a client would need to download tens of thousands of packfiles to catch up their trunk.</p>
+</div>
+<div class="pair" id="p-160">
+<p class="target" lang="zh-CN">相反，Pando在后台合并包以减少这种开销，其设计类似于日志结构合并树中的压缩机制。每次推送都会生成Pando所说的“L0”包文件，这是Pando能够传输的最小数据单位。随着时间的推移，后台工作进程将这些包文件收集到覆盖层中，这些覆盖层包含一系列引用版本，并且从L0开始呈几何级数增长。目前，我们的单仓库使用了多达L4的包文件覆盖层。</p>
+<p class="source" lang="en">Instead, Pando combines packs in the background to reduce this overhead, adopting a design similar to compaction in log-structured merge-trees. Each push produces what Pando refers to as an “L0” packfile, representing the smallest unit of data Pando can transmit. Over time, background workers collect these packfiles into covers spanning a sequence of ref versions, scaling geometrically from L0. Today, our monorepo uses up to L4 packfile covers.</p>
+</div>
+<div class="pair" id="p-161">
+<p class="target" lang="zh-CN">这些封面具有双重作用。当封面被填满后，压缩工人会将其整理成单个包文件。通过重新组织包文件中的对象，这提高了压缩率。同时，它还能作为参考版本的跳过列表，提升获取协商性能。通过同时扫描各个级别的索引，Pando可以在对数时间内选择一组要发送给客户端的包文件。无论这些包文件是否被重新打包，都能实现更高效的获取规划方案，降低Pando的吞吐量和延迟要求。</p>
+<p class="source" lang="en">These covers serve a dual purpose. After a cover is sufficiently full, a compaction worker will claim it and produce a single packfile. This improves the compression ratio by reorganizing the objects inside the packfile. But it also improves fetch negotiation performance by acting as skip list over ref versions. By scanning through indexes at each level simultaneously, Pando can select a set of packs to send to a client in logarithmic time. These packfile covers, repacked or not, enable a more efficient solution to fetch planning, reducing both throughput and latency requirements for Pando.</p>
+</div>
+<div class="pair" id="p-162">
+<p class="target" lang="zh-CN">小的包文件会被分组到更大的包中，通过不同层级的方式，从而提升压缩效果并加快获取速度。</p>
+<p class="source" lang="en">Small packfiles are grouped into larger covers across levels, improving compression and speeding up fetches.</p>
+</div>
+<div class="pair" id="p-163">
+<p class="target" lang="zh-CN">压缩功能在后台合并多个参考版本的包文件，从而以更少的文件实现更高效的获取。</p>
+<p class="source" lang="en">Compaction combines packfiles from many ref versions in the background, enabling more efficient fetches with fewer files.</p>
+</div>
+<div class="pair" id="p-164">
+<p class="target" lang="zh-CN">与许多 Git 服务器不同，packfiles 会保留在每一级中，不会被丢弃或垃圾回收。每一级的 packs 用于根据客户端在 fetch 请求中的需求，持续地为客户端提供服务。对于使用 Pando 作为 API 的客户端来说，从 packfile 中读取任意对象时，从 L0 中读取的数据通常比从 L4 中读取的数据要少，因为该对象不太可能被压缩。</p>
+<p class="source" lang="en">Unlike many Git servers, packfiles are kept at every level and not discarded or garbage collected. Packs at every level are used to serve clients continuously, based on the haves and wants they request in a fetch. And for clients using Pando as an API, reading an arbitrary object from a packfile tends to require reading less data from an L0 than an L4, because it’s less likely to be compressed.</p>
+</div>
+<div class="pair" id="p-165">
+<p class="target" lang="zh-CN">Pando中的压缩功能显著减少了发送给客户的总传输大小，并使得打包规划能够以低于线性比例的方式适应客户延迟情况的变化。这对于大型且变化迅速的仓库来说尤为重要，我们预计这种情况将在软件开发中成为常态。</p>
+<p class="source" lang="en">Compaction in Pando significantly reduces both the total transfer size sent to clients and enables pack planning to scale sub-linearly in how far behind the client is. This is especially important for large and quickly changing repositories, which we expect to be a new normal in software development.</p>
+</div>
+<div class="pair" id="p-166">
+<p class="target" lang="zh-CN">建造潘多树</p>
+<p class="source" lang="en">Building Pando</p>
+</div>
+<div class="pair" id="p-167">
+<p class="target" lang="zh-CN">我们利用 Codex 在短短 10 周内从启动阶段发展到生产环境，完成了 Pando 的构建。Pando 的核心由一名工程师设计，由团队实施，并由少数工程师部署。Pando 于今年 4 月开始为生产流量服务，是 OpenAI 使用的更大源控制管理工具系统的一部分。</p>
+<p class="source" lang="en">We built Pando with Codex, moving from kick-off to production, in just 10 weeks. The core of Pando was designed by a single engineer, implemented by teams of agents, and deployed by a handful of engineers. Pando began serving production traffic in April of this year, and is one part of a larger system of source control management tools used at OpenAI.</p>
+</div>
+<div class="pair" id="p-168">
+<p class="target" lang="zh-CN">在验证 Pando 设计时，我们采用了多种不同的方法。我们应用了构建更安全软件基础的原则。作为全新项目，我们决定使用 Rust 语言并避免依赖旧有的依赖项来实现 Pando。我们编写了符合性测试套件，以便代理能够针对标准的 Git 行为测试他们的修改。我们还开发了确定性模拟测试工具，使我们能够检查系统的不变量和特性，从而发现并解决谈判和打包规划中的微妙竞争条件和回归问题。</p>
+<p class="source" lang="en">We employed a wide variety of approaches when validating Pando’s design. We applied our principles for building more secure software foundations⁠. As a greenfield project, we chose to implement Pando in Rust and without legacy dependencies. We wrote a conformance test suite so agents could test their changes against standard Git behavior. We also developed deterministic simulation testing harnesses allowing us to check invariants and properties of the system, enabling us to find and mitigate subtle race conditions and regressions in negotiation and pack planning.</p>
+</div>
+<div class="pair" id="p-169">
+<p class="target" lang="zh-CN">许多模型为这个系统做出了贡献；随着新模型的出现，我们利用这些模型提升了 Pando 的性能与可靠性。通过使用 GPT‑6 Astra，智能体使用 Lean 和 TLA+ 来构建“Pando 理论”，我们利用该理论来发现和修复实现中的错误，并证明系统的性质。通过多次连续会话，持续数百小时，我们发现了并修复了 Pando 中的边缘情况。我们还全天候运行智能体，使用具备 Daybreak 功能的模型对 Git 和 Pando 进行红队测试。</p>
+<p class="source" lang="en">Many models contributed to this system; as new models became available, we used them to improve Pando’s performance and reliability. Using GPT‑6 Astra, agents wrote Lean and TLA+ to formalize a “theory of Pando” that we used to find and fix bugs in the implementation, and prove properties of the system. Multiple continuous sessions ran for hundreds of hours finding and fixing edge cases in Pando. We also run agents around the clock to red-team Git and Pando using Daybreak-capable models.</p>
+</div>
+<div class="pair" id="p-170">
+<p class="target" lang="zh-CN">部署 Pando</p>
+<p class="source" lang="en">Deploying Pando</p>
+</div>
+<div class="pair" id="p-171">
+<p class="target" lang="zh-CN">我们最初部署 Pando 是一个用于读取和写入的代理，用于我们的现有源代码控制系统。这使我们能够保持 Pando 与旧系统同步，从而可以在没有停机时间的情况下将流量转移到 Pando 上。</p>
+<p class="source" lang="en">Our initial deployment of Pando was as a read- and write-through proxy to our existing source control system. This allowed us to keep Pando and the previous system in sync, so we could safely move traffic onto Pando without downtime.</p>
+</div>
+<div class="pair" id="p-172">
+<p class="target" lang="zh-CN">作为缓存设计的一部分，Pando可以在代理之前对请求进行去重和合并。这使我们能够逐步将系统迁移到 Pando 时保持现有工具的正常运作。随着更多工作负载被迁移到 Pando，这些请求填充了 Pando 的缓存，从而提升了之前后端系统的可靠性。</p>
+<p class="source" lang="en">As part of its caching design, Pando can also deduplicate and combine requests before proxying. This allowed us to keep our existing tools healthy as we moved systems to Pando one at a time. As we migrated more workloads to Pando, their pushes populated Pando’s cache and improved the reliability of our previous backend.</p>
+</div>
+<div class="pair" id="p-173">
+<p class="target" lang="zh-CN">为了在使用 Pando 时优化性能，我们开始向开发者的机器和 ChatGPT 桌面应用程序分发公共版本的 Git。为了将客户端迁移到 Pando，我们使用 Git CLI 的内部包装器按阶段进行迁移。我们还开发了许多其他工具来处理变更请求、代码审查以及自动化相关的 API。我们通过 Git 流量一起迁移了数百个依赖传统 API、Webhook 和仓库下载的集成。</p>
+<p class="source" lang="en">In order to optimize performance when using Pando, we began shipping our public distribution of Git to developer machines and within the ChatGPT desktop app. To migrate clients to Pando, we used an internal wrapper around the Git CLI to migrate clients in phases. We created many other tools for handling change requests, code review, and APIs for automations. We migrated hundreds of integrations that depended on legacy APIs, webhooks, and repository downloads alongside Git traffic.</p>
+</div>
+<div class="pair" id="p-174">
+<p class="target" lang="zh-CN">代码库本身帮助了开发人员和团队进行转型。我们培养了准备现有检查点的技能，以及指导代理使用新系统的能力。因此，开发人员可以直接请求代码库迁移他们的开发环境和服务。</p>
+<p class="source" lang="en">Codex itself helped developers and teams make the move. We created skills for preparing existing checkouts, and for guiding agents to use the new system. As a result, developers could simply ask Codex to migrate their development environments and services.</p>
+</div>
+<div class="pair" id="p-175">
+<p class="target" lang="zh-CN">改为使用 Pando 后，合并的可靠性得到了提升，中位数推送的延迟也减少了近 80%。</p>
+<p class="source" lang="en">Switching to Pando improved merge reliability and reduced the latency of the median push by nearly 80%.</p>
+</div>
+<div class="pair" id="p-176">
+<p class="target" lang="zh-CN">Pando 仅使用少量 CPU 核心就能每天处理千兆字节的 Git 数据。在短短一小时内，Pando 已经处理了超过 57 太字节的 Git 包，其中超过 99% 的数据来自本地磁盘缓存。</p>
+<p class="source" lang="en">Pando can deliver a petabyte of Git data per day with just a handful of CPU cores. Pando has served more than 57 terabytes of Git packs in a single hour, with more than 99% of those bytes from local disk cache.</p>
+</div>
+<div class="pair" id="p-177">
+<p class="target" lang="zh-CN">重复使用包可以让许多客户端在服务器节点上只需少量计算就能下载相同的仓库历史记录。这个例子只展示了一个仓库，但 Pando 设计用于支持更多仓库。随着需求增加，我们可以独立扩展数据传递和 Git 协商能力。</p>
+<p class="source" lang="en">Reusing packs lets many clients download the same repository history with little computation on the serving nodes. This example shows a single repository, but Pando is designed to support many more. As demand grows, we can scale data delivery and Git negotiation independently.</p>
+</div>
+<div class="pair" id="p-178">
+<p class="target" lang="zh-CN">为 Git 项目做出贡献</p>
+<p class="source" lang="en">Contributing back to the Git project</p>
+</div>
+<div class="pair" id="p-179">
+<p class="target" lang="zh-CN">使用 Git 协议和客户端构建 Pando 系统，帮助我们发现了漏洞以及提升 Git 自身性能的机会。</p>
+<p class="source" lang="en">Building Pando on the Git protocol and client helped us identify bugs and opportunities to improve Git’s own performance.</p>
+</div>
+<div class="pair" id="p-180">
+<p class="target" lang="zh-CN">例如，Pando 直接将可重复使用的包提供给客户，因此下载和索引这些包成为使系统快速且可靠的关键部分。这项工作揭示了并发下载中的边缘情况、中断传输后的清理工作以及已完成的下载的继续操作。我们修复了这些流程，在接收现有包进行获取时增加了验证机制，并将这些成果贡献给了上游项目。</p>
+<p class="source" lang="en">For example, Pando serves reusable packs directly to clients, so downloading and indexing those packs became a central part of making the system fast and reliable. That work surfaced edge cases in concurrent downloads, cleanup after interrupted transfers, and resuming downloads that had already completed. We fixed those paths, added validations when accepting an existing pack for a fetch, and contributed that work back upstream.</p>
+</div>
+<div class="pair" id="p-181">
+<p class="target" lang="zh-CN">我们还需要了解时间和带宽的消耗情况，因此我们添加了对 packfile-uri 下载的追踪以及 pack 生成的字节数统计，这样就能更容易判断是加载速度慢是因为生成 pack 的过程占用了时间，还是因为传输过程占用了时间。</p>
+<p class="source" lang="en">We also needed to see where time and bandwidth were going, so we added tracing for packfile-uri downloads and byte counts for pack generation, making it easier to tell whether a slow fetch was spending its time generating packs or transferring them.</p>
+</div>
+<div class="pair" id="p-182">
+<p class="target" lang="zh-CN">在 OpenAI 的 Git 构建中，客户端可以并行下载并索引独立的包。我们引入了“明确拥有”的概念，这样服务器就可以单独展示分支的当前尖端，而推送客户端可能忽略的历史信息则不会包含在内。在 Pando 上，这使得客户端能够使用 --force-with-lease 来确认功能分支没有移动，并仅基于主干构建其包。任何拥有该主干历史记录的人都可以使用同一个包来获取该分支。</p>
+<p class="source" lang="en">In OpenAI’s Git build⁠(opens in a new window), the client can download and index independent packs in parallel. We added the concept of “explicit haves” so a server can advertise a branch’s current tip separately from the history a pushing client may leave out of its pack. On Pando, this enables clients to use --force-with-lease to check that a feature branch hasn’t moved and build its pack against trunk alone. Anyone with that trunk history can then fetch the branch using the same pack.</p>
+</div>
+<div class="pair" id="p-183">
+<p class="target" lang="zh-CN">这些改进中的几项已经存在于上游 Git 中，还有许多其他改进则存在于我们的公共仓库中。我们继续与 Git 社区合作，使这些改进在 Pando 之外也有用。您可以通过我们的公共补丁跟踪器来关注这项工作（在新窗口中打开）。</p>
+<p class="source" lang="en">Several of these improvements are already in upstream Git, and many others in our public repository. We’re continuing to work with the Git community to make these improvements useful beyond Pando. You can follow that work in our public patch tracker⁠(opens in a new window).</p>
+</div>
+<div class="pair" id="p-184">
+<p class="target" lang="zh-CN">接下来是什么</p>
+<p class="source" lang="en">What’s next</p>
+</div>
+<div class="pair" id="p-185">
+<p class="target" lang="zh-CN">通过重新思考如何扩展 Git 仓库的传统理念，Pando 使我们能够扩展我们的单仓库，同时不改变工程师和代理已经使用的 Git 工作流。在我们的单仓库中，Pando 实现了更高的并行性，提高了合并的可靠性，并减少了发布代码更改所需的时间。除了我们的单仓库，我们还在 OpenAI 中探索 Pando 的其他应用，包括大量代理需要在共享 Git 仓库中协作的工作负载。</p>
+<p class="source" lang="en">By rethinking conventional wisdom on how to scale Git repositories, Pando enables us to scale our monorepo without changing the Git workflows our engineers and agents already use. In our monorepo, Pando has unlocked a greater degree of parallelism, improved merge reliability, and reduced the time it takes to publish code changes. Beyond our monorepo, we’re also exploring other uses for Pando within OpenAI, including workloads where large numbers of agents need to collaborate on a shared Git repository.</p>
+</div>
+<div class="pair" id="p-186">
+<p class="target" lang="zh-CN">作为工程师和代理，随着更多软件的开发，除了 OpenAI 之外的更多团队也会遇到我们在源代码控制方面遇到的限制。目前，我们正在探索将使 Pando 成为可能的技术与用户共享的方法。</p>
+<p class="source" lang="en">As engineers and agents produce more software, more teams beyond OpenAI will encounter the limits we hit in source control. We’re currently exploring ways to share the technology that makes Pando possible with our users.</p>
+</div>
+<div class="pair" id="p-187">
+<p class="target" lang="zh-CN">Pando 基于用户和 Git 仓库运营者二十年的经验而建立。我们将继续开发 Pando，同时与开源 Git 社区合作，分享任何能更广泛惠及 Git 用户的改进之处。</p>
+<p class="source" lang="en">Pando builds on two decades of experience from users and operators of Git repositories. We’ll continue to develop Pando while working with the open-source Git community to share any improvements that benefit Git users more broadly.</p>
+</div>
+<div class="pair" id="p-188">
+<p class="target" lang="zh-CN">2026</p>
+<p class="source" lang="en">2026</p>
+</div>
+<div class="pair" id="p-189">
+<p class="target" lang="zh-CN">法典</p>
+<p class="source" lang="en">Codex</p>
+</div>
+<div class="pair" id="p-190">
+<p class="target" lang="zh-CN">作者</p>
+<p class="source" lang="en">Author</p>
+</div>
+<div class="pair" id="p-191">
+<p class="target" lang="zh-CN">继续阅读</p>
+<p class="source" lang="en">Keep reading</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3a839ECHaGsidJPLJqqm5s/55968ec17735b96514d1bb4851f43bf8/scaling-storage-one-billion-users-part-two-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II) — card" loading="lazy">
+<div class="pair" id="p-192">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年10月23日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 23, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3aewhPPb5NQ5IqOKEkrtzA/7209065f6e6ccf3a0476b43feb8336e1/rethinking-ads-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rethinking the ad stack around a new user journey — Art card" loading="lazy">
+<div class="pair" id="p-193">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年10月21日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 21, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/2X23NOb0P4V1KDzUBkeNpl/888204b45a1c84ddfa24c9ed31111a9c/OAI_HabitatPT1_Art_Card_1x1.png?w=3840&amp;q=90&amp;fm=webp" alt="Scaling Storage for 1 Billion ChatGPT Users (Part I) card image" loading="lazy">
+<div class="pair" id="p-194">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学2026年9月11日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringSep 11, 2026</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://openai.com/index/scaling-git-at-openai" target="_blank" rel="noopener noreferrer">https://openai.com/index/scaling-git-at-openai</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/agentic-cheminformatics-with-google-antigravity.html">← Agentic cheminformatics with Google Antigravity</a><a href="../viewers/speeding-up-planning-decisions-with-ai.html">Speeding up planning decisions with AI →</a></nav>
+  <footer class="footer">文章版权归原作者所有，译文请以英文原文为准。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1097 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Jalapeño’s first results show industry-leading speed and efficiency in AI inference · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Jalapeño’s first results show industry-leading speed and efficiency in AI inference</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item current" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html" aria-current="page"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item current" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html" aria-current="page"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</h1>
+  <p class="subline">原文：<a href="https://openai.com/index/jalapeno-first-results" target="_blank" rel="noopener noreferrer">https://openai.com/index/jalapeno-first-results</a> · 2026-08-25 · OpenAI Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">2026年8月25日</p>
+<p class="source" lang="en">August 25, 2026</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">我们如何衡量 Jalapeño 的性能Jalapeño 扩大了之前最佳 TBT 的领先优势Jalapeño 为每个用户提供更多令牌Jalapeño 为每千瓦提供更高的吞吐量</p>
+<p class="source" lang="en">How we measured Jalapeño’s performanceJalapeño widens the lead at previous-best TBTJalapeño delivers more tokens per userJalapeño delivers more throughput per kilowatt</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">哈拉佩尼奥在之前的最佳TBT中扩大了领先优势</p>
+<p class="source" lang="en">Jalapeño widens the lead at previous-best TBT</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">Jalapeño 为每个用户提供更多的令牌</p>
+<p class="source" lang="en">Jalapeño delivers more tokens per user</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">jalapeño 每千瓦特能提供更高的吞吐量</p>
+<p class="source" lang="en">Jalapeño delivers more throughput per kilowatt</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">在单个芯片上实现速度与效率的设计</p>
+<p class="source" lang="en">Architecting for speed and efficiency within a single chip</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">我们使用人工智能来设计芯片，并且设计了芯片以便人工智能能够对其进行编程。</p>
+<p class="source" lang="en">We used AI to design the chip, and designed the chip so AI could program it</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">高效、超快速推理的前进道路</p>
+<p class="source" lang="en">The path ahead for efficient, ultra-fast inference</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">附录Jalapeño是GPT-OSS 120B的帕累托前沿Jalapeño在GPT-OSS运行点中处于领先地位Jalapeño是DeepSeek R1 670B的帕累托前沿Jalapeño在DeepSeek R1运行点中处于领先地位Jalapeño是Kimi K2.5 1T的帕累托前沿Jalapeño在Kimi K2.5运行点中处于领先地位</p>
+<p class="source" lang="en">AppendixJalapeño is pareto frontier at GPT‑OSS 120BJalapeño leads across GPT-OSS operating pointsJalapeño is pareto frontier at DeepSeek R1 670BJalapeño leads across DeepSeek R1 operating pointsJalapeño is pareto frontier at Kimi K2.5 1TJalapeño leads across Kimi K2.5 operating points</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">Jalapeño 是 GPT‑OSS 120B 模型中的帕累托前沿。</p>
+<p class="source" lang="en">Jalapeño is pareto frontier at GPT‑OSS 120B</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">Jalapeño在GPT-OSS操作点中处于领先地位</p>
+<p class="source" lang="en">Jalapeño leads across GPT-OSS operating points</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">Jalapeño 是 DeepSeek R1 670B 模型中的帕累托前沿特征。</p>
+<p class="source" lang="en">Jalapeño is pareto frontier at DeepSeek R1 670B</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">Jalapeño在DeepSeek R1运行点中处于领先地位</p>
+<p class="source" lang="en">Jalapeño leads across DeepSeek R1 operating points</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">Jalapeño 是 Kimi K2.5 1T 模型中的帕累托前沿。</p>
+<p class="source" lang="en">Jalapeño is pareto frontier at Kimi K2.5 1T</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">Jalapeño在Kimi K2.5操作点中领先。</p>
+<p class="source" lang="en">Jalapeño leads across Kimi K2.5 operating points</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">我们如何衡量 Jalapeño 的性能Jalapeño 扩大了之前最佳 TBT 的领先优势Jalapeño 为每个用户提供更多令牌Jalapeño 为每千瓦提供更高的吞吐量</p>
+<p class="source" lang="en">How we measured Jalapeño’s performanceJalapeño widens the lead at previous-best TBTJalapeño delivers more tokens per userJalapeño delivers more throughput per kilowatt</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">哈拉佩尼奥在之前的最佳TBT中扩大了领先优势</p>
+<p class="source" lang="en">Jalapeño widens the lead at previous-best TBT</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">Jalapeño 为每个用户提供更多的令牌</p>
+<p class="source" lang="en">Jalapeño delivers more tokens per user</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">Jalapeño 每千瓦特能提供更高的吞吐量</p>
+<p class="source" lang="en">Jalapeño delivers more throughput per kilowatt</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">在单个芯片上构建速度和效率的架构</p>
+<p class="source" lang="en">Architecting for speed and efficiency within a single chip</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">我们使用人工智能来设计芯片，并且对芯片进行了设计，以便人工智能能够对其进行编程。</p>
+<p class="source" lang="en">We used AI to design the chip, and designed the chip so AI could program it</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">高效、超快推理的前进道路</p>
+<p class="source" lang="en">The path ahead for efficient, ultra-fast inference</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">附录Jalapeño在GPT‑OSS 120B中是帕累托前沿Jalapeño在GPT-OSS运行点上领先Jalapeño在DeepSeek R1 670B中是帕累托前沿Jalapeño在DeepSeek R1运行点上领先Jalapeño在Kimi K2.5 1T中是帕累托前沿Jalapeño在Kimi K2.5运行点上领先</p>
+<p class="source" lang="en">AppendixJalapeño is pareto frontier at GPT‑OSS 120BJalapeño leads across GPT-OSS operating pointsJalapeño is pareto frontier at DeepSeek R1 670BJalapeño leads across DeepSeek R1 operating pointsJalapeño is pareto frontier at Kimi K2.5 1TJalapeño leads across Kimi K2.5 operating points</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">Jalapeño 是 GPT‑OSS 120B 模型中的帕累托前沿。</p>
+<p class="source" lang="en">Jalapeño is pareto frontier at GPT‑OSS 120B</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">Jalapeño在GPT-OSS操作点中处于领先位置</p>
+<p class="source" lang="en">Jalapeño leads across GPT-OSS operating points</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">Jalapeño 是 DeepSeek R1 670B 模型中的帕累托前沿特征。</p>
+<p class="source" lang="en">Jalapeño is pareto frontier at DeepSeek R1 670B</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">Jalapeño在DeepSeek R1运行点中领先</p>
+<p class="source" lang="en">Jalapeño leads across DeepSeek R1 operating points</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">Jalapeño 是 Kimi K2.5 1T 模型中的帕累托前沿。</p>
+<p class="source" lang="en">Jalapeño is pareto frontier at Kimi K2.5 1T</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">Jalapeño在Kimi K2.5操作点中表现领先。</p>
+<p class="source" lang="en">Jalapeño leads across Kimi K2.5 operating points</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3zePuVBRvgyZ4IgOwnI0jI/65ba02edadf6a0a1c33d2c2abf260fab/Jalapeno-chip-final.jpg?w=3840&amp;q=90&amp;fm=webp" alt="Close-up of the Jalapeño inference chip mounted on a teal circuit board." loading="lazy">
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">自发布首款定制推理芯片 Jalapeño 以来，我们一直在测试该芯片及其配套系统。测试结果显示性能有了显著提升：Jalapeño 在消耗相同电力的情况下能够处理更多的 AI 任务，同时响应速度也更快。Jalapeño 通过一种架构实现了更高的吞吐量与更低的延迟，而传统的硬件系统往往需要在这两个方面进行权衡。</p>
+<p class="source" lang="en">Since announcing Jalapeño, OpenAI’s first custom inference chip, we have been testing the chip and the system built around it. The results show a significant performance advance: Jalapeño can serve more AI work per unit of power while also returning responses more quickly. Jalapeño delivers both higher throughput and lower latency with one architecture, where existing hardware systems often have to make a tradeoff between the two.</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">对于客户来说，这意味着随着需求增加，响应速度会更快，客服更加及时，访问也更加可靠。我们的使命是确保通用人工智能能为全人类带来好处。这些成果将使得更强大的人工智能更加经济实惠且更广泛地可用。</p>
+<p class="source" lang="en">For customers, that can mean faster responses, more responsive agents, and more reliable access as demand grows. Our mission is to ensure that artificial general intelligence benefits all of humanity. These gains will help make increasingly capable AI more affordable and more broadly available.</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">&lt;text&gt;
+OpenAI 模型也加速了 Jalapeño 的开发。早期版本帮助团队设计并制造了芯片，而最新的模型则加快了优化和编程过程。Jalapeño 的性能体现在 GPT‑OSS 120B、DeepSeek R1 和 Kimi K2.5 1T 上，表明该架构在 OpenAI 内部和外部开发的模型中都有效。在这三个模型中，Jalapeño 在峰值吞吐量下提供了 1.5 到 1.9 倍更多的 AI 工作量/瓦特，并且端到端延迟降低了 1.7 到 3.6 倍。对于高度交互式工作负载，其性能提升了 2.1 到 4.1 倍。
+&lt;/text&gt;</p>
+<p class="source" lang="en">OpenAI models also accelerated Jalapeño’s development. Earlier generations helped the team design and bring up the chip, while our latest models are accelerating how we optimize and program it. Jalapeño’s performance extends across GPT‑OSS 120B, DeepSeek R1, and Kimi K2.5 1T, showing that the architecture works across models developed both inside and outside OpenAI. Across all three, Jalapeño delivered 1.5 to 1.9 times more AI work per watt at peak throughput and 1.7 to 3.6 times lower end-to-end latency than the comparison systems. For highly interactive workloads, it delivered 2.1 to 4.1 times higher performance.</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">Jalapeño也体现了更广泛的全栈优势。OpenAI能够将模型、产品、服务软件、芯片、内存、网络和技术系统整合在一起，利用从实际工作负载中获得的经验来优化整个栈的每一层。Jalapeño采用经过验证的原生芯片技术，这是多代平台的开端。在接下来的几个月里，我们将逐步提升Jalapeño的性能，为客户提供更快速、更强大、更高效的产品。</p>
+<p class="source" lang="en">Jalapeño is also evidence of a broader full-stack advantage. OpenAI can design models, products, serving software, chips, memory, networking, and systems together, using what we learn from real workloads to improve every layer of the stack. Jalapeño is working first-party silicon with measured results, and it is the beginning of a multigenerational platform. In the months ahead, we will ramp Jalapeño to deliver faster, more capable, and more efficient products for our customers.</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">我们如何评估 Jalapeño 的表现</p>
+<p class="source" lang="en">How we measured Jalapeño’s performance</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">我们在匹配的用户体验条件下评估性能，衡量每个系统在满足客户和交互代理所需的延迟要求的同时，每单位能量能够完成多少有用的 AI 工作。这对代理尤其重要，因为它们需要依次完成多个步骤，因此延迟可能会在整个任务中累积。</p>
+<p class="source" lang="en">We evaluate performance at a matched user experience, measuring how much useful AI work each system can complete per unit of power while meeting the latency customers and interactive agents require. This matters especially for agents, which need to complete many steps in sequence, so delays can compound across an entire task.</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">为了了解 Jalapeño的实际表现，我们在 SemiAnalysis 提供的 InferenceX 公开基准测试中对其进行了测试。该测试评估了提供 AI 请求的完整过程。我们将 Jalapeño与各种主流商用 AI 系统进行了比较，涵盖了从高吞吐量服务到高互动、低延迟使用等多种场景。Jalapeño在吞吐量、功耗效率和延迟方面提供了更好的组合。虽然有时会按芯片数量来报告性能，但我们认为更有用的指标是每单位功耗的性能。</p>
+<p class="source" lang="en">To understand how Jalapeño performs in practice, we tested it on InferenceX, a public benchmark from SemiAnalysis that measures the full process of serving an AI request. We compared Jalapeño with leading commercially available AI systems across the tested operating range, from high-throughput serving to highly interactive, low-latency use. Jalapeño delivered a better combination of throughput, power efficiency, and latency. Although performance is sometimes reported per chip, we believe the more useful standard is performance per unit of power.</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">Jalapeño扩大了在之前最佳TBT中的领先优势</p>
+<p class="source" lang="en">Jalapeño widens the lead at previous-best TBT</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">Jalapeño 为每个用户提供更多的令牌</p>
+<p class="source" lang="en">Jalapeño delivers more tokens per user</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">jalapeño 每千瓦特能提供更高的吞吐量</p>
+<p class="source" lang="en">Jalapeño delivers more throughput per kilowatt</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">在所有三个公开模型中，Jalapeño在测试的工作范围内提供了更好的每瓦性能与延迟组合，处于帕累托前沿。为了一致地比较这些系统，我们使用了每个加速器公布的芯片功率等级对结果进行了标准化处理。Jalapeño的额定功率为700瓦，但在测试的工作负载下，其实际持续功率保持在550瓦或以下。</p>
+<p class="source" lang="en">Across all three public models, Jalapeño delivered a better combination of performance per watt and latency across the tested operating range, placing it on the Pareto frontier. To compare the systems consistently, we normalized the results using each accelerator’s published chip power rating. Jalapeño is rated at 700 watts, although its measured sustained power remained at or below 550 watts on the workloads tested.</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">Jalapeño在GPT‑OSS 120B、DeepSeek R1 670B和Kimi K2.5 1T上表现出色。在我们测试的最大公开模型Kimi上，Jalapeño的峰值性能每瓦特高出约1.5倍，端到端延迟低了3.4倍。在我们的内部测试中，Jalapeño在前沿OpenAI模型上的优势更加明显，这表明随着工作负载的扩大和复杂度增加，该架构的价值会更高。</p>
+<p class="source" lang="en">Jalapeño performed strongly across GPT‑OSS 120B, DeepSeek R1 670B, and Kimi K2.5 1T. On Kimi, the largest public model we tested, it delivered approximately 1.5 times higher peak performance per watt and 3.4 times lower end-to-end latency than the comparison system. In our internal testing, Jalapeño’s advantage widened further on frontier OpenAI models, suggesting that the architecture becomes more valuable as workloads grow larger and more demanding.</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">在单个芯片上构建速度和效率的架构</p>
+<p class="source" lang="en">Architecting for speed and efficiency within a single chip</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">Jalapeño 从一开始就是基于这样一个问题设计的：如果它的主要任务是为现代和未来的语言模型，尤其是交互式智能体服务，那么我们需要构建什么样的硬件呢？Jalapeño 的优势在于将芯片、内存、网络、软件和机架级系统一起设计，以适配真实的语言模型工作负载。语言模型推理过程包含多个不同的阶段，每个阶段都有不同的瓶颈。当系统处理提示时，即预填充阶段，需要大量计算资源；而当系统逐词生成响应时，即解码阶段，则更受内存带宽的限制。当数据需要在核心和芯片之间传输时，还会增加延迟，导致部分处理单元在等待时处于空闲状态。一个在某一阶段表现出色的系统，在等待数据或在不同资源之间传输模型状态时，可能会失去这一优势。</p>
+<p class="source" lang="en">Jalapeño was designed from the start by asking: what hardware would we build if its primary job were serving modern and future language models, especially interactive agents? Jalapeño’s gains come from designing the chip, memory, network, software, and rack-scale system together around real language-model workloads. Language-model inference moves through several distinct phases with different bottlenecks. Prefill, when the system processes a prompt, is compute-intensive, while decode, when the system generates the response token by token, is constrained more by memory bandwidth. Communication can also add latency when data must move between cores and chips, leaving some processing units idle while they wait. A system that excels at one phase can lose that advantage while waiting for data or moving model state between different resources.</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">我们设计 Jalapeño 的目的是减少数据传输和通信延迟。这意味着模型状态，包括生成响应时使用的 KV 缓存，可以明确存储并保留在本地，同时系统能够针对每个推理阶段选择合适的计算、内存和网络配置。网络在架构中起着至关重要的作用。其较大的覆盖范围使得整个工作负载能够在一个连接系统中完成，从而减少数据传输，帮助整个请求从开始到结束都保持快速高效。最终得到一种平衡且可替换的加速器，能够支持不同的模型架构，在预填充和解码方面都表现出色，并能随着两者之间的平衡变化而适应，这是代理式工作负载的一个显著特点。</p>
+<p class="source" lang="en">We designed Jalapeño to minimize data movement and communication delays. This means that model state, including the KV cache used while generating a response, can be explicitly placed and kept local while the system activates the right combination of compute, memory, and networking for each inference phase. The network is integral to the architecture. Its large domain allows the entire workload to remain within one connected system, minimizing data movement and helping the complete request stay fast and efficient from beginning to end. The result is a balanced and fungible accelerator that can support changing model architectures, excel at both prefill and decode, and adapt as the balance between them changes, a defining feature of agentic workloads.</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">我们使用人工智能来设计芯片，并且对芯片进行了设计，以便人工智能能够对其进行编程。</p>
+<p class="source" lang="en">We used AI to design the chip, and designed the chip so AI could program it</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">AI在Jalapeño的开发过程中发挥了重要作用，使团队能够在九个月内从初步设计阶段发展到成品阶段，通过探索不同的实现方案、缩短设计、测试和验证的时间，并不断优化模型工作负载。AI还帮助优化了芯片的算术电路，使团队能够按计划在芯片中实现更高的计算性能。</p>
+<p class="source" lang="en">AI played a direct role in Jalapeño’s development, enabling the team to move from initial design to tapeout in nine months by exploring implementations, shortening design, measurement, and verification loops, and continuously iterating on model workloads. AI also helped optimize the chip’s arithmetic circuits, allowing the team to fit more compute performance into the chip on schedule.</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">jalapeño被设计成一种清晰、可预测的编程目标，既适用于人类也适用于人工智能。工程师可以通过本地张量、明确的通信方式以及可预测的同步机制来描述工作。然后，人工智能可以优化这些工作如何在系统中进行映射、放置、调度和协调。这种清晰、可预测的结构使得人工智能能够以一种易于处理的方式解决传统上难以实现的并行编程问题。</p>
+<p class="source" lang="en">Jalapeño was designed as a clear, predictable programming target for both humans and AI. Engineers can describe work through local tensors, explicit communication, and predictable synchronization. AI can then optimize how that work is mapped, placed, scheduled, and coordinated across the system. That clear, predictable structure gives AI a tractable way to tackle the traditionally difficult problem of parallel programming.</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">支持每个新的模型家族仍然需要新的内核和特定于模型的优化。使用 Codex 与 GPT‑Astra 结合，团队在两个月内将三个不属于 Jalapeño 原始生产计划的开放式模型提升到了高性能水平。这既展示了该架构的灵活性，也证明了 AI 能够在短时间内帮助我们完成编程。对于选定的 GPT‑OSS 注意力机制和混合专家模块，AI 生成的实现比现有人工专家编写的实现快 1.5 到 1.8 倍。这些数据适用于选定的模块，而非整个模型，但表明了一个强大的新开发流程。</p>
+<p class="source" lang="en">Supporting each new model family still requires new kernels and model-specific optimizations. Using Codex with GPT‑Astra, the team brought three open-weight models that were not part of Jalapeño’s original production plan to high performance within two months. This demonstrated both the flexibility of the architecture and the speed at which AI can help us program it. For selected GPT‑OSS attention and mixture-of-experts blocks, AI-generated implementations ran 1.5 to 1.8 times faster than the existing human-expert-written implementations. Those figures apply to the selected blocks, not the full model, but they point toward a powerful new development loop.</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">高效、超快推理的未来道路</p>
+<p class="source" lang="en">The path ahead for efficient, ultra-fast inference</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">AI基础设施具有价值，因为它能够推动实际的实用工作。通过利用相同的电力和硬件来产生更有用的成果，Jalapeño可以帮助我们满足更多需求，并降低实现成功成果的成本。对于OpenAI而言，这可以提高运营杠杆效应，使实用工作和收入增长速度超过服务成本的增长速度。它还可以促进更广泛的应用，并支持对更优质模型、产品和基础设施的持续投资。更快的推理能力则能推动更快的迭代和新应用场景的出现。</p>
+<p class="source" lang="en">AI infrastructure is valuable because of the useful real-world work it enables. By producing more useful work from the same power and hardware, Jalapeño can help us serve more demand and lower the cost of delivering a successful result. For OpenAI, that can improve operating leverage by allowing useful work and revenue to grow faster than the cost to serve. It can also support broader adoption and continued investment in better models, products, and infrastructure. Faster inference can enable faster iteration and new use cases.</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">Jalapeño 扩展了高效、低延迟推理的可能性：</p>
+<p class="source" lang="en">Jalapeño expands what is possible for efficient, low-latency inference:</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">超快模式下的推理速度更快，其效率是以前仅在快速模式下才有的</p>
+<p class="source" lang="en">Ultra-fast-mode inference at efficiencies previously available only in fast mode</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">超快模式下的推理速度更快，其效率是以前仅在快速模式下才有的</p>
+<p class="source" lang="en">Ultra-fast-mode inference at efficiencies previously available only in fast mode</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">快速模式推理的效率达到了以前仅能在批量模式下实现的水平</p>
+<p class="source" lang="en">Fast-mode inference at efficiencies previously available only in batched mode</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">快速模式下的推理效率，以前只能通过批量处理来实现</p>
+<p class="source" lang="en">Fast-mode inference at efficiencies previously available only in batched mode</p>
+</div>
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">批量模式推理的效率更高</p>
+<p class="source" lang="en">Higher efficiency for batched-mode inference</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">批量模式推理的效率更高</p>
+<p class="source" lang="en">Higher efficiency for batched-mode inference</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">我们计划在年底前开始在 OpenAI 的计算基础设施中部署 Jalapeño。这是多代发展路线图的第一代：第二代正在深入开发，第三代正在形成。每一代都会基于我们积累的经验进一步提升效率与速度。</p>
+<p class="source" lang="en">We plan to begin deploying Jalapeño within OpenAI’s compute infrastructure by the end of the year. It is the first generation of a multigenerational roadmap: Gen 2 is deep in development, and Gen 3 is taking shape. Each generation will build on what we learn and further advance both efficiency and speed.</p>
+</div>
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">对人工智能的需求不断增加，将需要来自所有可用资源的更多计算能力。我们将继续广泛部署 NVIDIA及其他合作伙伴提供的加速器，用于训练和推理任务。我们的使命是确保通用人工智能为全人类带来益处。</p>
+<p class="source" lang="en">Meeting growing demand for AI will require more compute from every available source. We will continue to widely deploy accelerators from NVIDIA and other partners for both training and inference workloads. Our mission is to ensure that artificial general intelligence benefits all of humanity.</p>
+</div>
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">在准备部署的过程中，我们仍在继续进行生产验证，完善软件功能，为大规模运行 Jalapeño 做准备，并验证更多模型的性能表现。目前的结果表明，当我们共同设计整个系统时，能够实现更快速、更强大且更具智能的 AI 系统，能够更高效地服务于更多用户。</p>
+<p class="source" lang="en">As we prepare for deployment, we are continuing production qualification, maturing the software, preparing to operate Jalapeño at scale, and validating performance across more models. The results so far show what is possible when we design the full system together: more responsive, capable, and agentic AI delivered more efficiently to more people.</p>
+</div>
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">附录</p>
+<p class="source" lang="en">Appendix</p>
+</div>
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">Jalapeño 是 GPT‑OSS 120B 模型中的帕累托前沿。</p>
+<p class="source" lang="en">Jalapeño is pareto frontier at GPT‑OSS 120B</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">每千瓦功率边界值</p>
+<p class="source" lang="en">THROUGHPUT-per-kW FRONTIER</p>
+</div>
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">InferenceX · GPT‑OSS‑120B · 标准配置 8k/1k · STP · 包装 TDP：Jalapeño 700 瓦；GB200 1,200 瓦</p>
+<p class="source" lang="en">InferenceX · GPT‑OSS‑120B · nominal 8k/1k · STP · package TDP: Jalapeño 700 W; GB200 1,200 W</p>
+</div>
+<div class="pair" id="p-64">
+<p class="target" lang="zh-CN">Jalapeño在GPT‑OSS操作点中处于领先位置</p>
+<p class="source" lang="en">Jalapeño leads across GPT‑OSS operating points</p>
+</div>
+<div class="pair" id="p-65">
+<p class="target" lang="zh-CN">峰值和匹配的功率</p>
+<p class="source" lang="en">PEAK AND MATCHED THROUGHPUT</p>
+</div>
+<div class="pair" id="p-66">
+<p class="target" lang="zh-CN">InferenceX · GPT‑OSS‑120B · 标准配置 8k/1k · STP · 包装后的 TDP：Jalapeño 700 瓦；GB200 1,200 瓦</p>
+<p class="source" lang="en">InferenceX · GPT‑OSS‑120B · nominal 8k/1k · STP · package TDP: Jalapeño 700 W; GB200 1,200 W</p>
+</div>
+<div class="pair" id="p-67">
+<p class="target" lang="zh-CN">更高的峰值混合 TPS / kW</p>
+<p class="source" lang="en">Higher peak mixed TPS / kW</p>
+</div>
+<div class="pair" id="p-68">
+<p class="target" lang="zh-CN">≈1.9×</p>
+<p class="source" lang="en">≈1.9×</p>
+</div>
+<div class="pair" id="p-69">
+<p class="target" lang="zh-CN">85,448 对比 44,960 混合/千瓦</p>
+<p class="source" lang="en">85,448 vs. 44,960 mixed / kW</p>
+</div>
+<div class="pair" id="p-70">
+<p class="target" lang="zh-CN">降低端到端延迟</p>
+<p class="source" lang="en">Lower end-to-end latency</p>
+</div>
+<div class="pair" id="p-71">
+<p class="target" lang="zh-CN">≈1.7×</p>
+<p class="source" lang="en">≈1.7×</p>
+</div>
+<div class="pair" id="p-72">
+<p class="target" lang="zh-CN">1.03秒 vs. 1.80秒</p>
+<p class="source" lang="en">1.03 s vs. 1.80 s</p>
+</div>
+<div class="pair" id="p-73">
+<p class="target" lang="zh-CN">降低最低 TBT 值</p>
+<p class="source" lang="en">Lower min TBT</p>
+</div>
+<div class="pair" id="p-74">
+<p class="target" lang="zh-CN">≈2.7×</p>
+<p class="source" lang="en">≈2.7×</p>
+</div>
+<div class="pair" id="p-75">
+<p class="target" lang="zh-CN">0.69 毫秒 vs. 1.87 毫秒（1,459 个字节 vs. 535 个令牌/秒/用户）</p>
+<p class="source" lang="en">0.69 vs. 1.87 ms (1,459 vs. 535 tok/s/user)</p>
+</div>
+<div class="pair" id="p-76">
+<p class="target" lang="zh-CN">之前的 TBT 下吞吐量更高</p>
+<p class="source" lang="en">More throughput at previous TBT</p>
+</div>
+<div class="pair" id="p-77">
+<p class="target" lang="zh-CN">≈53.7×</p>
+<p class="source" lang="en">≈53.7×</p>
+</div>
+<div class="pair" id="p-78">
+<p class="target" lang="zh-CN">22,935 对比 427 混合/千瓦（在 535.28  Tok 每秒/用户）</p>
+<p class="source" lang="en">22,935 vs. 427 mixed / kW (at 535.28 tok/s/user)</p>
+</div>
+<div class="pair" id="p-79">
+<p class="target" lang="zh-CN">Jalapeño 是 DeepSeek R1 670B 模型中的帕累托前沿特征。</p>
+<p class="source" lang="en">Jalapeño is pareto frontier at DeepSeek R1 670B</p>
+</div>
+<div class="pair" id="p-80">
+<p class="target" lang="zh-CN">每千瓦功率边界值</p>
+<p class="source" lang="en">THROUGHPUT-per-kW FRONTIER</p>
+</div>
+<div class="pair" id="p-81">
+<p class="target" lang="zh-CN">InferenceX · DeepSeek R1 MXFP4 · 标称 8k/1k · STP · 包装 TDP：Jalapeño 700 瓦；GB300 1,400 瓦</p>
+<p class="source" lang="en">InferenceX · DeepSeek R1 MXFP4 · nominal 8k/1k · STP · package TDP: Jalapeño 700 W; GB300 1,400 W</p>
+</div>
+<div class="pair" id="p-82">
+<p class="target" lang="zh-CN">jalapeño在DeepSeek R1运行点中处于领先地位</p>
+<p class="source" lang="en">Jalapeño leads across DeepSeek R1 operating points</p>
+</div>
+<div class="pair" id="p-83">
+<p class="target" lang="zh-CN">峰值和匹配的吞吐量</p>
+<p class="source" lang="en">PEAK AND MATCHED THROUGHPUT</p>
+</div>
+<div class="pair" id="p-84">
+<p class="target" lang="zh-CN">InferenceX · DeepSeek R1 MXFP4 · 标称 8k/1k · STP · 包装 TDP：Jalapeño 700 瓦；GB300 1,400 瓦</p>
+<p class="source" lang="en">InferenceX · DeepSeek R1 MXFP4 · nominal 8k/1k · STP · package TDP: Jalapeño 700 W; GB300 1,400 W</p>
+</div>
+<div class="pair" id="p-85">
+<p class="target" lang="zh-CN">更高的峰值混合 TPS / kW</p>
+<p class="source" lang="en">Higher peak mixed TPS / kW</p>
+</div>
+<div class="pair" id="p-86">
+<p class="target" lang="zh-CN">≈1.7×</p>
+<p class="source" lang="en">≈1.7×</p>
+</div>
+<div class="pair" id="p-87">
+<p class="target" lang="zh-CN">19,641 对比 11,781 混合/千瓦</p>
+<p class="source" lang="en">19,641 vs. 11,781 mixed / kW</p>
+</div>
+<div class="pair" id="p-88">
+<p class="target" lang="zh-CN">降低端到端延迟</p>
+<p class="source" lang="en">Lower end-to-end latency</p>
+</div>
+<div class="pair" id="p-89">
+<p class="target" lang="zh-CN">≈3.6×</p>
+<p class="source" lang="en">≈3.6×</p>
+</div>
+<div class="pair" id="p-90">
+<p class="target" lang="zh-CN">1.65秒 vs. 5.99秒</p>
+<p class="source" lang="en">1.65 s vs. 5.99 s</p>
+</div>
+<div class="pair" id="p-91">
+<p class="target" lang="zh-CN">降低最低 TBT 值</p>
+<p class="source" lang="en">Lower min TBT</p>
+</div>
+<div class="pair" id="p-92">
+<p class="target" lang="zh-CN">≈4.1×</p>
+<p class="source" lang="en">≈4.1×</p>
+</div>
+<div class="pair" id="p-93">
+<p class="target" lang="zh-CN">1.43 毫秒 vs. 5.90 毫秒（700  Tok  vs. 169 Tok/s/用户）</p>
+<p class="source" lang="en">1.43 vs. 5.90 ms (700 vs. 169 tok/s/user)</p>
+</div>
+<div class="pair" id="p-94">
+<p class="target" lang="zh-CN">之前的 TBT 吞吐量更高了</p>
+<p class="source" lang="en">More throughput at previous TBT</p>
+</div>
+<div class="pair" id="p-95">
+<p class="target" lang="zh-CN">≈104.3×</p>
+<p class="source" lang="en">≈104.3×</p>
+</div>
+<div class="pair" id="p-96">
+<p class="target" lang="zh-CN">12,258 对比 118 混合/千瓦（在 169.41  Tok/s/用户时）</p>
+<p class="source" lang="en">12,258 vs. 118 mixed / kW (at 169.41 tok/s/user)</p>
+</div>
+<div class="pair" id="p-97">
+<p class="target" lang="zh-CN">Jalapeño 是 Kimi K2.5 1T 模型中的帕累托前沿。</p>
+<p class="source" lang="en">Jalapeño is pareto frontier at Kimi K2.5 1T</p>
+</div>
+<div class="pair" id="p-98">
+<p class="target" lang="zh-CN">每千瓦功率边界值</p>
+<p class="source" lang="en">THROUGHPUT-per-kW FRONTIER</p>
+</div>
+<div class="pair" id="p-99">
+<p class="target" lang="zh-CN">InferenceX · Kimi K2.5 MXFP4 · 标称 8k/1k · STP · 封装 TDP：Jalapeño 700 瓦；GB300 1,400 瓦</p>
+<p class="source" lang="en">InferenceX · Kimi K2.5 MXFP4 · nominal 8k/1k · STP · package TDP: Jalapeño 700 W; GB300 1,400 W</p>
+</div>
+<div class="pair" id="p-100">
+<p class="target" lang="zh-CN">Jalapeño在Kimi K2.5操作点中表现领先。</p>
+<p class="source" lang="en">Jalapeño leads across Kimi K2.5 operating points</p>
+</div>
+<div class="pair" id="p-101">
+<p class="target" lang="zh-CN">峰值和匹配的传输速率</p>
+<p class="source" lang="en">PEAK AND MATCHED THROUGHPUT</p>
+</div>
+<div class="pair" id="p-102">
+<p class="target" lang="zh-CN">InferenceX · Kimi K2.5 MXFP4 · 标称 8k/1k · STP · 包装 TDP：Jalapeño 700 瓦；GB300 1,400 瓦</p>
+<p class="source" lang="en">InferenceX · Kimi K2.5 MXFP4 · nominal 8k/1k · STP · package TDP: Jalapeño 700 W; GB300 1,400 W</p>
+</div>
+<div class="pair" id="p-103">
+<p class="target" lang="zh-CN">更高的峰值混合 TPS / kW</p>
+<p class="source" lang="en">Higher peak mixed TPS / kW</p>
+</div>
+<div class="pair" id="p-104">
+<p class="target" lang="zh-CN">≈1.5倍</p>
+<p class="source" lang="en">≈1.5×</p>
+</div>
+<div class="pair" id="p-105">
+<p class="target" lang="zh-CN">18,195 对比 11,862 混合/千瓦</p>
+<p class="source" lang="en">18,195 vs. 11,862 mixed / kW</p>
+</div>
+<div class="pair" id="p-106">
+<p class="target" lang="zh-CN">降低端到端延迟</p>
+<p class="source" lang="en">Lower end-to-end latency</p>
+</div>
+<div class="pair" id="p-107">
+<p class="target" lang="zh-CN">≈3.4×</p>
+<p class="source" lang="en">≈3.4×</p>
+</div>
+<div class="pair" id="p-108">
+<p class="target" lang="zh-CN">1.56秒 vs. 5.31秒</p>
+<p class="source" lang="en">1.56 s vs. 5.31 s</p>
+</div>
+<div class="pair" id="p-109">
+<p class="target" lang="zh-CN">降低最低 TBT 值</p>
+<p class="source" lang="en">Lower min TBT</p>
+</div>
+<div class="pair" id="p-110">
+<p class="target" lang="zh-CN">≈3.8×</p>
+<p class="source" lang="en">≈3.8×</p>
+</div>
+<div class="pair" id="p-111">
+<p class="target" lang="zh-CN">1.44 毫秒 vs. 5.48 毫秒（694  Tok/s/用户 vs. 182  Tok/s/用户）</p>
+<p class="source" lang="en">1.44 vs. 5.48 ms (694 vs. 182 tok/s/user)</p>
+</div>
+<div class="pair" id="p-112">
+<p class="target" lang="zh-CN">之前的 TBT 下吞吐量更高</p>
+<p class="source" lang="en">More throughput at previous TBT</p>
+</div>
+<div class="pair" id="p-113">
+<p class="target" lang="zh-CN">≈56.1×</p>
+<p class="source" lang="en">≈56.1×</p>
+</div>
+<div class="pair" id="p-114">
+<p class="target" lang="zh-CN">6,744 对比 120 混合/千瓦（在 182.46  Tok/s/用户处）</p>
+<p class="source" lang="en">6,744 vs. 120 mixed / kW (at 182.46 tok/s/user)</p>
+</div>
+<div class="pair" id="p-115">
+<p class="target" lang="zh-CN">2026</p>
+<p class="source" lang="en">2026</p>
+</div>
+<div class="pair" id="p-116">
+<p class="target" lang="zh-CN">作者</p>
+<p class="source" lang="en">Author</p>
+</div>
+<div class="pair" id="p-117">
+<p class="target" lang="zh-CN">继续阅读</p>
+<p class="source" lang="en">Keep reading</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/2xsjEAOhgideekNE2Xxxqk/fe4d5c8aecf7d6498d1e8026a5a56599/oai_GA_Stories_1.1.png?w=3840&amp;q=90&amp;fm=webp" alt="ChatGPT for Veterans &gt; Cover Image" loading="lazy">
+<div class="pair" id="p-118">
+<p class="target" lang="zh-CN">公司 2026年11月11日</p>
+<p class="source" lang="en">CompanyNov 11, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/2wwJf21F4rMJ6FffmYbEa5/0e9a21de969e280e77ae8ae66eaa03f6/helping-caregivers-use-ai-in-everyday-life-cover.png?w=3840&amp;q=90&amp;fm=webp" alt="Helping caregivers use AI in everyday life — Cover" loading="lazy">
+<div class="pair" id="p-119">
+<p class="target" lang="zh-CN">公司 2026年11月10日</p>
+<p class="source" lang="en">CompanyNov 10, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3xRIBv3ZzYUCkX0v0ssRAD/b97d79a3107502fca0ba388910a9aa5c/closing-the-ai-guidance-gap-in-education-cover.png?w=3840&amp;q=90&amp;fm=webp" alt="Closing the AI guidance gap in education — Cover" loading="lazy">
+<div class="pair" id="p-120">
+<p class="target" lang="zh-CN">公司 2026年11月10日</p>
+<p class="source" lang="en">CompanyNov 10, 2026</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://openai.com/index/jalapeno-first-results" target="_blank" rel="noopener noreferrer">https://openai.com/index/jalapeno-first-results</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html">← Rapidly scaling online storage to serve over 1 billion ChatGPT users</a><a href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html">How we built a realtime system for responsive voice AI in six months →</a></nav>
+  <footer class="footer">文章版权归原作者所有，译文请以英文原文为准。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

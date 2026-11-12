@@ -1,0 +1,923 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Scaling PostgreSQL to power 800 million ChatGPT users · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Scaling PostgreSQL to power 800 million ChatGPT users</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item current" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html" aria-current="page"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item current" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html" aria-current="page"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Scaling PostgreSQL to power 800 million ChatGPT users</h1>
+  <p class="subline">原文：<a href="https://openai.com/index/scaling-postgresql" target="_blank" rel="noopener noreferrer">https://openai.com/index/scaling-postgresql</a> · 2026-01-22 · OpenAI Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">将 PostgreSQL 扩展至数百万 QPS 水平以减少主服务器负载查询优化单点故障缓解工作负载隔离连接池缓存读取副本扩展速率限制架构管理</p>
+<p class="source" lang="en">Scaling PostgreSQL to millions of QPSReducing load on the primaryQuery optimizationSingle point of failure mitigationWorkload isolationConnection poolingCachingScaling read replicasRate limitSchema Management</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">减少主系统的负载</p>
+<p class="source" lang="en">Reducing load on the primary</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">查询优化</p>
+<p class="source" lang="en">Query optimization</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">单一故障点缓解</p>
+<p class="source" lang="en">Single point of failure mitigation</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">工作负载隔离</p>
+<p class="source" lang="en">Workload isolation</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">连接池技术</p>
+<p class="source" lang="en">Connection pooling</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">缓存</p>
+<p class="source" lang="en">Caching</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">扩展读取副本</p>
+<p class="source" lang="en">Scaling read replicas</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">速率限制</p>
+<p class="source" lang="en">Rate limit</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">模式管理</p>
+<p class="source" lang="en">Schema Management</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">结果与未来的道路</p>
+<p class="source" lang="en">Results and the road ahead</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">我们初始设计中的裂缝</p>
+<p class="source" lang="en">Cracks in our initial design</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">将 PostgreSQL 扩展至数百万 QPS 水平以减少主服务器负载查询优化单点故障缓解工作负载隔离连接池缓存读取副本扩展速率限制架构管理</p>
+<p class="source" lang="en">Scaling PostgreSQL to millions of QPSReducing load on the primaryQuery optimizationSingle point of failure mitigationWorkload isolationConnection poolingCachingScaling read replicasRate limitSchema Management</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">减少主系统的负载</p>
+<p class="source" lang="en">Reducing load on the primary</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">查询优化</p>
+<p class="source" lang="en">Query optimization</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">单一故障点缓解</p>
+<p class="source" lang="en">Single point of failure mitigation</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">工作负载隔离</p>
+<p class="source" lang="en">Workload isolation</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">连接池技术</p>
+<p class="source" lang="en">Connection pooling</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">缓存</p>
+<p class="source" lang="en">Caching</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">扩展读取副本</p>
+<p class="source" lang="en">Scaling read replicas</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">速率限制</p>
+<p class="source" lang="en">Rate limit</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">模式管理</p>
+<p class="source" lang="en">Schema Management</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">结果与未来的道路</p>
+<p class="source" lang="en">Results and the road ahead</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">多年来，PostgreSQL一直是至关重要的后台数据系统之一，为ChatGPT和OpenAI的API等核心产品提供支持。随着用户群体的迅速增长，对数据库的需求也呈指数级上升。过去一年里，我们的PostgreSQL负载增长了10倍以上，并且仍在快速增加。</p>
+<p class="source" lang="en">For years, PostgreSQL has been one of the most critical, under-the-hood data systems powering core products like ChatGPT and OpenAI’s API. As our user base grows rapidly, the demands on our databases have increased exponentially, too. Over the past year, our PostgreSQL load has grown by more than 10x, and it continues to rise quickly.</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">我们为提升生产基础设施以支持这种增长所做的努力揭示了一个新发现：PostgreSQL可以扩展以可靠地支持比之前认为可能的更多的读取密集型工作负载。该系统最初由加州大学伯克利分校的科学家团队创建，使我们能够通过单个主要的 Azure PostgreSQL 灵活服务器实例以及分布在全球多个区域的近50个读取复制品，支持巨大的全球流量。这就是我们在 OpenAI 中如何通过严格的优化和扎实的工程技术，将 PostgreSQL 扩展以支持800百万用户每秒数百万次查询的故事，我们还将介绍在此过程中学到的关键要点。</p>
+<p class="source" lang="en">Our efforts to advance our production infrastructure to sustain this growth revealed a new insight: PostgreSQL can be scaled to reliably support much larger read-heavy workloads than many previously thought possible. The system (initially created by a team of scientists at University of California, Berkeley) has enabled us to support massive global traffic with a single primary Azure PostgreSQL flexible server instance⁠(opens in a new window) and nearly 50 read replicas spread over multiple regions globally. This is the story of how we’ve scaled PostgreSQL at OpenAI to support millions of queries per second for 800 million users through rigorous optimizations and solid engineering; we’ll also cover key takeaways we learned along the way.</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">我们初始设计中的裂缝</p>
+<p class="source" lang="en">Cracks in our initial design</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">&lt;text&gt;
+ChatGPT发布后，流量增长达到了前所未有的速度。为了支持这一增长，我们在应用程序和PostgreSQL数据库层面迅速实施了大量优化措施，通过增加实例规模来扩大规模，并添加更多读副本来扩展容量。这种架构已经很好地服务于我们很长时间了。随着持续的改进，它仍然为未来的发展提供了充足的空间。
+&lt;/text&gt;</p>
+<p class="source" lang="en">After the launch of ChatGPT, traffic grew at an unprecedented rate. To support it, we rapidly implemented extensive optimizations at both the application and PostgreSQL database layers, scaled up by increasing the instance size, and scaled out by adding more read replicas. This architecture has served us well for a long time. With ongoing improvements, it continues to provide ample runway for future growth.</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">听起来可能令人惊讶的是，一种单一主架构能够满足 OpenAI 的规模需求；然而，在实际中实现这一点并不简单。我们已经看到由 Postgres 过载引起的几种 SEV 问题，它们通常遵循相同的模式：上游问题导致数据库负载突然增加，例如缓存层故障导致的广泛缓存未命中、昂贵的多路连接操作使 CPU 饱和，或者新功能推出导致的写入风暴。随着资源利用率上升，查询延迟增加，请求开始超时。重试操作则进一步增加负载，引发恶性循环，有可能导致整个 ChatGPT 和 API 服务性能下降。</p>
+<p class="source" lang="en">It may sound surprising that a single-primary architecture can meet the demands of OpenAI’s scale; however, making this work in practice isn’t simple. We’ve seen several SEVs caused by Postgres overload, and they often follow the same pattern: an upstream issue causes a sudden spike in database load, such as widespread cache misses from a caching-layer failure, a surge of expensive multi-way joins saturating CPU, or a write storm from a new feature launch. As resource utilization climbs, query latency rises and requests begin to time out. Retries then further amplify the load, triggering a vicious cycle with the potential to degrade the entire ChatGPT and API services.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/5dECJjynPkxFF2XABuh3bt/3b5562e1f879fd0afd2deffe9cf1e142/OAI_The_Vicious_Cycle_Under_Load__Light_Desktop_.svg?w=3840&amp;q=90" alt="Scaling load diagram" loading="lazy">
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">虽然 PostgreSQL 非常适合处理读取密集型工作负载，但在写入流量大的情况下仍会遇到挑战。这主要归因于 PostgreSQL 的多版本并发控制（MVCC）实现，使得它对于写入密集型工作负载效率较低。例如，当查询更新一个元组甚至单个字段时，整个行都会被复制以创建新版本。在高写入负载下，这会导致显著的写入放大效应，同时也会增加读取放大效应，因为查询必须扫描多个元组版本（死元组）才能获取最新版本。MVCC 还带来了其他挑战，如表和索引膨胀、索引维护开销增加以及复杂的自动清理调整。（关于这些问题的深入讨论，可以在我在卡内基梅隆大学与 Andy Pavlo 教授合写的博客文章《我们最讨厌的 PostgreSQL 部分》中找到，该文章可在 PostgreSQL 维基页面中查看。）</p>
+<p class="source" lang="en">Although PostgreSQL scales well for our read-heavy workloads, we still encounter challenges during periods of high write traffic. This is largely due to PostgreSQL’s multiversion concurrency control (MVCC) implementation, which makes it less efficient for write-heavy workloads. For example, when a query updates a tuple or even a single field, the entire row is copied to create a new version. Under heavy write loads, this results in significant write amplification. It also increases read amplification, since queries must scan through multiple tuple versions (dead tuples) to retrieve the latest one. MVCC introduces additional challenges such as table and index bloat, increased index maintenance overhead, and complex autovacuum tuning. (You can find a deep-dive on these issues in a blog I wrote with Prof. Andy Pavlo at Carnegie Mellon University called The Part of PostgreSQL We Hate the Most⁠(opens in a new window), cited⁠(opens in a new window) in the PostgreSQL Wikipedia page.)</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">将 PostgreSQL 扩展至数百万 QPS 水平</p>
+<p class="source" lang="en">Scaling PostgreSQL to millions of QPS</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">为了缓解这些限制并减少写入压力，我们已经并将继续将可分片（即可以水平划分的工作负载）且写入量大的工作负载迁移到如 Azure Cosmos DB 这样的分片系统中，同时优化应用程序逻辑以减少不必要的写入。我们也不再允许在当前的 PostgreSQL 部署中添加新表，新的工作负载默认会部署到分片系统中。</p>
+<p class="source" lang="en">To mitigate these limitations and reduce write pressure, we’ve migrated, and continue to migrate, shardable (i.e. workloads that can be horizontally partitioned), write-heavy workloads to sharded systems such as Azure Cosmos DB, optimizing application logic to minimize unnecessary writes. We also no longer allow adding new tables to the current PostgreSQL deployment. New workloads default to the sharded systems.</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">尽管我们的基础设施已经发展，PostgreSQL 仍然没有采用分片机制，所有写入操作都由一个主实例处理。主要的原因是，对现有应用程序工作负载进行分片会非常复杂且耗时，需要修改数百个应用端点，可能需要数月甚至数年时间。由于我们的工作负载主要是读取密集型，并且我们已经进行了大量优化，当前架构仍然有充足的空间来支持流量的持续增长。虽然我们不会排除未来对 PostgreSQL 进行分片的可能性，但鉴于我们目前和未来的发展有足够的空间，这并非近期优先事项。</p>
+<p class="source" lang="en">Even as our infrastructure has evolved, PostgreSQL has remained unsharded, with a single primary instance serving all writes. The primary rationale is that sharding existing application workloads would be highly complex and time-consuming, requiring changes to hundreds of application endpoints and potentially taking months or even years. Since our workloads are primarily read-heavy, and we’ve implemented extensive optimizations, the current architecture still provides ample headroom to support continued traffic growth. While we’re not ruling out sharding PostgreSQL in the future, it’s not a near-term priority given the sufficient runway we have for current and future growth.</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">在接下来的章节中，我们将探讨我们面临的挑战以及我们实施的广泛优化措施，以应对这些挑战并防止未来的系统故障，使 PostgreSQL 达到极限，并能够支持每秒数百万次查询（QPS）。</p>
+<p class="source" lang="en">In the following sections, we’ll dive into the challenges we faced and the extensive optimizations we implemented to address them and prevent future outages, pushing PostgreSQL to its limits and scaling it to millions of queries per second (QPS).</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">减少主系统的负担</p>
+<p class="source" lang="en">Reducing load on the primary</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">挑战：由于只有一名作者，单一主服务器设置无法扩展写入量。大量的写入峰值会迅速使主服务器过载，进而影响 ChatGPT 和我们的 API 等服务。</p>
+<p class="source" lang="en">Challenge: With only one writer, a single-primary setup can’t scale writes. Heavy write spikes can quickly overload the primary and impact services like ChatGPT and our API.</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">解决方案：我们尽可能减少主节点上的负载，包括读操作和写操作，以确保主节点有足够的容量应对写操作高峰。读流量尽可能被转移到副本上。然而，一些读查询必须留在主节点上，因为它们是写事务的一部分。针对这些查询，我们注重确保其高效运行，避免查询变慢。对于写流量，我们将可分片、写负载重的工作负载迁移到如 Azure CosmosDB 这样的分片系统中。那些难以分片但写量仍高的工作负载迁移时间更长，这一过程仍在进行中。我们还积极优化应用程序以减少写负载；例如，我们修复了导致重复写入的应用程序错误，并在适当情况下引入延迟写入，以平滑流量波动。此外，在填充表字段时，我们实施严格的速率限制，以防止过度写压力。</p>
+<p class="source" lang="en">Solution: We minimize load on the primary as much as possible—both reads and writes—to ensure it has sufficient capacity to handle write spikes. Read traffic is offloaded to replicas wherever possible. However, some read queries must remain on the primary because they’re part of write transactions. For those, we focus on ensuring they’re efficient and avoid slow queries. For write traffic, we’ve migrated shardable, write-heavy workloads to sharded systems such as Azure CosmosDB. Workloads that are harder to shard but still generate high write volume take longer to migrate, and that process is still ongoing. We also aggressively optimized our applications to reduce write load; for example, we’ve fixed application bugs that caused redundant writes and introduced lazy writes, where appropriate, to smooth traffic spikes. In addition, when backfilling table fields, we enforce strict rate limits to prevent excessive write pressure.</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">查询优化</p>
+<p class="source" lang="en">Query optimization</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">挑战：我们发现了 PostgreSQL 中的几个昂贵的查询。过去，这些查询的流量突然增加会消耗大量 CPU 资源，从而减慢 ChatGPT 和 API 请求的速度。</p>
+<p class="source" lang="en">Challenge: We identified several expensive queries in PostgreSQL. In the past, sudden volume spikes in these queries would consume large amounts of CPU, slowing both ChatGPT and API requests.</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">解决方案：一些昂贵的查询，比如那些连接多个表的查询，可能会严重降低甚至导致整个服务崩溃。我们需要不断优化 PostgreSQL 查询，以确保其高效运行，并避免常见的在线事务处理（OLTP）不良模式。例如，我们曾经发现一个非常昂贵的查询，它连接了12个表，而该查询的峰值流量导致了过去严重的系统错误。我们应该尽可能避免复杂的多表连接。如果必须进行连接，我们应该考虑将复杂的连接逻辑移到应用层。许多这类问题查询是由对象关系映射框架（ORM）生成的，因此仔细审查它们生成的 SQL 并确保其按预期运行非常重要。在 PostgreSQL 中，长时间运行的空闲查询也很常见。配置如 idle_in_transaction_session_timeout 这样的超时设置非常重要，以防止它们阻塞自动清理机制。</p>
+<p class="source" lang="en">Solution: A few expensive queries, such as those joining many tables together, can significantly degrade or even bring down the entire service. We need to continuously optimize PostgreSQL queries to ensure they’re efficient and avoid common Online Transaction Processing (OLTP) anti-patterns. For example, we once identified an extremely costly query that joined 12 tables, where spikes in this query were responsible for past high-severity SEVs. We should avoid complex multi-table joins whenever possible. If joins are necessary, we learned to consider breaking down the query and move complex join logic to the application layer instead. Many of these problematic queries are generated by Object-Relational Mapping frameworks (ORMs), so it’s important to carefully review the SQL they produce and ensure it behaves as expected. It’s also common to find long-running idle queries in PostgreSQL. Configuring timeouts like idle_in_transaction_session_timeout is essential to prevent them from blocking autovacuum.</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">单一故障点缓解</p>
+<p class="source" lang="en">Single point of failure mitigation</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">挑战：如果读取副本宕机，流量仍可以被路由到其他副本。然而，依赖单个写入者意味着存在单一故障点——如果它宕机，整个服务都会受到影响。</p>
+<p class="source" lang="en">Challenge: If a read replica goes down, traffic can still be routed to other replicas. However, relying on a single writer means having a single point of failure—if it goes down, the entire service is affected.</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">解决方案：最关键的请求仅涉及读取操作。为了减轻主节点单点故障的影响，我们将这些读取操作从主节点转移到副本上，这样即使主节点宕机，这些请求也能继续处理。虽然写入操作仍然会失败，但影响会减小；因为读取仍然可以正常进行，所以不再属于 SEV0 级别。</p>
+<p class="source" lang="en">Solution: Most critical requests only involve read queries. To mitigate the single point of failure in the primary, we offloaded those reads from the writer to replicas, ensuring those requests can continue serving even if the primary goes down. While write operations would still fail, the impact is reduced; it’s no longer a SEV0 since reads remain available.</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">为了减少主要故障的影响，我们将主服务器运行在高可用性（HA）模式下，并配备热备副本，该副本能够持续同步，随时准备接管服务流量。如果主服务器宕机或需要维护而离线，我们可以迅速将备机提升为主服务器，从而将停机时间降到最低。Azure PostgreSQL团队已经做了大量工作，确保即使在高负载情况下，这些故障转移也能安全可靠。为了应对读取副本的故障，我们在每个区域部署了多个副本，并保留足够的容量余量，从而确保单个副本故障不会导致区域服务中断。</p>
+<p class="source" lang="en">To mitigate primary failures, we run the primary in High-Availability (HA) mode with a hot standby, a continuously synchronized replica that is always ready to take over serving traffic. If the primary goes down or needs to be taken offline for maintenance, we can quickly promote the standby to minimize downtime. The Azure PostgreSQL team has done significant work to ensure these failovers remain safe and reliable even under very high load. To handle read replica failures, we deploy multiple replicas in each region with sufficient capacity headroom, ensuring that a single replica failure doesn’t lead to a regional outage.</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">工作负载隔离</p>
+<p class="source" lang="en">Workload isolation</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">挑战：我们经常遇到某些请求在 PostgreSQL 实例上消耗大量资源的情况。这可能会导致同一实例上运行的其他工作负载性能下降。例如，新功能的推出可能会引入效率低的查询，大量消耗 PostgreSQL 的 CPU 资源，从而减缓其他关键功能的运行。</p>
+<p class="source" lang="en">Challenge: We often encounter situations where certain requests consume a disproportionate amount of resources on PostgreSQL instances. This can lead to degraded performance for other workloads running on the same instances. For example, a new feature launch can introduce inefficient queries that heavily consume PostgreSQL CPU, slowing down requests for other critical features.</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">解决方案：为了缓解“噪声邻居”问题，我们将工作负载隔离到专用实例中，以确保资源密集型请求的突然激增不会影响其他流量。具体来说，我们将请求分为低优先级和高优先级两类，并将它们路由到不同的实例中。这样，即使低优先级工作负载变得资源密集，也不会降低高优先级请求的性能。我们在不同的产品和服务中也采用相同的策略，以确保一个产品的活动不会影响另一个产品的性能或可靠性。</p>
+<p class="source" lang="en">Solution: To mitigate the “noisy neighbor” problem, we isolate workloads onto dedicated instances to ensure that sudden spikes in resource-intensive requests don’t impact other traffic. Specifically, we split requests into low-priority and high-priority tiers and route them to separate instances. This way, even if a low-priority workload becomes resource-intensive, it won’t degrade the performance of high-priority requests. We apply the same strategy across different products and services as well, so that activity from one product does not affect the performance or reliability of another.</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">连接池使用</p>
+<p class="source" lang="en">Connection pooling</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">挑战：每个实例都有最大的连接限制（Azure PostgreSQL中为5,000个）。很容易用完连接或积累过多的空闲连接。之前曾发生过因连接风暴导致所有可用连接被耗尽的情况。</p>
+<p class="source" lang="en">Challenge: Each instance has a maximum connection limit (5,000 in Azure PostgreSQL). It’s easy to run out of connections or accumulate too many idle ones. We’ve previously had incidents caused by connection storms that exhausted all available connections.</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">解决方案：我们将 PgBouncer 作为代理层来汇集数据库连接。在语句或事务池模式下运行它，可以高效地复用连接，大大减少活跃客户端连接的数量。这还能降低连接建立的延迟：在我们的基准测试中，平均连接时间从 50 毫秒降至 5 毫秒。跨区域连接和请求可能会很昂贵，因此我们将代理、客户端和副本都放在同一区域，以最小化网络开销和连接使用时间。此外，PgBouncer 的配置必须仔细进行。像空闲超时设置这样的参数对于防止连接耗尽非常重要。</p>
+<p class="source" lang="en">Solution: We deployed PgBouncer as a proxy layer to pool database connections. Running it in statement or transaction pooling mode allows us to efficiently reuse connections, greatly reducing the number of active client connections. This also cuts connection setup latency: in our benchmarks, the average connection time dropped from 50 milliseconds (ms) to 5 ms. Inter-region connections and requests can be expensive, so we co-locate the proxy, clients, and replicas in the same region to minimize network overhead and connection use time. Moreover, PgBouncer must be configured carefully. Settings like idle timeouts are critical to prevent connection exhaustion.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/kttDE3EiZ6roTjpbUpqxX/dd9ceee15663caa6e37a83bedc8626f5/OAI_PgBouncer_as_PostgreSQL_Proxy__Light_Desktop_.svg?w=3840&amp;q=90" alt="postgreSQL proxy diagram" loading="lazy">
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">每个读取副本都有自己运行的 Kubernetes 部署，包含多个 PgBouncer 容器。我们在同一个 Kubernetes Service 后面运行多个 Kubernetes 部署，该 Service 负责将流量均衡分配到各个容器上。</p>
+<p class="source" lang="en">Each read replica has its own Kubernetes deployment running multiple PgBouncer pods. We run multiple Kubernetes deployments behind the same Kubernetes Service, which load-balances traffic across pods.</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">缓存</p>
+<p class="source" lang="en">Caching</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">挑战：缓存缺失的突然增加可能导致 PostgreSQL 数据库上的读取量激增，从而使 CPU 饱和并降低用户请求的速度。</p>
+<p class="source" lang="en">Challenge: A sudden spike in cache misses can trigger a surge of reads on the PostgreSQL database, saturating CPU and slowing user requests.</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">解决方案：为了减少对 PostgreSQL 的读取压力，我们使用缓存层来处理大部分读取流量。然而，当缓存命中率意外下降时，大量的缓存未命中请求会直接被发送到 PostgreSQL。这种数据库读取量的突然增加会消耗大量资源，导致服务速度变慢。为了在缓存未命中期间避免过载，我们实施了缓存锁定（和租赁）机制，使得只有未命中特定键的单个读取者才能从 PostgreSQL 获取数据。当多个请求未命中同一缓存键时，只有其中一个请求获得锁，然后才能获取数据并重新填充缓存。其他请求则等待缓存更新，而不是同时全部发送到 PostgreSQL。这显著减少了重复的数据库读取，并保护系统免受级联负载激增的影响。</p>
+<p class="source" lang="en">Solution: To reduce read pressure on PostgreSQL, we use a caching layer to serve most of the read traffic. However, when cache hit rates drop unexpectedly, the burst of cache misses can push a large volume of requests directly to PostgreSQL. This sudden increase in database reads consumes significant resources, slowing down the service. To prevent overload during cache-miss storms, we implement a cache locking (and leasing) mechanism so that only a single reader that misses on a particular key fetches the data from PostgreSQL. When multiple requests miss on the same cache key, only one request acquires the lock and proceeds to retrieve the data and repopulate the cache. All other requests wait for the cache to be updated rather than all hitting PostgreSQL at once. This significantly reduces redundant database reads and protects the system from cascading load spikes.</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">扩展读取副本</p>
+<p class="source" lang="en">Scaling read replicas</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">挑战：主节点需要将预写日志（WAL）数据传输到每个读取副本。随着副本数量的增加，主节点必须将WAL数据传输到更多的实例，从而给网络带宽和CPU带来更大的压力。这导致副本延迟更高且更加不稳定，使得系统难以可靠地扩展。</p>
+<p class="source" lang="en">Challenge: The primary streams Write Ahead Log (WAL) data to every read replica. As the number of replicas increases, the primary must ship WAL to more instances, increasing pressure on both network bandwidth and CPU. This causes higher and more unstable replica lag, which makes the system harder to scale reliably.</p>
+</div>
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">解决方案：我们在多个地理区域运行近50个副本，以最小化延迟。然而，按照当前架构，主节点必须向每个副本传输WAL数据。虽然对于非常大的实例类型和高网络带宽来说，当前架构已经能够良好扩展，但无法无限增加副本数量，否则最终会使主节点过载。为了应对这一问题，我们正在与Azure PostgreSQL团队合作开展级联复制技术，即中间副本将WAL数据传递给下游副本。这种方法使我们能够扩展到超过一百个副本，而不会使主节点负担过重。不过，这也带来了额外的操作复杂性，尤其是关于故障转移管理方面。该功能仍在测试阶段，我们将确保其稳定且能够安全地进行故障转移，然后再将其应用于生产环境。</p>
+<p class="source" lang="en">Solution: We operate nearly 50 read replicas across multiple geographic regions to minimize latency. However, with the current architecture, the primary must stream WAL to every replica. Although it currently scales well with very large instance types and high-network bandwidth, we can’t keep adding replicas indefinitely without eventually overloading the primary. To address this, we’re collaborating with the Azure PostgreSQL team on cascading replication⁠(opens in a new window), where intermediate replicas relay WAL to downstream replicas. This approach allows us to scale to potentially over a hundred replicas without overwhelming the primary. However, it also introduces additional operational complexity, particularly around failover management. The feature is still in testing; we’ll ensure it’s robust and can fail over safely before rolling it out to production.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/T9UJV7cX2uI7qSOQwuv0h/daf02e23cb5d013d9afce95691ec7ec8/PostgreSQL_Cascading_Replication__Light_Desktop_.svg?w=3840&amp;q=90" alt="postgreSQL cascading replication diagram" loading="lazy">
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">速率限制</p>
+<p class="source" lang="en">Rate limit</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">挑战：特定端点上的突然交通流量激增、昂贵的查询数量增加或重试请求过多，都可能迅速耗尽CPU、I/O和连接等关键资源，导致服务性能严重下降。</p>
+<p class="source" lang="en">Challenge: A sudden traffic spike on specific endpoints, a surge of expensive queries, or a retry storm can quickly exhaust critical resources such as CPU, I/O, and connections, which causes widespread service degradation.</p>
+</div>
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">解决方案：我们在多个层面实施了速率限制——包括应用程序、连接池、代理和查询——以防止突然的流量激增压倒数据库实例并引发连锁故障。同时，避免过短的重试间隔也很重要，因为那样会引发重试风暴。我们还改进了 ORM层，以支持速率限制，并在必要时完全阻止特定的查询摘要。这种有针对性的负载减少方式能够快速应对昂贵的查询突增。</p>
+<p class="source" lang="en">Solution: We implemented rate-limiting across multiple layers—application, connection pooler, proxy, and query—to prevent sudden traffic spikes from overwhelming database instances and triggering cascading failures. It’s also crucial to avoid overly short retry intervals, which can trigger retry storms. We also enhanced the ORM layer to support rate limiting and when necessary, fully block specific query digests. This targeted form of load shedding enables rapid recovery from sudden surges of expensive queries.</p>
+</div>
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">模式管理</p>
+<p class="source" lang="en">Schema Management</p>
+</div>
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">挑战：即使是微小的模式更改，比如更改列类型，也可能引发整个表的重写（在新窗口中打开）。因此，我们谨慎地实施模式更改，将其限制为轻量级操作，避免任何可能导致整个表重写的更改。</p>
+<p class="source" lang="en">Challenge: Even a small schema change, such as altering a column type, can trigger a full table rewrite⁠(opens in a new window). We therefore apply schema changes cautiously—limiting them to lightweight operations and avoiding any that rewrite entire tables.</p>
+</div>
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">解决方案：仅允许轻量级的模式更改，例如添加或删除某些不会触发完整表重写的列。我们对模式更改实施严格的5秒超时限制。同时创建和删除索引是被允许的。模式更改仅限于现有表。如果新功能需要额外的表，这些表必须位于 Azure CosmosDB 等替代分片系统中，而不是 PostgreSQL 中。在填充表字段时，我们实施严格的速率限制，以防止写入量激增。尽管这个过程有时需要超过一周的时间，但这样可以确保稳定性并避免对生产环境造成影响。</p>
+<p class="source" lang="en">Solution: Only lightweight schema changes are permitted, such as adding or removing certain columns that do not trigger a full table rewrite. We enforce a strict 5-second timeout on schema changes. Creating and dropping indexes concurrently is allowed. Schema changes are restricted to existing tables. If a new feature requires additional tables, they must be in alternative sharded systems such as Azure CosmosDB rather than PostgreSQL. When backfilling a table field, we apply strict rate limits to prevent write spikes. Although this process can sometimes take over a week, it ensures stability and avoids any production impact.</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">结果与未来的道路</p>
+<p class="source" lang="en">Results and the road ahead</p>
+</div>
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">这种努力表明，通过正确的设计和优化，Azure PostgreSQL能够扩展以处理最大的生产工作负载。PostgreSQL能够处理数百万 QPS的读取密集型工作负载，为OpenAI的关键产品如ChatGPT和API平台提供支持。我们增加了近50个读取副本，同时将复制延迟保持在接近零的水平，保持了跨地理分布区域的低延迟读取，并建立了足够的容量余量以支持未来的增长。</p>
+<p class="source" lang="en">This effort demonstrates that with the right design and optimizations, Azure PostgreSQL can be scaled to handle the largest production workloads. PostgreSQL handles millions of QPS for read-heavy workloads, powering OpenAI’s most critical products like ChatGPT and the API platform. We added nearly 50 read replicas, while keeping replication lag near zero, maintained low-latency reads across geo-distributed regions, and built sufficient capacity headroom to support future growth.</p>
+</div>
+<div class="pair" id="p-64">
+<p class="target" lang="zh-CN">这种扩展机制在减少延迟并提高可靠性之间取得了良好的平衡。我们在生产环境中始终能够实现低至两位数毫秒的 p99 客户端侧延迟和 95% 的可用性。在过去 12 个月中，仅发生了一次 SEV-0 PostgreSQL 事件（该事件发生在 ChatGPT ImageGen 的爆发性发布期间，当时写入流量突然增加了 10 倍以上，超过 1 亿新用户在一周内注册了账户。）</p>
+<p class="source" lang="en">This scaling works while still minimizing latency and improving reliability. We consistently deliver low double-digit millisecond p99 client-side latency and five-nines availability in production. And over the past 12 months, we’ve had only one SEV-0 PostgreSQL incident (it occurred during the viral launch⁠(opens in a new window) of ChatGPT ImageGen, when write traffic suddenly surged by more than 10x as over 100 million new users signed up within a week.)</p>
+</div>
+<div class="pair" id="p-65">
+<p class="target" lang="zh-CN">虽然我们对 PostgreSQL 取得的进展感到满意，但我们仍不断挑战其极限，以确保未来能够继续发展。我们已经将那些需要大量写入操作的碎片化工作负载迁移到了 CosmosDB 等碎片化系统中。剩下的需要大量写入的工作负载则更难以进行碎片化处理——我们也在积极迁移这些工作负载，以将写入任务从 PostgreSQL 主数据库中转移出去。我们还与 Azure 合作，实现级联复制，从而能够安全地扩展更多的读取副本。</p>
+<p class="source" lang="en">While we’re happy with how far PostgreSQL has taken us, we continue to push its limits to ensure we have sufficient runway for future growth. We’ve already migrated the shardable write-heavy workloads to our sharded systems like CosmosDB. The remaining write-heavy workloads are more challenging to shard—we’re actively migrating those as well to further offload writes from the PostgreSQL primary. We’re also working with Azure to enable cascading replication so we can safely scale to significantly more read replicas.</p>
+</div>
+<div class="pair" id="p-66">
+<p class="target" lang="zh-CN">展望未来，随着我们的基础设施需求不断增加，我们将继续探索更多扩展方法，包括分片式 PostgreSQL或替代的分布式系统。</p>
+<p class="source" lang="en">Looking ahead, we’ll continue to explore additional approaches to further scale, including sharded PostgreSQL or alternative distributed systems, as our infrastructure demands continue to grow.</p>
+</div>
+<div class="pair" id="p-67">
+<p class="target" lang="zh-CN">2026</p>
+<p class="source" lang="en">2026</p>
+</div>
+<div class="pair" id="p-68">
+<p class="target" lang="zh-CN">作者</p>
+<p class="source" lang="en">Author</p>
+</div>
+<div class="pair" id="p-69">
+<p class="target" lang="zh-CN">致谢</p>
+<p class="source" lang="en">Acknowledgements</p>
+</div>
+<div class="pair" id="p-70">
+<p class="target" lang="zh-CN">特别感谢 Jon Lee、Sicheng Liu、Chaomin Yu 和 Chenglong Hao 对本文的贡献，也感谢所有帮助扩展 PostgreSQL 的团队。我们还要感谢 Azure PostgreSQL 团队提供的强大合作支持。</p>
+<p class="source" lang="en">Special thanks to Jon Lee, Sicheng Liu, Chaomin Yu, and Chenglong Hao, who contributed to this post, and to the entire team that helped scale PostgreSQL. We’d also like to thank the Azure PostgreSQL team for their strong partnership.</p>
+</div>
+<div class="pair" id="p-71">
+<p class="target" lang="zh-CN">继续阅读</p>
+<p class="source" lang="en">Keep reading</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6G64B5haCxDuphl2iqwZ1N/4f8d319293f5e5e98b319e01b4fbdf59/scaling-git-at-openai-art-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Scaling Git at OpenAI — art card" loading="lazy">
+<div class="pair" id="p-72">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年11月2日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringNov 2, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3a839ECHaGsidJPLJqqm5s/55968ec17735b96514d1bb4851f43bf8/scaling-storage-one-billion-users-part-two-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II) — card" loading="lazy">
+<div class="pair" id="p-73">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学2026年10月23日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 23, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3aewhPPb5NQ5IqOKEkrtzA/7209065f6e6ccf3a0476b43feb8336e1/rethinking-ads-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rethinking the ad stack around a new user journey — Art card" loading="lazy">
+<div class="pair" id="p-74">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年10月21日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 21, 2026</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://openai.com/index/scaling-postgresql" target="_blank" rel="noopener noreferrer">https://openai.com/index/scaling-postgresql</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/unrolling-the-codex-agent-loop.html">← Unrolling the Codex agent loop</a><a href="../viewers/designing-ai-resistant-technical-evaluations.html">Designing AI-resistant technical evaluations →</a></nav>
+  <footer class="footer">文章版权归原作者所有，译文请以英文原文为准。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

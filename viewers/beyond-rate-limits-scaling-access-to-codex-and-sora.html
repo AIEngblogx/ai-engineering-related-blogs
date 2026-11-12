@@ -1,0 +1,947 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Beyond rate limits: scaling access to Codex and Sora · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Beyond rate limits: scaling access to Codex and Sora</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item current" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html" aria-current="page"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item current" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html" aria-current="page"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Beyond rate limits: scaling access to Codex and Sora</h1>
+  <p class="subline">原文：<a href="https://openai.com/index/beyond-rate-limits" target="_blank" rel="noopener noreferrer">https://openai.com/index/beyond-rate-limits</a> · 2026-02-13 · OpenAI Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">过去一年里，Codex和Sora都得到了迅速的采用，使用量迅速超出了我们的预期。我们发现了一个规律：用户开始使用后能够发现实际价值，但随后就会遇到速率限制问题。</p>
+<p class="source" lang="en">In the past year, both Codex and Sora have seen rapid adoption, with usage quickly pushing beyond what we originally expected. We’ve seen a consistent pattern: users dive in, find real value, and then run into rate limits.</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">速率限制可以帮助平滑需求波动，确保公平访问；然而，当用户获得价值时，突然的停止可能会让人感到沮丧。我们希望找到一种方式，让用户能够继续使用，同时保护系统性能并维护用户的信任。</p>
+<p class="source" lang="en">Rate limits can help smooth demand and ensure fair access; however, when users are getting value, hitting a hard stop can be frustrating. We wanted a way for users to keep going, while protecting system performance and user trust in our approach.</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">为了解决这一问题，我们构建了一个实时访问引擎来统计使用情况。该引擎的一个功能就是允许用户购买积分。当用户超出使用限制时，积分可以帮助他们继续使用我们的产品，通过减少积分余额来实现。</p>
+<p class="source" lang="en">To solve this, we built a real‑time access engine that counts usage. One of the layers in that engine is the ability to purchase credits. When users exceed their rate limits, credits let them keep using our products by spending down their credit balance.</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">在此之下是一个复杂的系统，它将限制、实时使用跟踪和信用余额整合在一个访问模型中。本文介绍了为什么需要重新思考访问控制以扩展 Codex 和 Sora，如何使可证明正确的实时系统同时结合请求速率限制和信用额度，以及这一基础如何为两个产品提供额外的访问权限。</p>
+<p class="source" lang="en">Underneath this is a complex system that fuses limits, real‑time usage tracking, and credit balances in a single access model. This post covers why scaling Codex and Sora required rethinking access control, how a provably correct, real-time system blends rate limits and credits per request, and how that foundation now unlocks additional access for both products.</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">为什么现有的访问模式不够理想</p>
+<p class="source" lang="en">Why existing access models fell short</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">缩小视角来看，传统的访问模式往往迫使用户做出选择：</p>
+<p class="source" lang="en">Zooming out, traditional access models tend to force a choice:</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">速率限制起初可能会有帮助，但当它们用尽时，会让用户体验不佳：“稍后再来”</p>
+<p class="source" lang="en">Rate limits can be helpful at first, but leave users with a bad experience when they run out: “come back later”</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">速率限制一开始可能会有帮助，但当它们用尽时，会让用户体验不佳，于是他们就会说“稍后再来”。</p>
+<p class="source" lang="en">Rate limits can be helpful at first, but leave users with a bad experience when they run out: “come back later”</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">基于使用的计费方式很灵活，但用户需要从第一个项目开始就付费，这并不适合支持早期探索。</p>
+<p class="source" lang="en">Usage‑based billing is flexible, but leaves users paying from the first token—not ideal for supporting early exploration</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">基于使用的计费方式很灵活，但用户需要从第一个项目开始就付费，这并不适合支持早期探索。</p>
+<p class="source" lang="en">Usage‑based billing is flexible, but leaves users paying from the first token—not ideal for supporting early exploration</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">对于 Codex 和 Sora，单独使用其中任何一个都不足够。如果我们仅仅提高速率限制，就会失去重要的需求平滑和公平性控制机制，还会耗尽服务所有人的能力。如果我们完全依赖异步使用计费方式，就会引入延迟、超额使用或协调问题——这些正是用户在最活跃时会遇到的问题。</p>
+<p class="source" lang="en">For Codex and Sora, neither was sufficient on its own. If we simply raised rate limits, we’d lose important demand-smoothing and fairness controls and run out of capacity to serve everyone. If we relied entirely on asynchronous usage billing, we’d introduce lag, overages, or reconciliation issues—exactly the kinds of problems users notice when they’re most engaged.</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">我们需要的是一个混合系统，将实时限制和按需付费模式结合在一起：</p>
+<p class="source" lang="en">What we needed instead was a single hybrid system combining real-time limits with pay-as-you-go access:</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6WkV1NDTZ0y1UNjgX3YNdL/288077727d4c63f100d5f5c2f0d31e5c/FinEng_Desktop_Lightmode_Chart-1.svg?w=3840&amp;q=90" alt="Dashboard UI with two buttons labeled “Rate-limits” and “Credits,” and a card below titled “Rate-Limit with Credit Fallback.”" loading="lazy">
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">&lt;text&gt;
+该系统必须：
+&lt;/text&gt;</p>
+<p class="source" lang="en">This system had to:</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">在达到限制为止，强制执行速率限制</p>
+<p class="source" lang="en">Enforce rate limits until they’re reached</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">强制执行速率限制，直到达到上限为止</p>
+<p class="source" lang="en">Enforce rate limits until they’re reached</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">在同一个请求中无缝过渡到致谢部分</p>
+<p class="source" lang="en">Seamlessly transition to credits within the same request</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">在同一个请求中无缝过渡到致谢部分</p>
+<p class="source" lang="en">Seamlessly transition to credits within the same request</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">实时做出那个决定</p>
+<p class="source" lang="en">Make that decision in real time</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">实时做出那个决定</p>
+<p class="source" lang="en">Make that decision in real time</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">在跟踪信贷消费时，必须严格准确且可审计。</p>
+<p class="source" lang="en">Be rigorously accurate and auditable when tracking credit consumption</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">在跟踪信贷消费时，必须严格准确且可审计。</p>
+<p class="source" lang="en">Be rigorously accurate and auditable when tracking credit consumption</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">以瀑布方式访问，而非大门式访问</p>
+<p class="source" lang="en">Access as a waterfall, not a gate</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">我们做出的关键概念转变之一是将访问建模为决策流程。我们不再问“这是允许的吗？”，而是问“允许多少，以及从哪里来？”。在统计使用量时，系统会按照以下顺序进行：</p>
+<p class="source" lang="en">One of the key conceptual shifts we made was modeling access as a decision waterfall. Instead of asking “is this allowed?”, we ask “how much is allowed, and from where?” When counting usage, the system goes through the following sequence:</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/5dB7am3vuVbMgNAQG3d9HT/c9a516f529654ed9e871e9ee88db9226/FinEng_Desktop_Lightmode_Chart-2.svg?w=3840&amp;q=90" alt="Decision tree for evaluating access to our features" loading="lazy">
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">该模型反映了用户实际使用产品的真实体验。限制速率、免费套餐、积分、促销活动和企业特权都只是同一决策流程中的不同环节。从用户的角度来看，他们不会“更换系统”——他们只是持续使用 Codex 和 Sora。因此，积分看起来是隐形的：它们只是瀑布模型中的一个元素而已。</p>
+<p class="source" lang="en">This model reflects how users actually experience the product. Rate limits, free tiers, credits, promotions, and enterprise entitlements are all just layers in the same decision stack. From a user’s perspective, they don’t “switch systems”—they just keep using Codex and Sora. That’s why credits feel invisible: they’re just another element in the waterfall.</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">为什么我们自己构建它</p>
+<p class="source" lang="en">Why we built this in‑house</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">我们对第三方使用计费和计量平台在处理信用消耗方面进行了评估。这些平台非常适合开具发票和报告，但未能满足两个关键要求：</p>
+<p class="source" lang="en">We evaluated third‑party usage billing and metering platforms to handle credit consumption. They’re well‑suited for invoicing and reporting, but didn’t meet two critical requirements:</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">实时正确性</p>
+<p class="source" lang="en">Real‑time correctness</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">当用户达到限制且还有积分可用时，系统必须立即知道。尽力处理或延迟计数会导致意外问题、不平衡的余额以及错误的费用。对于 Codex 和 Sora 这样的互动产品，这些问题会变得明显且令人沮丧。</p>
+<p class="source" lang="en">When a user hits a limit and has credits available, the system must know immediately. Best‑effort or delayed counting shows up as surprise blocks, inconsistent balances, and incorrect charges. For interactive products like Codex and Sora, those failures become visible and frustrating.</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">可调和性与信任</p>
+<p class="source" lang="en">Reconcilability and trust</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">我们还需要确保对每一个结果都具有透明度：</p>
+<p class="source" lang="en">We also needed to offer transparency into every outcome:</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">为什么请求被允许或被拒绝</p>
+<p class="source" lang="en">Why a request was allowed or blocked</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">为什么请求被允许或被拒绝</p>
+<p class="source" lang="en">Why a request was allowed or blocked</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">它消耗了多少使用量</p>
+<p class="source" lang="en">How much usage it consumed</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">它消耗了多少使用量</p>
+<p class="source" lang="en">How much usage it consumed</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">哪些限制或平衡措施被应用了</p>
+<p class="source" lang="en">Which limits or balances were applied</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">哪些限制或平衡措施被应用了</p>
+<p class="source" lang="en">Which limits or balances were applied</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">这种功能需要紧密集成到我们的决策流程中，而不是通过单独的计费平台单独解决，因为该平台只能看到事情的一部分。为了让用户能够使用我们的产品而不损害信任，我们需要对正确性、时机和可观测性拥有完全的控制权。这促使我们选择内部解决方案。</p>
+<p class="source" lang="en">This capability needed to be tightly integrated into our decision waterfall rather than solved in isolation in a separate usage billing platform that only saw one piece of what was happening. To let users access our products without compromising trust, we needed full control over correctness, timing, and observability. That pushed us toward an in‑house solution.</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">构建高等级使用与平衡系统</p>
+<p class="source" lang="en">Building a high‑scale usage and balance system</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">为了实现这一点，我们构建了一个专门用于同步访问决策的分布式使用与平衡系统。</p>
+<p class="source" lang="en">To power this, we built a distributed usage and balance system designed specifically for synchronous access decisions.</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">从整体来看，该系统：</p>
+<p class="source" lang="en">At a high level, the system:</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">每个用户、每个功能的使用记录</p>
+<p class="source" lang="en">Tracks per‑user, per‑feature usage</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">每个用户、每个功能的使用记录</p>
+<p class="source" lang="en">Tracks per‑user, per‑feature usage</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">维护速率限制窗口</p>
+<p class="source" lang="en">Maintains rate‑limit windows</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">保持速率限制窗口</p>
+<p class="source" lang="en">Maintains rate‑limit windows</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">维护实时信用余额</p>
+<p class="source" lang="en">Maintains real‑time credit balances</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">维护实时信用余额</p>
+<p class="source" lang="en">Maintains real‑time credit balances</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">通过流式异步处理器，以幂等方式处理借记余额</p>
+<p class="source" lang="en">Debits balances idempotently through a streaming async processor</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">通过流式异步处理器，以重复方式更新借记余额</p>
+<p class="source" lang="en">Debits balances idempotently through a streaming async processor</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">每个请求都会经过一个单一的评估路径，该路径通过同步消耗速率限制来决定允许的使用量，并在必要时通过验证足够的积分来确保合规性；然后它会返回一个确定的结果，同时异步处理任何积分差异。这样就能确保不同产品具有一致的行为，并避免团队之间出现重复的逻辑。</p>
+<p class="source" lang="en">Every request passes through a single evaluation path that makes a real‑time decision about how much usage is allowed by synchronously consuming from rate limits and, if needed, verifying sufficient credits; it then returns one definitive outcome while settling any credit debits asynchronously. This ensures consistent behavior across products and eliminates duplicated logic across teams.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/21kMN9OcVwySOjtyT4VgxQ/137c60985fd463a7507217c9e05d1418/FinEng_Desktop_Lightmode_Chart-3.svg?w=3840&amp;q=90" alt="Access system: Combining real-time rate-limits and asynchronous credit &amp; balance tracking." loading="lazy">
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">可证明正确的计费系统</p>
+<p class="source" lang="en">A provably correct billing system</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">该系统的关键设计原则之一是，我们必须能够证明我们的账单是正确的。这反映了我们的信用支持基础，其起源来自企业客户。在上面的系统图中，我们有三个独立的数据集，它们相互关联。</p>
+<p class="source" lang="en">One of the key design principles of this system is that we must be able to prove that our billing is correct. This reflects the roots of our credit support, which originated with enterprise customers. In the above system diagram, we have three separate datasets that all tie together:</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">产品使用事件：用户实际所进行的操作</p>
+<p class="source" lang="en">Product usage events: What the user actually did</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">产品使用事件：用户实际执行的操作</p>
+<p class="source" lang="en">Product usage events: What the user actually did</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">收入变现事件：用户使用服务时我们收取的费用</p>
+<p class="source" lang="en">Monetization events: What we charge the user for their usage</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">收入变现事件：用户使用服务时我们收取的费用</p>
+<p class="source" lang="en">Monetization events: What we charge the user for their usage</p>
+</div>
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">余额更新：我们调整了用户的信用余额多少，以及原因是什么</p>
+<p class="source" lang="en">Balance updates: How much we adjusted the user’s credit balance and why</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">余额更新：我们调整了用户的信用余额多少，以及原因是什么</p>
+<p class="source" lang="en">Balance updates: How much we adjusted the user’s credit balance and why</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">这些数据集并非偶然的副产品；它们实际上驱动着整个系统，每个数据集都会触发下一个数据集。区分发生了什么、相关的费用以及我们扣除了什么，使我们能够独立审计、重放和核对每一层数据。这是一种有意的权衡，我们优先考虑可证明的正确性，尽管信用余额更新会稍微延迟一些。我们是如何实现这一点的：</p>
+<p class="source" lang="en">These datasets aren’t a casual by-product; they actually drive the system, with each dataset triggering the next. Separating what occurred, any associated charges, and what we debited lets us independently audit, replay, and reconcile every layer. This is an intentional trade-off where we are prioritizing provable correctness, at the cost of credit balance updates being slightly delayed. How we accomplished this:</p>
+</div>
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">产品使用事件会针对所有用户活动进行发布，无论是否导致信用消费。这提供了用户活动的审计记录，使我们能够解释为何收取或未收取信用费用。</p>
+<p class="source" lang="en">Product usage events are published for all user activity, whether it drives credit consumption or not. This provides an audit trail for user activity and allows us to explain why we charged, or didn’t charge, credits.</p>
+</div>
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">产品使用事件会针对所有用户活动进行发布，无论是否导致信用消费。这提供了用户活动的审计记录，使我们能够解释为何收取或未收取信用费用。</p>
+<p class="source" lang="en">Product usage events are published for all user activity, whether it drives credit consumption or not. This provides an audit trail for user activity and allows us to explain why we charged, or didn’t charge, credits.</p>
+</div>
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">每个事件都包含一个稳定的幂等键，因此重试、重放或工作进程重启都不会使余额被重复扣除，从而防止重复收费。这还允许我们执行批量对账，以在离线状态下验证我们的工作成果。</p>
+<p class="source" lang="en">Every event carries a stable idempotency key, so retries, replays, or worker restarts can never double‑debit a balance, which prevents double‑charging. This also lets us run a batch reconciliation to verify our work offline.</p>
+</div>
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">每个事件都包含一个稳定的幂等键，因此重试、重播或工作进程重启都不会导致余额被重复扣除，从而避免了重复收费的情况。这还允许我们执行批量对账以在离线状态下验证我们的工作成果。</p>
+<p class="source" lang="en">Every event carries a stable idempotency key, so retries, replays, or worker restarts can never double‑debit a balance, which prevents double‑charging. This also lets us run a batch reconciliation to verify our work offline.</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">我们采用异步（但仍接近实时）的余额更新方式，而非同步更新，以建立审计记录。我们允许更新用户余额时存在轻微延迟，以便证明系统正常运行，并让用户放心不会被错误计费。如果这种短暂延迟导致我们的信用余额超过用户实际值，我们会自动退还差额；我们更重视可证明的正确性和用户信任，而非严格的执行标准。</p>
+<p class="source" lang="en">We do asynchronous (but still near-real-time) balance updates instead of synchronous updates to create an audit trail. We tolerate a small delay in updating the user’s balance so that we can prove that the system is functioning and assure our users that we are not misbilling them. When that brief delay causes us to overshoot a user’s credit balance, we automatically refund it; we choose provable correctness and user trust over strict enforcement.</p>
+</div>
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">我们采用异步（但仍接近实时）的余额更新方式，而非同步更新，以建立审计记录。我们允许更新用户余额时存在轻微延迟，以便证明系统正常运行，并让用户放心不会误计费。如果这种短暂延迟导致我们的信用余额超过用户实际值，我们会自动退还差额；我们更重视可证明的正确性和用户信任，而非严格的执行标准。</p>
+<p class="source" lang="en">We do asynchronous (but still near-real-time) balance updates instead of synchronous updates to create an audit trail. We tolerate a small delay in updating the user’s balance so that we can prove that the system is functioning and assure our users that we are not misbilling them. When that brief delay causes us to overshoot a user’s credit balance, we automatically refund it; we choose provable correctness and user trust over strict enforcement.</p>
+</div>
+<div class="pair" id="p-64">
+<p class="target" lang="zh-CN">我们减少信用余额，并在一个原子数据库事务中插入余额更新记录。余额更新按账户进行序列化处理，因此并发请求永远不会竞争使用相同的信用额度。余额更新记录中包含扣款金额以及归因于触发更新的货币化事件，将这一操作封装在一个数据库事务中，确保每次信用余额调整都有审计记录。</p>
+<p class="source" lang="en">We decrease the Credit Balance and insert a Balance Update record in a single atomic database transaction. Balance updates are serialized per account, so concurrent requests can never race to spend the same credits. The Balance Update record contains both the debit amount as well as attribution back to the monetization event that triggered the update; wrapping this in a single database transaction guarantees we have an audit trail for every adjustment to the credit balance.</p>
+</div>
+<div class="pair" id="p-65">
+<p class="target" lang="zh-CN">我们减少信用余额，并在一个原子数据库事务中插入余额更新记录。余额更新按账户进行序列化处理，因此并发请求永远不会争夺相同的信用额度。余额更新记录中包含扣款金额以及触发更新的 monetization 事件的说明；通过在一个数据库事务中完成这些操作，确保每次信用余额调整都有审计记录。</p>
+<p class="source" lang="en">We decrease the Credit Balance and insert a Balance Update record in a single atomic database transaction. Balance updates are serialized per account, so concurrent requests can never race to spend the same credits. The Balance Update record contains both the debit amount as well as attribution back to the monetization event that triggered the update; wrapping this in a single database transaction guarantees we have an audit trail for every adjustment to the credit balance.</p>
+</div>
+<div class="pair" id="p-66">
+<p class="target" lang="zh-CN">所有这些严格措施都旨在实现一个目标：让访问变得简单且安全。当人们进行创作或编程时，他们不必担心请求是否会被处理、是否会被多收费用，或者他们的余额是否准确。通过确保使用、账单和余额都准确无误，我们为用户提供了一个不会干扰他们体验的系统。正是这一点使得我们可以用持续访问替代限制访问，也让积分能够在实际工作中使用，而不仅仅是在开具发票时。</p>
+<p class="source" lang="en">All of this rigor supports one objective: to make access simple and safe. When people are creating or coding, they shouldn’t have to wonder whether a request will go through, if they’ll be overcharged, or whether their balance is accurate. By making usage, billing, and balances provably correct, we give users a system that doesn’t distract from their experience. That’s what lets us replace hard stops with continuous access—and it’s what makes credits usable in the middle of real work, not just on an invoice.</p>
+</div>
+<div class="pair" id="p-67">
+<p class="target" lang="zh-CN">为动量服务的结构设计</p>
+<p class="source" lang="en">Architecture in service of momentum</p>
+</div>
+<div class="pair" id="p-68">
+<p class="target" lang="zh-CN">我们方法的核心原则是保护用户的进度。每一个架构决策都对应着用户可见的结果：实时平衡避免不必要的中断，原子式消费防止重复收费，统一的访问逻辑则确保行为可预测。因此，用户能够持续工作更长时间，更深入地探索，并推进项目发展，而不面临强制停止或过早的计划变更。</p>
+<p class="source" lang="en">The guiding principle behind our approach is protecting user momentum. Every architectural decision maps back to a user-facing outcome: real-time balances prevent unnecessary interruptions, atomic consumption prevents double-charging, and unified access logic ensures predictable behavior. The result is that people can work longer, explore more deeply, and take projects further without facing hard stops or premature plan changes.</p>
+</div>
+<div class="pair" id="p-69">
+<p class="target" lang="zh-CN">当用户参与时，系统应帮助他们继续参与，而不是阻碍他们。限制和积分会自动消失。</p>
+<p class="source" lang="en">When users are engaged, the system should help them continue, not get in the way. Limits and credits disappear into the background.</p>
+</div>
+<div class="pair" id="p-70">
+<p class="target" lang="zh-CN">建立这种体验需要重新思考访问、使用和计费作为一个整体系统，并构建将正确性视为核心功能的基础设施。这一基础可以随着时间扩展到更多产品；Codex和Sora只是开始而已。</p>
+<p class="source" lang="en">Building that experience required rethinking access, usage, and billing as a single system and building infrastructure that treats correctness as a first‑class product feature. The same foundation can extend to more products over time; Codex and Sora are just the beginning.</p>
+</div>
+<div class="pair" id="p-71">
+<p class="target" lang="zh-CN">法典</p>
+<p class="source" lang="en">Codex</p>
+</div>
+<div class="pair" id="p-72">
+<p class="target" lang="zh-CN">索拉</p>
+<p class="source" lang="en">Sora</p>
+</div>
+<div class="pair" id="p-73">
+<p class="target" lang="zh-CN">2026</p>
+<p class="source" lang="en">2026</p>
+</div>
+<div class="pair" id="p-74">
+<p class="target" lang="zh-CN">作者</p>
+<p class="source" lang="en">Author</p>
+</div>
+<div class="pair" id="p-75">
+<p class="target" lang="zh-CN">致谢</p>
+<p class="source" lang="en">Acknowledgements</p>
+</div>
+<div class="pair" id="p-76">
+<p class="target" lang="zh-CN">特别感谢所有制作了素材的 FinEng 团队。</p>
+<p class="source" lang="en">Special thanks to the entire FinEng team that built credits.</p>
+</div>
+<div class="pair" id="p-77">
+<p class="target" lang="zh-CN">继续阅读</p>
+<p class="source" lang="en">Keep reading</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6G64B5haCxDuphl2iqwZ1N/4f8d319293f5e5e98b319e01b4fbdf59/scaling-git-at-openai-art-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Scaling Git at OpenAI — art card" loading="lazy">
+<div class="pair" id="p-78">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年11月2日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringNov 2, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3a839ECHaGsidJPLJqqm5s/55968ec17735b96514d1bb4851f43bf8/scaling-storage-one-billion-users-part-two-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II) — card" loading="lazy">
+<div class="pair" id="p-79">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学2026年10月23日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 23, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3aewhPPb5NQ5IqOKEkrtzA/7209065f6e6ccf3a0476b43feb8336e1/rethinking-ads-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rethinking the ad stack around a new user journey — Art card" loading="lazy">
+<div class="pair" id="p-80">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年10月21日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 21, 2026</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://openai.com/index/beyond-rate-limits" target="_blank" rel="noopener noreferrer">https://openai.com/index/beyond-rate-limits</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html">← Eval awareness in Claude Opus 4.6’s BrowseComp performance</a><a href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html">Harness engineering: leveraging Codex in an agent-first world →</a></nav>
+  <footer class="footer">文章版权归原作者所有，译文请以英文原文为准。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

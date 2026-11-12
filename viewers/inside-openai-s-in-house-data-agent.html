@@ -1,0 +1,1166 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Inside OpenAI’s in-house data agent · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Inside OpenAI’s in-house data agent</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item current" href="../viewers/inside-openai-s-in-house-data-agent.html" aria-current="page"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item current" href="../viewers/inside-openai-s-in-house-data-agent.html" aria-current="page"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Inside OpenAI’s in-house data agent</h1>
+  <p class="subline">原文：<a href="https://openai.com/index/inside-our-in-house-data-agent" target="_blank" rel="noopener noreferrer">https://openai.com/index/inside-our-in-house-data-agent</a> · 2026-01-29 · OpenAI Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">上下文至关重要层 #1：表格使用层层 #2：人类注释层层 #3：法典丰富层层 #4：机构知识层层 #5：记忆层层 #6：运行上下文</p>
+<p class="source" lang="en">Context is everythingLayer #1: Table UsageLayer #2: Human AnnotationsLayer #3: Codex EnrichmentLayer #4: Institutional Knowledge Layer #5: MemoryLayer #6: Runtime Context</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">第1层：表格使用</p>
+<p class="source" lang="en">Layer #1: Table Usage</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">第2层：人类注释</p>
+<p class="source" lang="en">Layer #2: Human Annotations</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">第3层：法典丰富化</p>
+<p class="source" lang="en">Layer #3: Codex Enrichment</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">第4层：机构知识</p>
+<p class="source" lang="en">Layer #4: Institutional Knowledge</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">第5层：内存</p>
+<p class="source" lang="en">Layer #5: Memory</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">第6层：运行时上下文</p>
+<p class="source" lang="en">Layer #6: Runtime Context</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">专为像队友一样思考和工作而设计</p>
+<p class="source" lang="en">Built to think and work like a teammate</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">快速行动，不破坏信任</p>
+<p class="source" lang="en">Moving fast without breaking trust</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">代理安全</p>
+<p class="source" lang="en">Agent security</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">经验教训 课程 #1：少即是多 课程 #2：引导目标，而非路径 课程 #3：意义存在于代码中</p>
+<p class="source" lang="en">Lessons learnedLesson #1: Less is More Lesson #2: Guide the Goal, Not the PathLesson #3: Meaning Lives in Code</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">课程 #1：少即是多</p>
+<p class="source" lang="en">Lesson #1: Less is More</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">第2课：引导目标，而非路径</p>
+<p class="source" lang="en">Lesson #2: Guide the Goal, Not the Path</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">第3课：意义存在于代码中</p>
+<p class="source" lang="en">Lesson #3: Meaning Lives in Code</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">相同的愿景，新的工具</p>
+<p class="source" lang="en">Same vision, new tools</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">为什么我们需要一个定制工具</p>
+<p class="source" lang="en">Why we needed a custom tool</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">工作原理</p>
+<p class="source" lang="en">How it works</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">上下文至关重要层 #1：表格使用层层 #2：人类注释层层 #3：法典丰富层层 #4：机构知识层层 #5：记忆层层 #6：运行上下文</p>
+<p class="source" lang="en">Context is everythingLayer #1: Table UsageLayer #2: Human AnnotationsLayer #3: Codex EnrichmentLayer #4: Institutional Knowledge Layer #5: MemoryLayer #6: Runtime Context</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">层 #1：表格使用</p>
+<p class="source" lang="en">Layer #1: Table Usage</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">第2层：人类注释</p>
+<p class="source" lang="en">Layer #2: Human Annotations</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">第3层：法典丰富化</p>
+<p class="source" lang="en">Layer #3: Codex Enrichment</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">第4层：机构知识</p>
+<p class="source" lang="en">Layer #4: Institutional Knowledge</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">第5层：内存</p>
+<p class="source" lang="en">Layer #5: Memory</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">第6层：运行时上下文</p>
+<p class="source" lang="en">Layer #6: Runtime Context</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">专为像队友一样思考和工作而设计</p>
+<p class="source" lang="en">Built to think and work like a teammate</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">快速行动，不破坏信任</p>
+<p class="source" lang="en">Moving fast without breaking trust</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">代理安全</p>
+<p class="source" lang="en">Agent security</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">经验教训 课程 #1：少即是多 课程 #2：引导目标，而非路径 课程 #3：意义存在于代码中</p>
+<p class="source" lang="en">Lessons learnedLesson #1: Less is More Lesson #2: Guide the Goal, Not the PathLesson #3: Meaning Lives in Code</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">第1课：少即是多</p>
+<p class="source" lang="en">Lesson #1: Less is More</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">第2课：引导目标，而非路径</p>
+<p class="source" lang="en">Lesson #2: Guide the Goal, Not the Path</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">第3课：意义存在于代码中</p>
+<p class="source" lang="en">Lesson #3: Meaning Lives in Code</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">相同的愿景，新的工具</p>
+<p class="source" lang="en">Same vision, new tools</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">数据决定了系统如何学习、产品如何发展以及公司如何做出决策。然而，快速、准确且具备正确背景信息地获取答案往往比预期要困难。为了随着 OpenAI 的发展使这一过程更加便捷，我们开发了自制的内部 AI 数据代理，该代理可以在我们的平台上进行探索和推理。</p>
+<p class="source" lang="en">Data powers how systems learn, products evolve, and how companies make choices. But getting answers quickly, correctly, and with the right context is often harder than it should be. To make this easier as OpenAI scales, we built our own bespoke in-house AI data agent that explores and reasons over our own platform.</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">我们的智能体是一个仅内部使用的定制工具（并非外部产品），专门基于 OpenAI 的数据、权限和工作流程构建。我们展示了如何构建和使用它，以揭示人工智能在支持各团队日常工作方面真正具有影响力的实例。我们用于构建和运行该工具的 OpenAI 工具（Codex、我们的 GPT‑5 旗舰模型、Evals API 和 Embeddings API）也是我们向所有开发者提供的工具。</p>
+<p class="source" lang="en">Our agent is a custom internal-only tool (not an external offering), built specifically around OpenAI’s data, permissions, and workflows. We’re showing how we built and use it to help surface examples of the real, impactful ways AI can support day-to-day work across our teams. The OpenAI tools we used to build and run it (Codex, our GPT‑5 flagship model, the Evals API⁠(opens in a new window), and the Embeddings API⁠(opens in a new window)) are the same tools we make available to developers everywhere.</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">我们的数据代理让员工能够在几分钟内从问题得到洞察，而非几天。这降低了所有部门获取数据和进行细致分析的要求，而不仅仅是我们数据团队能够做到。如今，OpenAI的工程、数据科学、市场推广、财务和研究部门都依靠这个代理来解答具有重要意义的数据问题。例如，它可以通过自然语言的直观方式帮助回答如何评估产品发布以及如何了解业务状况。该代理将由Codex支持의表格级知识与产品和组织背景相结合。其持续学习的记忆系统意味着它也会随着每一次交互而不断提升。</p>
+<p class="source" lang="en">Our data agent lets employees go from question to insight in minutes, not days. This lowers the bar to pulling data and nuanced analysis across all functions, not just by our data team. Today, teams across Engineering, Data Science, Go-To-Market, Finance, and Research at OpenAI lean on the agent to answer high-impact data questions. For example, it can help answer how to evaluate launches and understand business health, all through the intuitive format of natural language. The agent combines Codex-powered table-level knowledge with product and organizational context. Its continuously learning memory system means it also improves with every turn.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/5EoAd2fIvVRf8V51LNl7ae/4130864f70f3ffd0ffcc00172f8cc20e/Desktop-Light.png?w=3840&amp;q=90&amp;fm=webp" alt="Screenshot showing a user asking for ChatGPT WAU on Oct 6, 2025 compared with DevDay 2023. The agent reports ≈800M WAU for 2025 and ≈100M for 2023, with notes showing a +700M change and an ~8× increase, followed by explanatory context." loading="lazy">
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">在本文中，我们将解释为什么需要一个定制的 AI 数据代理，以及为什么其增强代码的数据上下文和自学习功能如此有用，还有我们在过程中获得的经验教训。</p>
+<p class="source" lang="en">In this post, we’ll break down why we needed a bespoke AI data agent, what makes its code-enriched data context and self-learning so useful, and lessons we learned along the way.</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">为什么我们需要一个定制工具</p>
+<p class="source" lang="en">Why we needed a custom tool</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">OpenAI的数据平台为工程、产品和研究领域的3,500多名内部用户提供服务，涵盖了70,000个数据集中的600 petabytes的数据。如此庞大的数据量下，找到合适的表格往往是分析过程中最耗时的部分之一。</p>
+<p class="source" lang="en">OpenAI’s data platform serves more than 3.5k internal users working across Engineering, Product, and Research, spanning over 600 petabytes of data across 70k datasets. At that size, simply finding the right table can be one of the most time-consuming parts of doing analysis.</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">正如一位内部用户所说：</p>
+<p class="source" lang="en">As one internal user put it:</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">“我们有很多结构相似的表格，我花了大量时间来弄清楚它们之间的区别以及该使用哪一张。有些表格包含已注销的用户，有些则没有。有些表格有重叠的字段，很难判断每个字段的具体含义。”</p>
+<p class="source" lang="en">“We have a lot of tables that are fairly similar, and I spend tons of time trying to figure out how they’re different and which to use. Some include logged-out users, some don’t. Some have overlapping fields; it’s hard to tell what is what.”</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">即使选择了正确的表格，生成正确的结果仍然可能具有挑战性。分析师必须仔细分析表格数据和表格关系，以确保转换和过滤操作正确执行。常见的故障模式——多对多连接、过滤压力传递错误以及未处理的空值问题——可能会悄悄导致结果无效。在 OpenAI 的规模下，分析师无需花费时间调试 SQL 语义或查询性能：他们的重点应放在定义指标、验证假设以及做出基于数据的决策上。</p>
+<p class="source" lang="en">Even with the correct tables selected, producing correct results can be challenging. Analysts must reason about table data and table relationships to ensure transformations and filters are applied correctly. Common failure modes—many-to-many joins, filter pushdown errors, and unhandled nulls—can silently invalidate results. At OpenAI’s scale, analysts should not have to sink time into debugging SQL semantics or query performance: their focus should be on defining metrics, validating assumptions, and making data-driven decisions.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/67b3jvUXyS4By9wwBdCVFv/e56661e0ea81199742f3b984f34ea4c8/Desktop-Light.png?w=3840&amp;q=90&amp;fm=webp" alt="Screenshot of SQL code defining two CTEs—order_enriched and monthly_segment—that join customer geography data, derive order-month fields, and compute monthly aggregates such as order counts, gross revenue, revenue with tax, and average ship-to-receipt days." loading="lazy">
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">这个 SQL 语句有 180 多行。很难判断我们是否正确地连接了正确的表，并且查询了正确的列。</p>
+<p class="source" lang="en">This SQL statement is 180+ lines long. It’s not easy to know if we’re joining the right tables and querying the right columns.</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">工作原理</p>
+<p class="source" lang="en">How it works</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">让我们来详细了解我们的智能体是什么，它是如何整理上下文的，以及它是如何不断自我改进的。</p>
+<p class="source" lang="en">Let’s walk through what our agent is, how it curates context, and how it keeps self-improving.</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">我们的智能体由 GPT‑5.2 驱动，旨在利用 OpenAI 的数据平台进行推理。它可以在员工工作的任何地方使用：作为 Slack 智能体、通过网页界面、在 IDE 中、通过 MCP 在 Codex CLI 中（在新窗口中打开），以及通过 MCP 连接器直接在 OpenAI 内部的 ChatGPT 应用中（在新窗口中打开）。</p>
+<p class="source" lang="en">Our agent is powered by GPT‑5.2 and is designed to reason over OpenAI’s data platform. It’s available wherever employees already work: as a Slack agent, through a web interface, inside IDEs, in the Codex CLI via MCP⁠(opens in a new window), and directly in OpenAI’s internal ChatGPT app through a MCP connector⁠(opens in a new window).</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/1ZQ17A7DpqoQwM5FY5mPQb/db3ec91b07b5c4760d212fb918df53f7/oai_in-house_data_agent_How_it_works_desktop-light.svg?w=3840&amp;q=90" alt="Diagram titled “How the data agent works.” Entrypoints—Agent-UI, Local Agent-MCP, Remote Agent-MCP, and Slack Agent—feed into an Agent-API. The API connects to internal data knowledge and company context, syncs with a data warehouse and platform sources, and exchanges requests with the GPT-5.2 model via Agent-MCP." loading="lazy">
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">用户可以提出复杂的开放式问题，通常需要多次手动探索才能解决。以这个使用测试数据集的示例提示为例：“对于纽约市的出租车出行，哪些接载到下客的邮政编码组合最不可靠？典型情况与最糟糕情况下的旅行时间差异最大？这种差异会在什么时候出现？”</p>
+<p class="source" lang="en">Users can ask complex, open-ended questions which would typically require multiple rounds of manual exploration. Take this example prompt, which uses a test data set: “For NYC taxi trips, which pickup-to-dropoff ZIP pairs are the most unreliable, with the largest gap between typical and worst-case travel times, and when does that variability occur?”</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">该智能体全程负责分析工作，从理解问题到探索数据、执行查询以及总结结论。</p>
+<p class="source" lang="en">The agent handles the analysis end-to-end, from understanding the question to exploring the data, running queries, and synthesizing findings.</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">代理的一个超能力就是它如何解决问题。它不会遵循固定的脚本，而是自行评估进展。如果中间结果看起来不正确（例如，由于错误的连接或筛选导致没有行数据），代理会调查问题所在，调整方法，然后重新尝试。在整个过程中，它保留完整的上下文，并在不同步骤之间积累经验。这种闭环自学习过程将迭代过程从用户转移到代理自身，使得结果更快，分析质量也更高，比手动流程更有优势。</p>
+<p class="source" lang="en">One of the agent’s superpowers is how it reasons through problems. Rather than following a fixed script, the agent evaluates its own progress. If an intermediate result looks wrong (e.g., if it has zero rows due to an incorrect join or filter), the agent investigates what went wrong, adjusts its approach, and tries again. Throughout this process, it retains full context, and carries learnings forward between steps. This closed-loop, self-learning process shifts iteration from the user into the agent itself, enabling faster results and consistently higher-quality analyses than manual workflows.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/69OLeMVdJy3gMHnW0lw6ds/326d0651b6c54fe6037e9ca6997fd5cc/oai_in-house_data_agent_NYC_pickup-dropoff_pairs_light.png?w=3840&amp;q=90&amp;fm=webp" alt="Screenshot of a task workflow showing an AI agent’s step-by-step plan for analyzing NYC taxi trip durations. It includes goals, internal searches, schema inspection, code snippets, and reasoning about computing p50/p95 spreads, identifying unreliable ZIP pairs, and planning SQL queries." loading="lazy">
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">代理的推理过程用于识别最不可靠的纽约市出租车接送对。</p>
+<p class="source" lang="en">The agent’s reasoning to identify the most unreliable NYC taxi pickup–dropoff pairs.</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">该智能体涵盖了完整的分析工作流：数据发现、执行 SQL 操作以及发布笔记本和报告。它理解公司内部知识，能够进行网络搜索以获取外部信息，并通过使用和学习记忆逐渐提升性能。</p>
+<p class="source" lang="en">The agent covers the full analytics workflow: discovering data, running SQL, and publishing notebooks and reports. It understands internal company knowledge, can web search for external information, and improves over time through learned usage and memory.</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">上下文至关重要</p>
+<p class="source" lang="en">Context is everything</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">高质量的答案依赖于丰富且准确的上下文。没有上下文，即使强大的模型也会产生错误结果，比如严重高估用户数量或误解内部术语。</p>
+<p class="source" lang="en">High-quality answers depend on rich, accurate context. Without context, even strong models can produce wrong results, such as vastly misestimating user counts or misinterpreting internal terminology.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/1xapQdinfDj0h0Mo1kzhsZ/de72610fb11a47b3da98108799dec242/oai_in-house_data_agent_faster_queries_slow_desktop-light.png?w=3840&amp;q=90&amp;fm=webp" alt="Screenshot of a user asking, “What was ChatGPT Image Gen logged-in DAU for the last 30 days?” with a status line below showing the agent has been “Working for 22m 41s,” indicating a long-running query in progress." loading="lazy">
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">没有记忆的智能体无法有效查询。</p>
+<p class="source" lang="en">The agent without memory, unable to query effectively.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6lQTl5C4huRF89cwTkMvNz/e1e59f0ecbf1f8bb55dd65a23b22ff01/oai_in-house_data_agent_faster_queries_fast_desktop-light.png?w=3840&amp;q=90&amp;fm=webp" alt="Screenshot showing a user asking, “What was ChatGPT Image Gen logged-in DAU for the last 30 days?” Beneath the message, a status line says “Worked for 1m 22s,” indicating the query is still running and taking a long time to complete." loading="lazy">
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">智能体内存可以通过定位正确的表格来加快查询速度。</p>
+<p class="source" lang="en">The agent’s memory enables faster queries by locating the correct tables.</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">为了避免这些故障模式，该智能体由多层上下文构成，这些上下文基于 OpenAI 的数据和机构知识。</p>
+<p class="source" lang="en">To avoid these failure modes, the agent is built around multiple layers of context that ground it in OpenAI’s data and institutional knowledge.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/j1pgiSbUmd9Ie3mkTjGpE/43822e3b21d480cde08b3bbc1827a3f5/oai_OpenAI_conversational_in-house_data_agent_Layers_of_context_desktop-light.svg?w=3840&amp;q=90" alt="Diagram titled “Data agent’s layers of context” showing six stacked tiers: 1) Table Usage, 2) Human Annotations, 3) Codex Enrichment, 4) Institutional Knowledge, 5) Memory, and 6) Runtime Context. Each layer appears as a horizontal bar in a pyramid shape." loading="lazy">
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">第1层：表格使用</p>
+<p class="source" lang="en">Layer #1: Table Usage</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">元数据基础：代理依靠模式元数据（列名和数据类型）来指导 SQL 编写，并利用表关系图（例如上游和下游表之间的关系）来提供不同表之间关系的上下文。</p>
+<p class="source" lang="en">Metadata grounding: The agent relies on schema metadata (column names and data types) to inform SQL writing and uses table lineage (e.g., upstream and downstream table relationships) to provide context on how different tables relate.</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">元数据基础：代理依靠模式元数据（列名和数据类型）来指导 SQL 编写，并利用表关系链（例如，上游和下游表之间的关系）来提供不同表之间关联的上下文。</p>
+<p class="source" lang="en">Metadata grounding: The agent relies on schema metadata (column names and data types) to inform SQL writing and uses table lineage (e.g., upstream and downstream table relationships) to provide context on how different tables relate.</p>
+</div>
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">查询推理：收集历史查询有助于智能体理解如何编写自己的查询以及哪些表通常会被关联起来。</p>
+<p class="source" lang="en">Query inference: Ingesting historical queries helps the agent understand how to write its own queries and which tables are typically joined together.</p>
+</div>
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">查询推理：收集历史查询有助于智能体理解如何编写自己的查询以及哪些表通常会被关联起来。</p>
+<p class="source" lang="en">Query inference: Ingesting historical queries helps the agent understand how to write its own queries and which tables are typically joined together.</p>
+</div>
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">第2层：人类注释</p>
+<p class="source" lang="en">Layer #2: Human Annotations</p>
+</div>
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">由领域专家提供的经过筛选的表格和列描述，能够捕捉到意图、语义、业务含义以及从架构或过往查询中难以直接推断出的注意事项。</p>
+<p class="source" lang="en">Curated descriptions of tables and columns provided by domain experts, capturing intent, semantics, business meaning, and known caveats that are not easily inferred from schemas or past queries.</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">由领域专家提供的经过筛选的表格和列描述，能够捕捉到意图、语义、业务含义以及从架构或过往查询中难以直接推断出的注意事项。</p>
+<p class="source" lang="en">Curated descriptions of tables and columns provided by domain experts, capturing intent, semantics, business meaning, and known caveats that are not easily inferred from schemas or past queries.</p>
+</div>
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">仅靠元数据是不够的。要真正区分表格，你需要了解它们是如何创建的以及它们的来源。</p>
+<p class="source" lang="en">Metadata alone isn’t enough. To really tell tables apart, you need to understand how they were created and where they originate.</p>
+</div>
+<div class="pair" id="p-64">
+<p class="target" lang="zh-CN">第3层：法典丰富化</p>
+<p class="source" lang="en">Layer #3: Codex Enrichment</p>
+</div>
+<div class="pair" id="p-65">
+<p class="target" lang="zh-CN">通过推导表的代码级定义，智能体能够更深入地理解数据实际包含的内容。关于表中存储的内容以及它是如何从分析事件中产生的细节，提供了额外的信息。例如，它可以提供关于值唯一性的情况、表数据更新的频率、数据范围等信息（比如，如果表排除了某些字段，就会具有这种详细的粒度）。</p>
+<p class="source" lang="en">By deriving a code-level definition of a table, the agent builds a deeper understanding of what the data actually contains. Nuances on what is stored in the table and how it is derived from an analytics event provides extra information. For example, it can give context on the uniqueness of values, how often the table data is updated, the scope of the data (e.g., if the table excludes certain fields, it has this level of granularity), etc.</p>
+</div>
+<div class="pair" id="p-66">
+<p class="target" lang="zh-CN">通过推导出表的代码级定义，智能体能够更深入地理解数据实际包含的内容。</p>
+<p class="source" lang="en">By deriving a code-level definition of a table, the agent builds a deeper understanding of what the data actually contains.</p>
+</div>
+<div class="pair" id="p-67">
+<p class="target" lang="zh-CN">关于表中存储的内容以及它是如何从分析事件中得出的细节，提供了额外的信息。例如，它可以说明值的唯一性、表数据更新的频率、数据的范围（比如，如果表排除了某些字段，就具有这种细节级别）等。</p>
+<p class="source" lang="en">Nuances on what is stored in the table and how it is derived from an analytics event provides extra information. For example, it can give context on the uniqueness of values, how often the table data is updated, the scope of the data (e.g., if the table excludes certain fields, it has this level of granularity), etc.</p>
+</div>
+<div class="pair" id="p-68">
+<p class="target" lang="zh-CN">关于表中存储的内容以及如何从分析事件中获取这些信息的一些细节，可以提供额外的信息。例如，它可以说明值的唯一性、表数据更新的频率、数据的范围（比如，如果表排除了某些字段，就具有这种详细程度）等。</p>
+<p class="source" lang="en">Nuances on what is stored in the table and how it is derived from an analytics event provides extra information. For example, it can give context on the uniqueness of values, how often the table data is updated, the scope of the data (e.g., if the table excludes certain fields, it has this level of granularity), etc.</p>
+</div>
+<div class="pair" id="p-69">
+<p class="target" lang="zh-CN">这通过展示表格在 Spark、Python 和其他数据系统中除了 SQL 之外的使用方式，提供了更丰富的使用上下文。</p>
+<p class="source" lang="en">This provides enhanced usage context by showing how the table is used beyond SQL in Spark, Python, and other data systems.</p>
+</div>
+<div class="pair" id="p-70">
+<p class="target" lang="zh-CN">这通过展示表格在 Spark、Python 和其他数据系统中除了 SQL 之外的使用方式，提供了更丰富的使用上下文。</p>
+<p class="source" lang="en">This provides enhanced usage context by showing how the table is used beyond SQL in Spark, Python, and other data systems.</p>
+</div>
+<div class="pair" id="p-71">
+<p class="target" lang="zh-CN">这意味着智能体能够区分外观相似但在关键方面存在差异的表格。例如，它可以判断一个表格是否仅包含来自 ChatGPT 的流量。这种上下文也会自动更新，因此无需人工维护就能保持最新状态。</p>
+<p class="source" lang="en">This means that the agent can distinguish between tables that look similar but differ in critical ways. For example, it can tell whether a table only includes first-party ChatGPT traffic. This context is also refreshed automatically, so it stays up to date without manual maintenance.</p>
+</div>
+<div class="pair" id="p-72">
+<p class="target" lang="zh-CN">这意味着代理可以区分看起来相似但在关键方面有所不同的表格。例如，它可以判断一个表格是否仅包含来自 ChatGPT 的流量。这种上下文也会自动更新，因此无需人工维护就能保持最新状态。</p>
+<p class="source" lang="en">This means that the agent can distinguish between tables that look similar but differ in critical ways. For example, it can tell whether a table only includes first-party ChatGPT traffic. This context is also refreshed automatically, so it stays up to date without manual maintenance.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/2xpmOicZsx3fAISr1HKhrb/3b3b7a816674768a59a82b2b9f1b5d85/oai_in-house_data_agent_codex-enriched_knowledge_pipeline_desktop-light.svg?w=3840&amp;q=90" alt="Diagram titled “Codex-enriched knowledge pipeline.” Popular tables feed into multiple Codex tasks, which extract details from the OpenAI codebase, including a table’s purpose, grain and primary keys, downstream usage patterns, alternate table options, and data freshness." loading="lazy">
+<div class="pair" id="p-73">
+<p class="target" lang="zh-CN">第4层：机构知识</p>
+<p class="source" lang="en">Layer #4: Institutional Knowledge</p>
+</div>
+<div class="pair" id="p-74">
+<p class="target" lang="zh-CN">该智能体可以访问 Slack、Google Docs 和 Notion，这些工具能够获取重要的公司信息，如产品发布、故障事件、内部代号和工具名称，以及关键指标的规范定义和计算逻辑。</p>
+<p class="source" lang="en">The agent can access Slack, Google Docs, and Notion, which capture critical company context such as launches, reliability incidents, internal codenames and tools, and the canonical definitions and computation logic for key metrics.</p>
+</div>
+<div class="pair" id="p-75">
+<p class="target" lang="zh-CN">该智能代理可以访问 Slack、Google Docs 和 Notion，这些工具能够收集重要的公司信息，如产品发布、稳定性问题、内部代号和工具名称，以及关键指标的规范定义和计算逻辑。</p>
+<p class="source" lang="en">The agent can access Slack, Google Docs, and Notion, which capture critical company context such as launches, reliability incidents, internal codenames and tools, and the canonical definitions and computation logic for key metrics.</p>
+</div>
+<div class="pair" id="p-76">
+<p class="target" lang="zh-CN">这些文档被接收、嵌入，并存储有元数据和权限信息。检索服务在运行时处理访问控制和缓存功能，使代理能够高效且安全地获取这些信息。</p>
+<p class="source" lang="en">These documents are ingested, embedded, and stored with metadata and permissions. A retrieval service handles access control and caching at runtime, enabling the agent to efficiently and safely pull in this information.</p>
+</div>
+<div class="pair" id="p-77">
+<p class="target" lang="zh-CN">这些文档被接收、嵌入，并存储有元数据和权限信息。检索服务在运行时处理访问控制和缓存功能，使智能体能够高效且安全地获取这些信息。</p>
+<p class="source" lang="en">These documents are ingested, embedded, and stored with metadata and permissions. A retrieval service handles access control and caching at runtime, enabling the agent to efficiently and safely pull in this information.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/Q0yb97tXi8nt2FcDGO73J/53583b626e77ee5cd3128309a72a759b/Desktop-Light.png?w=3840&amp;q=90&amp;fm=webp" alt="Screenshot of a user asking why connector usage dipped in December. The agent explains the drop was due to a logging issue starting Nov 13, 2025, causing undercounted usage after the ChatGPT 5.1 launch. Legacy telemetry went empty until a newer event became the source of truth." loading="lazy">
+<div class="pair" id="p-78">
+<p class="target" lang="zh-CN">第5层：内存</p>
+<p class="source" lang="en">Layer #5: Memory</p>
+</div>
+<div class="pair" id="p-79">
+<p class="target" lang="zh-CN">当智能体得到修正或发现某些数据问题的细节时，它能够保存这些学习成果，以便下次使用，从而不断改善与用户的交互。因此，未来的回答基于更准确的基准，而不是反复遇到相同的问题。记忆的目的在于保留并重新使用那些对数据正确性至关重要的、但仅凭其他层无法轻易推断出的修正、过滤和约束条件。例如，在一个案例中，智能体不知道如何筛选特定的分析实验（它依赖于与实验门中定义的特定字符串进行匹配）。在这里，记忆非常重要，以确保它能够正确筛选，而不是试图模糊地进行字符串匹配。</p>
+<p class="source" lang="en">When the agent is given corrections or discovers nuances about certain data questions, it&#39;s able to save these learnings for next time, allowing it to constantly improve with its users. As a result, future answers begin from a more accurate baseline rather than repeatedly encountering the same issues.The goal of memory is to retain and reuse non-obvious corrections, filters, and constraints that are critical for data correctness but difficult to infer from the other layers alone. For example, in one case, the agent didn’t know how to filter for a particular analytics experiment (it relied on matching against a specific string defined in an experiment gate). Memory was crucially important here to ensure it was able to filter correctly, instead of fuzzily trying to string match.</p>
+</div>
+<div class="pair" id="p-80">
+<p class="target" lang="zh-CN">当智能体获得修正或发现某些数据问题的细节时，它能够将这些学习成果保存下来，以便下次使用，从而不断改善与用户的交互体验。</p>
+<p class="source" lang="en">When the agent is given corrections or discovers nuances about certain data questions, it&#39;s able to save these learnings for next time, allowing it to constantly improve with its users.</p>
+</div>
+<div class="pair" id="p-81">
+<p class="target" lang="zh-CN">因此，未来的解决方案会基于更准确的基准数据，而不是反复遇到相同的问题。</p>
+<p class="source" lang="en">As a result, future answers begin from a more accurate baseline rather than repeatedly encountering the same issues.</p>
+</div>
+<div class="pair" id="p-82">
+<p class="target" lang="zh-CN">因此，未来的解决方案会基于更准确的基准，而不是反复遇到相同的问题。</p>
+<p class="source" lang="en">As a result, future answers begin from a more accurate baseline rather than repeatedly encountering the same issues.</p>
+</div>
+<div class="pair" id="p-83">
+<p class="target" lang="zh-CN">内存的目标是保留并重新使用那些对数据正确性至关重要但仅凭其他层无法轻易推断出的修正、过滤和约束条件。</p>
+<p class="source" lang="en">The goal of memory is to retain and reuse non-obvious corrections, filters, and constraints that are critical for data correctness but difficult to infer from the other layers alone.</p>
+</div>
+<div class="pair" id="p-84">
+<p class="target" lang="zh-CN">内存的目标是保留并重新使用那些对数据正确性至关重要的、但仅凭其他层无法轻易推断出的修正、过滤和约束条件。</p>
+<p class="source" lang="en">The goal of memory is to retain and reuse non-obvious corrections, filters, and constraints that are critical for data correctness but difficult to infer from the other layers alone.</p>
+</div>
+<div class="pair" id="p-85">
+<p class="target" lang="zh-CN">例如，在一个案例中，智能体不知道如何筛选特定的分析实验（它依赖于与实验门中定义的特定字符串进行匹配）。在这种情况下，记忆非常重要，以确保它能够正确筛选，而不是尝试模糊地进行字符串匹配。</p>
+<p class="source" lang="en">For example, in one case, the agent didn’t know how to filter for a particular analytics experiment (it relied on matching against a specific string defined in an experiment gate). Memory was crucially important here to ensure it was able to filter correctly, instead of fuzzily trying to string match.</p>
+</div>
+<div class="pair" id="p-86">
+<p class="target" lang="zh-CN">例如，在一个案例中，智能体不知道如何筛选特定的分析实验（它依赖于与实验门中定义的特定字符串进行匹配）。在这里，记忆非常重要，以确保它能够正确筛选，而不是试图模糊地进行字符串匹配。</p>
+<p class="source" lang="en">For example, in one case, the agent didn’t know how to filter for a particular analytics experiment (it relied on matching against a specific string defined in an experiment gate). Memory was crucially important here to ensure it was able to filter correctly, instead of fuzzily trying to string match.</p>
+</div>
+<div class="pair" id="p-87">
+<p class="target" lang="zh-CN">当您给智能体提供修正，或智能体从您的对话中学习到内容时，它会提示您保存该记忆以备下次使用。用户也可以手动创建和编辑记忆。记忆可以在全局和个人层面进行设置，而智能体的工具使得编辑记忆变得容易。</p>
+<p class="source" lang="en">When you give the agent a correction or when it finds a learning from your conversation, it will prompt you to save that memory for next time. Memories can also be manually created and edited by users.Memories are scoped at the global and personal level, and the agent’s tooling makes it easy to edit them.</p>
+</div>
+<div class="pair" id="p-88">
+<p class="target" lang="zh-CN">当您给智能体提供修正，或它从您的对话中学习到内容时，它会提示您保存该记忆，以便下次使用。</p>
+<p class="source" lang="en">When you give the agent a correction or when it finds a learning from your conversation, it will prompt you to save that memory for next time.</p>
+</div>
+<div class="pair" id="p-89">
+<p class="target" lang="zh-CN">记忆也可以由用户手动创建和编辑。</p>
+<p class="source" lang="en">Memories can also be manually created and edited by users.</p>
+</div>
+<div class="pair" id="p-90">
+<p class="target" lang="zh-CN">记忆也可以由用户手动创建和编辑。</p>
+<p class="source" lang="en">Memories can also be manually created and edited by users.</p>
+</div>
+<div class="pair" id="p-91">
+<p class="target" lang="zh-CN">记忆在全局和个人层面都有界定，而智能体的工具使得编辑这些记忆变得容易。</p>
+<p class="source" lang="en">Memories are scoped at the global and personal level, and the agent’s tooling makes it easy to edit them.</p>
+</div>
+<div class="pair" id="p-92">
+<p class="target" lang="zh-CN">记忆在全局和个人层面都有定义，而代理的工具使得编辑它们变得容易。</p>
+<p class="source" lang="en">Memories are scoped at the global and personal level, and the agent’s tooling makes it easy to edit them.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/5udD56WbDXFurK7bM5jQfl/ed4a20eb8ade048ac2a1e96d5fe2884a/Desktop-Light.png?w=3840&amp;q=90&amp;fm=webp" alt="Notification banner showing “Data agent wants to save 2 learnings to memory,” with a labeled item “ChatGPT Top-level Metrics” and a confirmation message on the right that reads “Saved to global memory” with a green checkmark." loading="lazy">
+<div class="pair" id="p-93">
+<p class="target" lang="zh-CN">第6层：运行上下文</p>
+<p class="source" lang="en">Layer #6: Runtime Context</p>
+</div>
+<div class="pair" id="p-94">
+<p class="target" lang="zh-CN">当没有关于该表的先前上下文，或者现有信息已过时时，智能代理可以向数据仓库发出实时查询，直接查看和查询该表。这使其能够验证模式，实时理解数据，并相应作出响应。</p>
+<p class="source" lang="en">When no prior context exists for a table or when existing information is stale, the agent can issue live queries to the data warehouse to inspect and query the table directly. This allows it to validate schemas, understand the data in real-time, and respond accordingly.</p>
+</div>
+<div class="pair" id="p-95">
+<p class="target" lang="zh-CN">当没有关于表格的先前上下文，或者现有信息已经过时时，智能体可以向数据仓库发出实时查询，直接查看和查询表格。这使其能够验证模式，实时理解数据，并做出相应的响应。</p>
+<p class="source" lang="en">When no prior context exists for a table or when existing information is stale, the agent can issue live queries to the data warehouse to inspect and query the table directly. This allows it to validate schemas, understand the data in real-time, and respond accordingly.</p>
+</div>
+<div class="pair" id="p-96">
+<p class="target" lang="zh-CN">该智能体还能根据需求与其他数据平台系统（如元数据服务、Airflow、Spark）进行交互，以获取仓库之外更广泛的数据信息。</p>
+<p class="source" lang="en">The agent is also able to talk to other Data Platform systems (metadata service, Airflow, Spark) as needed to get broader data context that exists outside the warehouse.</p>
+</div>
+<div class="pair" id="p-97">
+<p class="target" lang="zh-CN">该智能体还能根据需求与其他数据平台系统（如元数据服务、Airflow、Spark）进行交互，以获取仓库之外更广泛的数据信息。</p>
+<p class="source" lang="en">The agent is also able to talk to other Data Platform systems (metadata service, Airflow, Spark) as needed to get broader data context that exists outside the warehouse.</p>
+</div>
+<div class="pair" id="p-98">
+<p class="target" lang="zh-CN">我们运行一个每日离线流程，将表格使用情况、人类注释以及 Codex 提供的丰富信息整合为统一的、规范化的数据表示。这种丰富的上下文随后通过 OpenAI 嵌入 API 转换为嵌入向量，并存储起来用于检索。在查询时，智能体通过检索增强生成技术（RAG）仅获取最相关的嵌入上下文，而不是扫描原始元数据或日志，这样使得表格理解既快速又可扩展，即使涉及数万个表格也能保持低延迟。运行时查询会根据需要实时发送到我们的数据仓库中。</p>
+<p class="source" lang="en">We run a daily offline pipeline that aggregates table usage, human annotations, and Codex-derived enrichment into a single, normalized representation. This enriched context is then converted into embeddings using the OpenAI embeddings API⁠(opens in a new window) and stored for retrieval. At query time, the agent pulls only the most relevant embedded context via retrieval-augmented generation⁠(opens in a new window) (RAG) instead of scanning raw metadata or logs. This makes table understanding fast and scalable, even across tens of thousands of tables, while keeping runtime latency predictable and low. Runtime queries are issued to our data warehouse live as needed.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6fwNR1Brsp4ElJRTh6KrHU/2e7a193d57171875ef40848916d11b34/oai_in-house_data_agent_context_retrieval_desktop-light.svg?w=3840&amp;q=90" alt="Diagram titled “Context retrieval in the data agent.” Offline preprocessing layers—table usage, human annotations, Codex enrichment, institutional knowledge, and memory—feed into RAG embeddings. Live retrieval shows the agent querying a database via semantic search or exact text retrieval to produce runtime context." loading="lazy">
+<div class="pair" id="p-99">
+<p class="target" lang="zh-CN">这些层级共同确保智能体的推理基于 OpenAI 的数据、代码和机构知识，从而大幅减少错误并提升回答质量。</p>
+<p class="source" lang="en">Together, these layers ensure the agent’s reasoning is grounded in OpenAI’s data, code, and institutional knowledge, dramatically reducing errors and improving answer quality.</p>
+</div>
+<div class="pair" id="p-100">
+<p class="target" lang="zh-CN">专为像队友一样思考和工作而设计</p>
+<p class="source" lang="en">Built to think and work like a teammate</p>
+</div>
+<div class="pair" id="p-101">
+<p class="target" lang="zh-CN">一次性的答案在问题明确时有效，但大多数问题并不如此。通常，得到正确的结果需要反复调整和完善，以及进行一些策略调整。</p>
+<p class="source" lang="en">One-shot answers work when the problem is clear, but most questions aren’t. More often, arriving at the correct result requires back-and-forth refinement and some course correction.</p>
+</div>
+<div class="pair" id="p-102">
+<p class="target" lang="zh-CN">该智能体被设计成像队友一样可以与之对话。它是一种对话式、随时可用的系统，能够处理快速回答和逐步探索两种情况。</p>
+<p class="source" lang="en">The agent is built to behave like a teammate you can reason with. It’s a conversational, always-on and handles both quick answers and iterative exploration.</p>
+</div>
+<div class="pair" id="p-103">
+<p class="target" lang="zh-CN">它能够保留完整的上下文信息，用户可以在对话中提出后续问题、调整意图或改变方向，而无需重新说明所有内容。如果智能体开始走错方向，用户可以在分析过程中打断并重新引导它，就像与人类合作者交流一样，后者会倾听而不是继续推进。</p>
+<p class="source" lang="en">It carries over complete context across turns, so users can ask follow-up questions, adjust their intent, or change direction without restating everything. If the agent starts heading down the wrong path, users can interrupt mid-analysis and redirect it, just like working with a human collaborator who listens instead of plowing ahead.</p>
+</div>
+<div class="pair" id="p-104">
+<p class="target" lang="zh-CN">当指令不明确或不完整时，智能体会主动提出澄清问题。如果未得到回应，它会应用合理的默认设置以继续推进。例如，如果用户询问业务增长情况但未指定具体时间范围，它可能会假设为过去七天或三十天。这些假设允许其保持响应迅速且不造成阻塞，同时最终达到正确的结果。</p>
+<p class="source" lang="en">When instructions are unclear or incomplete, the agent proactively asks clarifying questions. If no response is provided, it applies sensible defaults to make progress. For example, if a user asks about business growth with no date range specified, it may assume the last seven or 30 days. These priors allow it to stay responsive and non-blocking while still converging on the right outcome.</p>
+</div>
+<div class="pair" id="p-105">
+<p class="target" lang="zh-CN">结果就是这样一个智能体，当你明确知道想要什么时（例如，“告诉我关于这张表格的信息”），它也能很好地工作；而在探索过程中时（例如，“我看到这里有所下降，我们能否按客户类型和时间范围来分析呢？”），它的效果同样出色。</p>
+<p class="source" lang="en">The result is an agent that works well both when you know exactly what you want (e.g., “Tell me about this table”) and just as strong when you’re exploring (e.g., “I’m seeing a dip here, can we break this down by customer type and timeframe?”).</p>
+</div>
+<div class="pair" id="p-106">
+<p class="target" lang="zh-CN">发布后，我们发现用户经常对重复性的工作进行相同的分析。为了加快流程，智能代理将重复分析整合为可复用的指令集。例如，包括每周业务报告和表格验证的相关流程。通过一次性编码上下文和最佳实践，这些流程能够简化重复分析，并确保不同用户获得一致的结果。</p>
+<p class="source" lang="en">After rollout, we observed that users frequently ran the same analyses for routine repetitive work. To expedite this, the agent&#39;s workflows package recurring analyses into reusable instruction sets. Examples include workflows for weekly business reports and table validations. By encoding context and best practices once, workflows streamline repeat analyses and ensure consistent results across users.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3mdC8H0nLxnbpJWQrsHbCK/cd8f0dc852e79ca40282fd8904d98b8a/Desktop-Light.png?w=3840&amp;q=90&amp;fm=webp" alt="UI input bar with the placeholder text “Ask a data question.” Below it is a button labeled “Use a workflow,” and to the right are microphone and send icons. The bar has rounded corners and sits against a dark background." loading="lazy">
+<div class="pair" id="p-107">
+<p class="target" lang="zh-CN">快速行动，不破坏信任</p>
+<p class="source" lang="en">Moving fast without breaking trust</p>
+</div>
+<div class="pair" id="p-108">
+<p class="target" lang="zh-CN">构建一个始终在线且不断发展的智能体意味着质量既可能下降也可能提升。如果没有紧密的反馈机制，退化现象是不可避免的，且难以被察觉。在不破坏信任的情况下提升能力，唯一的方法就是进行系统的评估。</p>
+<p class="source" lang="en">Building an always-on, evolving agent means quality can drift just as easily as it can improve. Without a tight feedback loop, regressions are inevitable and invisible. The only way to scale capability without breaking trust is through systematic evaluation.</p>
+</div>
+<div class="pair" id="p-109">
+<p class="target" lang="zh-CN">在本节中，我们将讨论如何利用 OpenAI 的 Evals API 来衡量和保障智能体的响应质量。</p>
+<p class="source" lang="en">In this section, we’ll discuss how we leverage OpenAI’s Evals API⁠(opens in a new window) to measure and protect the agent’s response quality.</p>
+</div>
+<div class="pair" id="p-110">
+<p class="target" lang="zh-CN">它的评估基于精心挑选的问题与答案对。每个问题都针对我们非常关注要准确掌握的重要指标或分析模式，并搭配由人工编写的“黄金”SQL查询来生成预期结果。对于每一个评估，我们会将自然语言问题发送到查询生成端点，执行生成的SQL，然后对比输出结果与预期的SQL结果。</p>
+<p class="source" lang="en">Its Evals are built on curated sets of question-answer pairs. Each question targets an important metric or analytical pattern we care deeply about getting right, paired with a manually authored “golden” SQL query that produces the expected result. For each eval, we send the natural language question to its query-generation endpoint, execute the generated SQL, and compare the output against the result of the expected SQL.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/2BwOZ1rNAX2oxVQ5FXUkQK/1d2139185e8b20ba30bf525cbed82ced/oai_in-house_data_agent_eval_pipeline_desktop-light.svg?w=3840&amp;q=90" alt="Diagram titled “Data agent’s evaluation pipeline.” Q&amp;A eval pairs with expected SQL feed into a generation step that produces SQL and results. OpenAI Evals compares generated vs. expected results using dataframe and SQL comparison, outputting a score and reasoning." loading="lazy">
+<div class="pair" id="p-111">
+<p class="target" lang="zh-CN">评估并不依赖于简单的字符串匹配。生成的 SQL 可能在语法上有所不同，但仍属于正确形式，而结果集可能包含一些不影响结果的额外列。为了应对这种情况，我们会比较 SQL 和生成的数据，并将这些结果输入到 OpenAI 的 Evals 评估器中。该评估器会给出一个最终分数及解释，同时反映正确性以及可接受的差异。</p>
+<p class="source" lang="en">Evaluation doesn’t rely on naive string matching. Generated SQL can differ syntactically while still being correct, and result sets may include extra columns that don’t materially affect the answer. To account for this, we compare both the SQL and the resulting data, and feed these signals into OpenAI’s Evals grader. The grader produces a final score along with an explanation, capturing both correctness and acceptable variation.</p>
+</div>
+<div class="pair" id="p-112">
+<p class="target" lang="zh-CN">这些评估就像开发过程中的持续运行单元测试，能够作为生产环境中的“探照灯”来发现问题；这使我们能够及早发现问题，并在智能体能力扩展时放心地进行迭代改进。</p>
+<p class="source" lang="en">These evals are like unit tests that run continuously during development to identify regressions as canaries in production; this allows us to catch issues early and confidently iterate as the agent&#39;s capabilities expand.</p>
+</div>
+<div class="pair" id="p-113">
+<p class="target" lang="zh-CN">代理安全</p>
+<p class="source" lang="en">Agent security</p>
+</div>
+<div class="pair" id="p-114">
+<p class="target" lang="zh-CN">我们的智能体直接接入 OpenAI 现有的安全与访问控制体系。它仅作为接口层运行，继承并执行与 OpenAI 数据管理相关的相同权限和约束规则。</p>
+<p class="source" lang="en">Our agent plugs directly into OpenAI’s existing security and access-control model. It operates purely as an interface layer, inheriting and enforcing the same permissions and guardrails that govern OpenAI’s data.</p>
+</div>
+<div class="pair" id="p-115">
+<p class="target" lang="zh-CN">所有代理的访问权限都是严格通过式传递的，这意味着用户只能查询他们有访问权限的表格。当访问权限不足时，系统会标记出来，或者回退到用户有权使用的其他数据集。</p>
+<p class="source" lang="en">All of the agent’s access is strictly pass-through, meaning users can only query tables they already have permission to access. When access is missing, it flags this or falls back to alternative datasets the user is authorized to use.</p>
+</div>
+<div class="pair" id="p-116">
+<p class="target" lang="zh-CN">最后，它注重透明度。像任何系统一样，它也可能出错。它通过总结假设和执行步骤来展示其推理过程，并随每个答案一起呈现。当执行查询时，它会直接链接到底层结果，使用户能够查看原始数据并验证分析的每一个步骤。</p>
+<p class="source" lang="en">Finally, it&#39;s built for transparency. Like any system, it can make mistakes. It exposes its reasoning process by summarizing assumptions and execution steps alongside each answer. When queries are executed, it links directly to the underlying results, allowing users to inspect raw data and verify every step of the analysis.</p>
+</div>
+<div class="pair" id="p-117">
+<p class="target" lang="zh-CN">经验教训</p>
+<p class="source" lang="en">Lessons learned</p>
+</div>
+<div class="pair" id="p-118">
+<p class="target" lang="zh-CN">从零开始构建我们的智能体，让我们获得了关于智能体如何行为、在何处遇到困难以及什么能使其在大规模应用中保持可靠性的实用经验。</p>
+<p class="source" lang="en">Building our agent from scratch surfaced practical lessons about how agents behave, where they struggle, and what actually makes them reliable at scale.</p>
+</div>
+<div class="pair" id="p-119">
+<p class="target" lang="zh-CN">早期，我们向智能体展示了所有的工具集，但很快就遇到了功能重叠的问题。虽然这种冗余对于特定的定制场景很有帮助，并且人类手动调用时也更容易理解，但对智能体来说却很混乱。为了减少歧义并提高可靠性，我们限制了某些工具调用，并进行了整合。</p>
+<p class="source" lang="en">Early on, we exposed our full tool set to the agent, and quickly ran into problems with overlapping functionality. While this redundancy can be helpful for specific custom cases and is more obvious to a human when manually invoking, it’s confusing to agents. To reduce ambiguity and improve reliability, we restricted and consolidated certain tool calls.</p>
+</div>
+<div class="pair" id="p-120">
+<p class="target" lang="zh-CN">我们还发现，过于严格的提示会降低结果质量。虽然许多问题具有通用的分析结构，但细节差异很大，严格的指令往往会让智能体走向错误的路径。通过采用更高层次的指导，并依赖 GPT‑5 的推理能力来选择合适的执行路径，智能体变得更加稳健，也能产生更好的结果。</p>
+<p class="source" lang="en">We also discovered that highly prescriptive prompting degraded results. While many questions share a general analytical shape, the details vary enough that rigid instructions often pushed the agent down incorrect paths. By shifting to higher-level guidance and relying on GPT‑5’s reasoning to choose the appropriate execution path, the agent became more robust and produced better results.</p>
+</div>
+<div class="pair" id="p-121">
+<p class="target" lang="zh-CN">模式和查询历史描述了表的形态和使用情况，但其真正含义在于生成这些模式的代码。管道逻辑能够捕捉到那些在 SQL 或元数据中无法体现的假设、新鲜度保证以及业务意图。通过 Codex 遍历代码库，我们的智能体能够理解数据集的实际构建方式，并更清晰地理解每个表实际包含的内容。相比仅依赖仓库信号，它能够更精准地回答“这里有什么”和“我什么时候可以使用它”等问题。</p>
+<p class="source" lang="en">Schemas and query history describe a table’s shape and usage, but its true meaning lives in the code that produces it. Pipeline logic captures assumptions, freshness guarantees, and business intent that never surface in SQL or metadata. By crawling the codebase with Codex, our agent understands how datasets are actually constructed and is able to better reason about what each table actually contains. It can answer “what’s in here” and “when can I use it” far more accurately than from warehouse signals alone.</p>
+</div>
+<div class="pair" id="p-122">
+<p class="target" lang="zh-CN">相同的愿景，新的工具</p>
+<p class="source" lang="en">Same vision, new tools</p>
+</div>
+<div class="pair" id="p-123">
+<p class="target" lang="zh-CN">我们一直在努力提升我们的智能体，增强其处理模糊问题的能力，提高其可靠性和准确性，通过更严格的验证机制，并使其更深入地融入工作流程。我们认为，它应该自然地融入人们现有的工作方式中，而不是成为一个独立的工具。</p>
+<p class="source" lang="en">We’re constantly working to improve our agent by increasing its ability to handle ambiguous questions, improving its reliability and accuracy with stronger validations, and integrating it more deeply into workflows. We believe it should blend naturally into how people already work, instead of functioning like a separate tool.</p>
+</div>
+<div class="pair" id="p-124">
+<p class="target" lang="zh-CN">尽管我们的工具将继续从代理推理、验证和自我修正方面的改进中受益，但我们的团队目标保持不变：在 OpenAI 的数据生态系统中无缝提供快速且可靠的数据分析。</p>
+<p class="source" lang="en">While our tooling will keep benefiting from underlying improvements in agent reasoning, validation, and self-correction, our team’s mission remains the same: seamlessly deliver fast, trustworthy data analysis across OpenAI’s data ecosystem.</p>
+</div>
+<div class="pair" id="p-125">
+<p class="target" lang="zh-CN">2026</p>
+<p class="source" lang="en">2026</p>
+</div>
+<div class="pair" id="p-126">
+<p class="target" lang="zh-CN">&lt;text&gt;
+作者
+&lt;/text&gt;</p>
+<p class="source" lang="en">Authors</p>
+</div>
+<div class="pair" id="p-127">
+<p class="target" lang="zh-CN">致谢</p>
+<p class="source" lang="en">Acknowledgements</p>
+</div>
+<div class="pair" id="p-128">
+<p class="target" lang="zh-CN">特别感谢数据生产力与数据科学团队，以及众多跨职能用户们的实验成果和反馈。</p>
+<p class="source" lang="en">Special thanks to the Data Productivity and Data Science teams, as well as to our many cross-functional users for their experimentation and feedback.</p>
+</div>
+<div class="pair" id="p-129">
+<p class="target" lang="zh-CN">继续阅读</p>
+<p class="source" lang="en">Keep reading</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6G64B5haCxDuphl2iqwZ1N/4f8d319293f5e5e98b319e01b4fbdf59/scaling-git-at-openai-art-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Scaling Git at OpenAI — art card" loading="lazy">
+<div class="pair" id="p-130">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年11月2日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringNov 2, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3a839ECHaGsidJPLJqqm5s/55968ec17735b96514d1bb4851f43bf8/scaling-storage-one-billion-users-part-two-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II) — card" loading="lazy">
+<div class="pair" id="p-131">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年10月23日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 23, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3aewhPPb5NQ5IqOKEkrtzA/7209065f6e6ccf3a0476b43feb8336e1/rethinking-ads-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rethinking the ad stack around a new user journey — Art card" loading="lazy">
+<div class="pair" id="p-132">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年10月21日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 21, 2026</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://openai.com/index/inside-our-in-house-data-agent" target="_blank" rel="noopener noreferrer">https://openai.com/index/inside-our-in-house-data-agent</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html">← Unlocking the Codex harness: how we built the App Server</a><a href="../viewers/unrolling-the-codex-agent-loop.html">Unrolling the Codex agent loop →</a></nav>
+  <footer class="footer">文章版权归原作者所有，译文请以英文原文为准。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

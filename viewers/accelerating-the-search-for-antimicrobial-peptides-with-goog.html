@@ -1,0 +1,759 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Accelerating the search for antimicrobial peptides with Google Antigravity · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Accelerating the search for antimicrobial peptides with Google Antigravity</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item current" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html" aria-current="page"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item current" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html" aria-current="page"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Accelerating the search for antimicrobial peptides with Google Antigravity</h1>
+  <p class="subline">原文：<a href="https://deepmind.google/blog/accelerating-antimicrobial-discovery" target="_blank" rel="noopener noreferrer">https://deepmind.google/blog/accelerating-antimicrobial-discovery</a> · 2026-10-15 · Google DeepMind · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">彭飞·天、麦克斯韦尔·比尔斯奇、曾亚利·萨加利杜、苏克迪普·辛格和露西·J·科尔威尔</p>
+<p class="source" lang="en">Pengfei Tian, Maxwell L. Bileschi, Zoi Tsangalidou, Sukhdeep Singh and Lucy J. Colwell</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">新的抗生素非常必要，以应对日益严重的抗菌素耐药性问题，但寻找新疗法通常是一个缓慢且需要大量人力的过程。借助我们的代理式开发平台 Google Antigravity，这一过程现在可以变得更加便捷。</p>
+<p class="source" lang="en">New antibiotics are urgently needed to help with rising levels of antimicrobial resistance, but searching for new therapeutics is often a slow, labor-intensive process. With Google Antigravity, our agentic development platform, this process can now be made easier.</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">Google Antigravity 提供了一个代理式科学工作台，帮助生物学家快速发现、结构评估并确定有潜力的目标，将原本需要在多个数据库中进行搜索的工作压缩到一次会话中。它还能帮助研究人员使用 ProtNLM 工具，在 UniProt 数据库中扫描数百万种之前未被表征的蛋白质，而 ProtNLM 是一种根据氨基酸序列预测生物功能的模型。</p>
+<p class="source" lang="en">Google Antigravity provides an agentic science workbench that empowers biologists to discover, structurally evaluate, and prioritize promising targets quickly, compressing what used to be a fragmented search over multiple databases into a single session. It also helps researchers scan through millions of previously uncharacterized proteins in the UniProt database using ProtNLM, a model that predicts biological function from amino acid sequences.</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">这个技术解析展示了生物学家如何使用 Google Antigravity 发现一种新的抗菌肽候选物，该候选物对呼吸道感染中的病原体具有预测性活性。这里确定的主要候选物目前正在进行湿实验室验证。</p>
+<p class="source" lang="en">This technical walkthrough shows how biologists used Google Antigravity to uncover a novel antimicrobial peptide candidate which has predicted activity against the pathogens involved in respiratory tract infections. The lead identified here is now undergoing wet-lab validation.</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">发现新的抗菌肽</p>
+<p class="source" lang="en">Finding new antimicrobial peptides</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">日益严重的抗菌耐药性是我们这个时代最紧迫的全球健康危机之一，预计到2050年全球每年将会有1000万人死亡。为了预防这种情况，我们迫切需要发现新的治疗方法。抗菌肽，尤其是细菌素，为传统抗生素提供了一种有希望的替代方案，因为它们自然进化出了针对竞争细菌基本脆弱点的能力，从细胞包膜到重要的细胞内机制，使得病原体难以产生耐药性。</p>
+<p class="source" lang="en">Rising antimicrobial resistance is one of the most pressing global health crises of our time and could result in an estimated 10 million annual deaths globally by 2050. To prevent this, we urgently need to discover novel therapeutics. Antimicrobial peptides (AMPs), particularly bacteriocins, offer a promising alternative to traditional antibiotics because they have naturally evolved to target fundamental vulnerabilities in competing bacteria, from cell envelopes to essential intracellular machinery, making it difficult for pathogens to develop resistance.</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">基因组和宏基因组测序的指数级增长使得全球数据库中包含了数十亿条天然氨基酸序列。这些天然数据集合已经产生了如尼辛这样的全球使用的细菌素，以及像达罗布actin、迪诺布actin和拉里奥西丁这样的新近通过基因组分析发现的成果。</p>
+<p class="source" lang="en">The exponential growth of genomic and metagenomic sequencing has populated global databases with billions of natural amino acid sequences. This pool of natural data has already produced globally used bacteriocins like Nisin, alongside recent genome-mined breakthroughs such as Darobactin, Dynobactin, and Lariocidin.</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">然而，许多蛋白质数据库中的“暗物质”部分仍然未被注释，其功能也未被确定，因为它们与已知的蛋白质不同。例如，全球领先的蛋白质序列和功能信息公共资源UniProt中，有数百万个功能未知的序列，这些序列直接来自基因组测序项目。</p>
+<p class="source" lang="en">Many, however, remain locked within the unannotated &quot;dark matter&quot; of protein databases, with their function uncharacterized because they aren’t similar to known proteins. For example, the world&#39;s leading public resource of protein sequence and functional information, UniProt, holds millions of sequences with unknown functionality, transferred directly from genome sequencing projects.</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">为了填补这一空白，谷歌开发了 ProtNLM（蛋白质自然语言模型），这是一种深度学习模型，能够直接解读氨基酸序列背后的进化“语法”。这使得该模型能够从原始蛋白质序列直接预测生物功能，从而为数百万之前未被命名的 UniProt 条目赋予高置信度的功能标签。</p>
+<p class="source" lang="en">To bridge this gap, Google developed ProtNLM (Protein Natural Language Model), a deep learning model trained to directly read the underlying evolutionary “grammar” of amino acid sequences. This allows the model to predict biological function directly from raw protein sequences, enriching millions of previously unnamed UniProt entries with high-confidence functional labels.</p>
+</div>
+<img src="https://lh3.googleusercontent.com/cctih6oTmgTVb0qWHy2X0TLKnI9oZLOvQJKeiOFwwW29DCQCtketIeWf0CJQSrgwMvkxF_FpgBbgEhgBqjekmTsqmndhZ2_CzTlOeV1oNGh7LCNbog=w1440" alt="This diagram illustrates a bioinformatics workflow where an input protein sequence undergoes functional annotation via a seq-to-seq transformer, followed by an evidencer pipeline that adds supporting evidence (such as sequence and structural similarity) to the predicted name, function, subcellular location, and GO terms." loading="lazy">
+<img src="https://lh3.googleusercontent.com/4QUcD860AfbhWj3rwdIdnFGrrxnqXW2Q1bBxX5nyH5gf318bdSq3j-l6Su1THy8_nLDgJJ4dKrtNBnAR7gmPYVXzJrM1VSanBls6CRLXm9kCgOh27ZQ=w1440" alt="This diagram illustrates a bioinformatics workflow where an input protein sequence undergoes functional annotation via a seq-to-seq transformer, followed by an evidencer pipeline that adds supporting evidence (such as sequence and structural similarity) to the predicted name, function, subcellular location, and GO terms." loading="lazy">
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">ProtNLM流程概述：将原始氨基酸序列转换为未审核的UniProtKB/TrEMBL条目的自然语言生物注释。该系统的功能注释范围包括蛋白质名称、功能说明、亚细胞定位和GO术语，以及关键词。</p>
+<p class="source" lang="en">Overview of the ProtNLM pipeline translating raw amino acid sequences into natural-language biological annotations for unreviewed UniProtKB/TrEMBL entries. The functional annotation scope of the system covers protein names, function comments, subcellular locations, and GO terms, in addition to keywords.</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">协作智能</p>
+<p class="source" lang="en">Collaborative intelligence</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">科学发现通常不是简单的单一步骤过程；寻找可行的候选蛋白质需要人类的直觉和反复试验来整合新的实证证据。在Antigravity项目中，研究人员和AI智能体首先设定一个明确的生物学目标：在假肺炎链球菌中寻找并通过计算方式验证新的AMP蛋白。在互动的多轮对话过程中，研究人员负责指导科学策略，决定提出哪些问题以及收集哪些证据，而智能体则负责复杂的跨数据库协调、结构分析和文献整合工作。</p>
+<p class="source" lang="en">Scientific discovery is rarely a single step process; finding viable candidate proteins requires human intuition and iteration to incorporate new empirical evidence. Working in Antigravity, the researcher and AI agent begin by setting a focused biological goal: find and computationally validate novel AMPs in Streptococcus pseudopneumoniae. During an interactive, multi-turn session the researcher steers the scientific strategy, deciding which questions to ask and what evidence to collect, while the agent handles the heavy lifting of cross-database orchestration, structural analysis, and literature synthesis.</p>
+</div>
+<img src="https://lh3.googleusercontent.com/I6-x5Sp8EpQG9Kgas50ZDrM7EA54uJHfQs6GOs6CQsWJo2VpNZB0toOQKY93YkTo9VcAjoYAP9HgIF15Rp8lAQFAjlMp9V4xeYTIWPYF9jx_lP_UrA=w1440-h810-n-nu" alt="A screenshot of a chat interface showing a prompt for &quot;Gemini 3.8 Flash&quot; asking to find specific proteins in the UniProt database." loading="lazy">
+<img src="https://lh3.googleusercontent.com/Co43MyE3hVgdwX-PPVCxImRA65YNMVl1SmoLhqPu3XIJTvSeSxJjhT9-7ldC6V86ciEg5HnnkjTZt4OkITDHNBfxjUqRUvQh_Gkvdn6eqZLKryZ-qQ=w1440-h810-n-nu" alt="A screenshot of a text prompt in a dark-themed Gemini 3.8 Flash interface asking to find specific Streptococcus pseudopneumoniae proteins in the UniProt database." loading="lazy">
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">浏览庞大的搜索领域：</p>
+<p class="source" lang="en">Navigating a vast search space:</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">智能体查询数据库，并筛选数百万条数据，最终留下少数值得关注的候选项。在此中，智能体发现一种长度为97个氨基酸的细菌素，属于乳球菌素972家族，其Uniprot ID为A0A0U0D591。</p>
+<p class="source" lang="en">The agent queries the database and filters millions of entries down to a handful of candidates worthy of attention. Here, the agent finds a bacteriocin (Uniprot ID: A0A0U0D591) with a length of 97 amino acids from the Lactococcin 972 family.</p>
+</div>
+<img src="https://lh3.googleusercontent.com/RgOKQUwgaGjmlY4Y7c6m2oAT8JcXe4v8unGan1LIl8mmaWeyJGWcnf9_TplOCt1ciBccTTjQVH0WpIjlI9soEbwv3lIkgqNwR7tGmyflbJ9UXWXokA=w1440-h810-n-nu" alt="An interface screenshot showing a text prompt box with a request to cross-reference a candidate using BLAST against the Swiss-Prot database, with &quot;Gemini 3.8 Flash&quot; selected in a dropdown menu below." loading="lazy">
+<img src="https://lh3.googleusercontent.com/IQxHOTXw0lHIkCXjsy7R8N71tGsIqcBf_-KJbLYSPpUGyAa27SaqxzY2zbQBKXDy6ykj2neWlgiyRXVUJb_jkY1Pd4jUqZUC9uDQGd3M_wx7tzwv0g=w1440-h810-n-nu" alt="An interface screenshot showing a text prompt box with a request to cross-reference a candidate using BLAST against the Swiss-Prot database, with &quot;Gemini 3.8 Flash&quot; selected in a dropdown menu below." loading="lazy">
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">验证发现的新颖性：</p>
+<p class="source" lang="en">Validating the novelty of a finding:</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">为了验证这一发现的新颖性，研究人员引导智能体通过 EMBL-EBI NCBI-BLAST 服务，利用 Swiss-Prot 中的精选知识对候选序列进行分析，并确认该肽在手动审查的蛋白质中不存在有意义的序列同源性。</p>
+<p class="source" lang="en">To verify the novelty of this discovery, the researcher guides the agent to interrogate the candidate against curated knowledge in Swiss-Prot via the EMBL-EBI NCBI-BLAST service and confirm this peptide has no meaningful sequence homolog among manually reviewed proteins.</p>
+</div>
+<img src="https://lh3.googleusercontent.com/OGV6UV_55ztijNbLEkd0v3TEPl5ej3IQIDTP8Qjl_imDJXNq9x9Z7Hzqg9h7DJ_Vz6xgmCri0YFwZV7Q2rlYUgCYp3kOQqYSrqB0SH2j4IsQ5t7NCw=w1440-h810-n-nu" alt="AI interface prompt box showing a request for Gemini 3.8 Flash to analyze AlphaFold predictions, run a Foldseek search, and align protein structures." loading="lazy">
+<img src="https://lh3.googleusercontent.com/1gFj2bWVy4Hk_1QHd7RQyXFOA9mg_tT4Ul625KWNrDHWvo99wC5SFYtzNWh6mfSBQ9An1YL1EMbQUtW8Qxa5wLkAxzaQwZpcjNyxnO_XvyUNzgNTdQ=w1440-h810-n-nu" alt="AI interface prompt box showing a request for Gemini 3.8 Flash to analyze AlphaFold predictions, run a Foldseek search, and align protein structures." loading="lazy">
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">对3D蛋白质结构的推理：</p>
+<p class="source" lang="en">Reasoning over 3D protein structure:</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">研究人员将分析方向引向结构证据。该工具从 AlphaFold 蛋白质结构数据库中获取候选物的 3D 模型，将其与实验确定的结构进行比对，以识别远程同源结构，然后叠加这些模型以评估相似性。在这里，结构证据证实了 ProtNLM 的预测，表明候选物的折叠结构与实验确定的细菌素非常相似。Antigravity 中的结构查看器使得这种结构分析能够在一个地方无缝完成。</p>
+<p class="source" lang="en">The researcher steers the analysis towards structural evidence. The agent retrieves the candidate’s 3D model from the AlphaFold Protein Structure Database, querying it against experimentally determined structures to identify remote homologs, and superimposing the models to assess similarity. Here, the structural evidence corroborates ProtNLM’s prediction by showing the candidate&#39;s fold closely matches an experimentally determined bacteriocin. The structure viewer in Antigravity allows this structural analysis to be seamlessly performed in one place.</p>
+</div>
+<img src="https://lh3.googleusercontent.com/4D_xPyNIUjQopNvBLR8EdR7ig0xvRWGU8-cTp6zLdJrB2DhJiElM6D27pwXaOceUeabVDygGPU9ND1Z1RhqU8tVGjAKGSZ-4wxNyrLrqImJLhfC4=w1440-h810-n-nu" alt="A screenshot of a clean user interface prompt box containing the text: &quot;Find the genomic neighbors around this candidate gene. Do they support the prediction that this is a true antimicrobial peptide?&quot; with a dropdown selecting &quot;Gemini 3.8 Flash&quot;." loading="lazy">
+<img src="https://lh3.googleusercontent.com/_iDLqwz3sRQ1KtPCAjys155V24ZUyjwKnVIwMDugiJIxeugW7mc-lm5-AKyZmKZvcSr6GYS_HiMqVfhr5san-e6Vtu6ebH2K7Bf5p5Foqgx2hfrj910=w1440-h810-n-nu" alt="A screenshot of a clean user interface prompt box containing the text: &quot;Find the genomic neighbors around this candidate gene. Do they support the prediction that this is a true antimicrobial peptide?&quot; with a dropdown selecting &quot;Gemini 3.8 Flash&quot;." loading="lazy">
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">阅读基因周围的生物学环境：</p>
+<p class="source" lang="en">Reading the biological context around a gene:</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">该智能体不仅关注分子本身，还关注其基因组环境，判断周围基因是否支持 AMP 假说。通过检查周边基因，它发现了一个明显的模式：之前未被识别的候选基因位于一个紧密耦合操纵子的上游，正好在 ABC 转运蛋白渗透酶及其潜在伴侣 ATP 结合蛋白之前 6 个碱基对处，旁边还有另一种已注释的细菌素和 XRE 转录调节因子。这提供了强有力的上下文证据，表明它属于一个运作正常的细菌素系统。</p>
+<p class="source" lang="en">The agent looks beyond the molecule itself to its genomic neighborhood, reasoning over whether the surrounding machinery supports the AMP hypothesis. Inspecting the flanking genes, it spots a revealing pattern: our previously uncharacterized candidate sits at the upstream of a tightly coupled operon, just 6 base pairs ahead of a ABC transporter permease and its potential partner ATP-binding protein, alongside another annotated bacteriocin and an XRE transcriptional regulator. This provides strong contextual evidence that it is part of a working bacteriocin system.</p>
+</div>
+<img src="https://lh3.googleusercontent.com/STTPrLj9keupwd5iP48zF8Do2jZqbtPvP7wfz4X8xONJyhWY3y6dMnFQhkWr5McYm5dXbHI7Nqc_oSkA79uSz-8TOgC4eemOu3RPaJFm6WOtAi9fdQ=w1440-h810-n-nu" alt="An AI chat input box featuring the prompt, &quot;Review the literature and predict which pathogens this candidate can potentially eliminate,&quot; with a dropdown menu selected to &quot;Gemini 3.8 Flash.&quot;" loading="lazy">
+<img src="https://lh3.googleusercontent.com/04iumxYNbMR_OBn_XarizrEVBPetULVjBQqPXKwG2L4sMcLZ3TEv8VfIQ7wcmQ8X7h1VCa6PCcS-7jpAmpvkJtpUSuS_z9kXOvs-n_Hi4hZ3K-VYWg=w1440-h810-n-nu" alt="An AI chat input box featuring the prompt, &quot;Review the literature and predict which pathogens this candidate can potentially eliminate,&quot; with a dropdown menu selected to &quot;Gemini 3.8 Flash.&quot;" loading="lazy">
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">从文献中构建机制性假设：</p>
+<p class="source" lang="en">Building a mechanistic hypothesis from the literature:</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">通过回顾现有文献，该智能体提出了该分子可能的作用机制以及它可能针对的病原体。目前证据表明，其作用机制针对细菌细胞分裂，其预期效力可覆盖多种耐药性病原体。</p>
+<p class="source" lang="en">By reviewing the existing literature, the agent proposes how the molecule might act and what pathogens it might act on. In this case, existing evidence suggests a mechanism of action targeting bacterial cell division, and a predicted potency spectrum spanning several drug-resistant pathogens.</p>
+</div>
+<img src="https://lh3.googleusercontent.com/F-q2TuFfd7iORkbVOJTxCQpWBBuWTNRjNColej_M52jQLz4rxBb22ZB8MHW-XlHFLDTHfqnzPXcAUQACrv1NZznV-fMFI9n-V7nfgp0fywUpKKP2-cM=w1440-h810-n-nu" alt="An AI chat interface showing a prompt box with the text, &quot;Review the literature and make a wet lab experimental plan to test this candidate,&quot; with &quot;Gemini 3.8 Flash&quot; selected as the model." loading="lazy">
+<img src="https://lh3.googleusercontent.com/O32RjmYtaWtzXyZgPYO6QdLRDZcj6MDwxPbEGzQiLek5vR2BIpydb1oy0RJpqNEiy32ELwBoDGHwkRZC9ECM_qpNsEYgH2KfkVw4x8B0R1OvE6dRmw=w1440-h810-n-nu" alt="An AI chat interface showing a prompt box with the text, &quot;Review the literature and make a wet lab experimental plan to test this candidate,&quot; with &quot;Gemini 3.8 Flash&quot; selected as the model." loading="lazy">
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">生成实验计划：</p>
+<p class="source" lang="en">Generating an experimental plan:</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">最后，该智能体将其计算机模拟结果转化为可执行的实验方案，包括蛋白质表达、抗菌敏感性测试、目标结合以及体外毒性测试，从而将计算预测与实际实验相结合。这一步骤正在实施中：该候选方案以及通过同一流程发现的其他几个方案目前正在进行实际实验验证，实验结果将作为对该智能体分析的最终检验。</p>
+<p class="source" lang="en">Finally, the agent translates its in silico findings into an actionable bench protocol, spanning protein expression, antimicrobial susceptibility testing, target engagement, and in vitro toxicity testing, bridging the gap from computational prediction to wet-lab experiment. This step is already in motion: this candidate - along with several others discovered through the same pipeline - are now in wet-lab validation, where experimental results will provide the ultimate test of the agent&#39;s analysis.</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">在这个研究过程中我们发现的候选分子是一个具有生物学可行性的潜在候选物，有结构和基因组证据支持，但仍需要实验室验证。其意义在于极大地降低了日常生物研究工作的难度，将原本需要数天的分散数据库筛选工作转化为一次协同工作。虽然这次研究集中在肺炎链球菌中的特定氨基酸范围，但研究人员可以朝着任何方向进行探索，比如添加新的筛选标准、研究不同的序列长度，或者针对其他重点病原体。通过将搜索范围从人类共生菌扩展到环境微生物及其他领域，科学家可以引导该工具在 UniProt 中大规模寻找新的 AMP 候选分子。</p>
+<p class="source" lang="en">The candidate we uncover in this walkthrough represents a biologically plausible lead backed by structural and genomic evidence but it still requires wet lab validation. What makes this meaningful is how dramatically it lowers the barrier to everyday biological workflows, turning days of fragmented database triage into a single collaborative session. While this session focused on a narrow amino acid window in Streptococcus pseudopneumoniae, researchers can take the conversation in any direction, such as layering in new filtering criteria, exploring different sequence lengths, or targeting other priority pathogens. By broadening the search from human commensals to environmental microbes and beyond, scientists can guide the agent across UniProt to discover novel AMP candidates at scale.</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">用于交互式协作的共享 3D 画布</p>
+<p class="source" lang="en">A shared 3D canvas for interactive collaboration</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">蛋白质的三维结构有助于我们理解其生物学功能。检查候选分子在空间中的预测折叠结构至关重要。为了在一个工作区中提供这种端到端的工作流程，我们推出了 Biomolecular Structure Viewer，这是一种直接集成在 Antigravity 中的三维可视化工具。</p>
+<p class="source" lang="en">A protein&#39;s 3D structure can help us understand its biological function. Examining a candidate’s predicted fold in space is key. To provide this end-to-end workflow in a single workspace, we are introducing the Biomolecular Structure Viewer, a 3D visualization tool embedded directly into Antigravity.</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">研究人员和智能体在共享的视觉状态下协同工作。当智能体从 AlphaFold 数据库或科学家自己的预测中获取结构信息时，它可以动态引导观众。例如，它可以突出显示关键功能区域，以直观地解释其假设。重要的是，这种互动是双向的：如突出特定残基或直接在结合口袋上标注注释等操作，都会同步反馈给智能体。研究人员只需在 3D 空间中的感兴趣区域做标记，然后询问如“这个 β-链如何影响 Lipid II 的结合？”等问题，就能让智能体立即根据科学家所查看的具体结构背景进行推理。</p>
+<p class="source" lang="en">The researcher and agent work together over a shared visual state. As the agent retrieves structures from AlphaFold Database or the scientist’s own predictions, it can dynamically drive the viewer. For instance, it can highlight key functional regions to visually explain its hypotheses. Crucially, this awareness flows both ways: actions like highlighting specific residues or pinning notes directly onto a binding pocket are synchronised back to the agent. A researcher can simply mark a region of interest in 3D space and ask, for example, &quot;How might this β-strand affect Lipid II binding?&quot;, allowing the agent to immediately reason over the exact structural context the scientist is looking at.</p>
+</div>
+<img src="https://deepmind.google/static/images/fallback/video_poster_fallback_light.57b61d57842a.jpg" alt="" loading="lazy">
+<img src="https://deepmind.google/static/images/fallback/video_poster_fallback_dark.4d55bc99efa6.jpg" alt="" loading="lazy">
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">Antigravity 中的生物分子结构查看器展示了候选细菌素由 AlphaFold 预测的结构，为研究人员和智能体提供了一个共享的 3D 界面，以便检查并标注功能区域。</p>
+<p class="source" lang="en">The Biomolecular Structure Viewer inside Antigravity showing the AlphaFold-predicted structure of the candidate bacteriocin, giving the researcher and agent a shared 3D canvas to inspect and annotate functional regions.</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">加速科学发现</p>
+<p class="source" lang="en">Accelerating Scientific Discovery</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">历史上，要发现上述工作流程中的那些见解，需要使用分散且专业的软件：编写自定义脚本来查询数据库，手动将文件导出到3D建模程序，管理不相连的基因组工具，以及与多位专家合作设计湿实验室检测方案。由于湿实验室验证需要大量资源，因此首先将搜索范围缩小到最可靠的选项至关重要。使用Google Antigravity可以让研究人员高效地在庞大的生物学搜索空间中寻找信息，同时利用特定领域的模型来准确预测蛋白质功能。</p>
+<p class="source" lang="en">Historically, uncovering insights like those in the workflow demonstrated above required fragmented and specialised software: writing custom scripts to query databases, manually exporting files to 3D modelling programs, managing disconnected genomic tools and working with multiple experts to design the wet lab assays. Because wet-lab validation remains resource-intensive, narrowing the search space to only the highest-confidence leads upfront is critical. Using Google Antigravity allows researchers to navigate the vast biological search space efficiently while leveraging accurate protein function predictions from a domain-specific model.</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">Google Antigravity将这种端到端的科学推理过程集中在一个地方完成。这使得科学家能够有更多时间评估高质量的假设、在实验室进行实验以及解决研究难题。</p>
+<p class="source" lang="en">Google Antigravity executes this end-to-end scientific reasoning in one place. This allows scientists to spend more time evaluating high-quality hypotheses, running experiments in the lab and solving research challenges.</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">致谢</p>
+<p class="source" lang="en">Acknowledgements</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">我们想感谢以下团队成员的贡献：Maria Gabriela Cardoso、Victoria Johnston、Lexi Walker、Gena Hong、James King、Richard Green、Filip Radlinski、Artem Sobolev、Michael V. LeVine、Ruijie K. Zhang、Zachary Wu、Luca Schulz、Amy Danson、Tristan Oliver Kwan、Ryan Krueger、Oleg Kovalevskiy、Doug Fritz、Yunhan Xu、Sebastian Nowozin。特别感谢EMBL-EBI的Stephanie Lo提供的宝贵意见。</p>
+<p class="source" lang="en">We would like to acknowledge the contributions of the following team members: Maria Gabriela Cardoso, Victoria Johnston, Lexi Walker, Gena Hong, James King, Richard Green, Filip Radlinski, Artem Sobolev, Michael V. LeVine, Ruijie K. Zhang, Zachary Wu, Luca Schulz, Amy Danson, Tristan Oliver Kwan, Ryan Krueger, Oleg Kovalevskiy, Doug Fritz, Yunhan Xu, Sebastian Nowozin. Special thanks to Stephanie Lo from EMBL-EBI for her valuable feedback.</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://deepmind.google/blog/accelerating-antimicrobial-discovery" target="_blank" rel="noopener noreferrer">https://deepmind.google/blog/accelerating-antimicrobial-discovery</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html">← How we built ChatGPT’s novel ad stack for user trust and relevance</a><a href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html">Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection →</a></nav>
+  <footer class="footer">文章版权归原作者所有，译文请以英文原文为准。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

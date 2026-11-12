@@ -1,0 +1,1076 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Unrolling the Codex agent loop · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Unrolling the Codex agent loop</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item current" href="../viewers/unrolling-the-codex-agent-loop.html" aria-current="page"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item current" href="../viewers/unrolling-the-codex-agent-loop.html" aria-current="page"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Unrolling the Codex agent loop</h1>
+  <p class="subline">原文：<a href="https://openai.com/index/unrolling-the-codex-agent-loop" target="_blank" rel="noopener noreferrer">https://openai.com/index/unrolling-the-codex-agent-loop</a> · 2026-01-23 · OpenAI Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">Codex CLI（在新窗口中打开）是我们的跨平台本地软件代理，旨在在您的机器上安全高效地运行时，生成高质量、可靠的软件更改。自四月份首次推出CLI以来，我们关于如何构建世界级的软件代理有了很多收获。为了详细阐述这些经验，这是系列文章的第一篇，我们将探讨Codex的工作原理各个方面以及我们宝贵的经验教训。（如果您想更详细了解Codex CLI的构建方式，请查看我们的开源仓库：https://github.com/openai/codex（在新窗口中打开）。如果您想了解更多关于我们设计决策的细节，许多内容都记录在GitHub问题与拉取请求中。）</p>
+<p class="source" lang="en">Codex CLI⁠(opens in a new window) is our cross-platform local software agent, designed to produce high-quality, reliable software changes while operating safely and efficiently on your machine. We’ve learned a tremendous amount about how to build a world-class software agent since we first launched the CLI in April⁠. To unpack those insights, this is the first post in an ongoing series where we’ll explore various aspects of how Codex works, as well as hard-earned lessons. (For an even more granular view on how the Codex CLI is built, check out our open source repository at https://github.com/openai/codex⁠(opens in a new window). Many of the finer details of our design decisions are memorialized in GitHub issues and pull requests if you’d like to learn more.)</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">首先，我们将重点介绍代理循环，这是 Codex CLI 中的核心逻辑，负责协调用户、模型以及模型调用的工具之间的互动，从而完成有意义的软件工作。希望这篇文章能让你更好地了解我们的代理（或“harness”）在利用大语言模型方面所发挥的作用。</p>
+<p class="source" lang="en">To kick off, we’ll focus on the agent loop, which is the core logic in Codex CLI that is responsible for orchestrating the interaction between the user, the model, and the tools the model invokes to perform meaningful software work. We hope this post gives you a good view into the role our agent (or “harness”) plays in making use of an LLM.</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">在深入讨论之前，关于术语有一个简要说明：在 OpenAI 中，“Codex”涵盖了一组软件代理产品，包括 Codex CLI、Codex Cloud 以及 Codex VS Code 扩展。本文重点介绍的是 Codex harness，它提供了所有 Codex 体验的基础代理循环和执行逻辑，并通过 Codex CLI 呈现出来。为了便于理解，这里我们将“Codex”和“Codex CLI”这两个术语互换使用。</p>
+<p class="source" lang="en">Before we dive in, a quick note on terminology: at OpenAI, “Codex” encompasses a suite of software agent offerings, including Codex CLI, Codex Cloud, and the Codex VS Code extension. This post focuses on the Codex harness, which provides the core agent loop and execution logic that underlies all Codex experiences and is surfaced through the Codex CLI. For ease here, we’ll use the terms “Codex” and “Codex CLI” interchangeably.</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">代理循环</p>
+<p class="source" lang="en">The agent loop</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">每个 AI 智能体核心都包含一种被称为“智能体循环”的机制。智能体循环的简化示意图如下：</p>
+<p class="source" lang="en">At the heart of every AI agent is something called “the agent loop.” A simplified illustration of the agent loop looks like this:</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6eFpyKRVVEF6nNnKv7Tp1o/557f226a1f0e9c704af62a5c842a3037/oai_Unrolling_the_Codex_agent_loop_Agent_loop_desktop-light.svg?w=3840&amp;q=90" alt="Diagram titled “Agent loop” illustrating how an AI system processes a user request, calls tools, observes results, updates its plan, and returns outputs. Arrows connect steps such as user input, model reasoning, tool actions, and final response." loading="lazy">
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">首先，智能体从用户处获取输入，将其纳入为模型准备的文本指令集中，这个指令集被称为提示词。</p>
+<p class="source" lang="en">To start, the agent takes input from the user to include in the set of textual instructions it prepares for the model known as a prompt.</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">下一步是通过提供指令让模型生成响应，这个过程被称为推理。在推理过程中，文本提示首先被转换为输入令牌序列（在新窗口中打开）——这些整数用于索引模型词汇表。然后这些令牌被用来采样模型，生成新的输出令牌序列。</p>
+<p class="source" lang="en">The next step is to query the model by sending it our instructions and asking it to generate a response, a process known as inference. During inference, the textual prompt is first translated into a sequence of input tokens⁠(opens in a new window)—integers that index into the model’s vocabulary. These tokens are then used to sample the model, producing a new sequence of output tokens.</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">输出标记被重新转换为文本，从而成为模型的回应。由于标记是逐步生成的，这种转换可以在模型运行过程中进行，这就是为什么许多基于大语言模型的应用程序会显示流式输出。实际上，推理通常通过基于文本的 API 进行封装，从而忽略了标记化的细节。</p>
+<p class="source" lang="en">The output tokens are translated back into text, which becomes the model’s response. Because tokens are produced incrementally, this translation can happen as the model runs, which is why many LLM-based applications display streaming output. In practice, inference is usually encapsulated behind an API that operates on text, abstracting away the details of tokenization.</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">作为推理步骤的结果，模型要么（1）对用户原始输入给出最终回应，要么（2）请求代理执行某个工具调用（例如，“运行 ls并报告输出结果”）。在（2）的情况下，代理会执行工具调用并将其输出添加到原始提示中。该输出会被用来生成新的输入，进而重新向模型提问；代理随后可以考虑这些新信息并再次尝试。</p>
+<p class="source" lang="en">As the result of the inference step, the model either (1) produces a final response to the user’s original input, or (2) requests a tool call that the agent is expected to perform (e.g., “run ls and report the output”). In the case of (2), the agent executes the tool call and appends its output to the original prompt. This output is used to generate a new input that’s used to re-query the model; the agent can then take this new information into account and try again.</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">此过程会不断重复，直到模型不再发出工具调用，而是向用户生成一条消息（在 OpenAI 模型中称为助手消息）。在许多情况下，这条消息直接回应了用户最初的请求，但也可能是一个针对用户的后续问题。</p>
+<p class="source" lang="en">This process repeats until the model stops emitting tool calls and instead produces a message for the user (referred to as an assistant message in OpenAI models). In many cases, this message directly answers the user’s original request, but it may also be a follow-up question for the user.</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">由于代理可以执行修改本地环境的工具调用，其“输出”不仅限于助手消息。在许多情况下，软件代理的主要输出是它编写或编辑到的机器上的代码。然而，每一轮交互总是以助手消息结束，例如“我添加了您要求的 architecture.md”，这标志着代理循环的终止状态。从代理的角度来看，其工作已经完成，控制权又回到了用户手中。</p>
+<p class="source" lang="en">Because the agent can execute tool calls that modify the local environment, its “output” is not limited to the assistant message. In many cases, the primary output of a software agent is the code it writes or edits on your machine. Nevertheless, each turn always ends with an assistant message—such as “I added the architecture.md you asked for”—which signals a termination state in the agent loop. From the agent’s perspective, its work is complete and control returns to the user.</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">图中从用户输入到智能体回复的过程被称为对话的一个回合（在Codex中称为线程）。虽然这个对话回合可能包括模型推理和工具调用之间的多次迭代。每次您向现有对话发送新消息时，对话历史也会作为新回合的提示信息的一部分，其中包括之前回合中的消息和工具调用：</p>
+<p class="source" lang="en">The journey from user input to agent response shown in the diagram is referred to as one turn of a conversation (a thread in Codex). Though this conversation turn can include many iterations between the model inference and tool calls. Every time you send a new message to an existing conversation, the conversation history is included as part of the prompt for the new turn, which includes the messages and tool calls from previous turns:</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/67Y5AbWYQzVzoHA0ncwx6X/08404ec338d7c29e8bc0cc662172e4b0/oai_Unrolling_the_Codex_agent_loop_Multi-turn_agent_loop_desktop-light.svg?w=3840&amp;q=90" alt="Diagram titled “Multi-turn agent loop” showing how an AI agent iteratively takes user input, generates actions, consults tools, updates state, and returns results. Includes labeled steps, arrows, and example tool outputs illustrating the agent’s reasoning cycle." loading="lazy">
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">这意味着随着对话的深入，用于模型采样的提示长度也会增加。这个长度很重要，因为每个模型都有一个上下文窗口，即一次推理调用中可以使用的最大标记数。请注意，这个窗口包括输入和输出标记。正如你所想象的，智能体可能在一个回合中决定进行数百次工具调用，这可能会耗尽上下文窗口。因此，上下文窗口管理是智能体众多职责之一。现在，让我们深入了解 Codex 如何执行智能体循环。</p>
+<p class="source" lang="en">This means that as the conversation grows, so does the length of the prompt used to sample the model. This length matters because every model has a context window, which is the maximum number of tokens it can use for one inference call. Note this window includes both input and output tokens. As you might imagine, an agent could decide to make hundreds of tool calls in a single turn, potentially exhausting the context window. For this reason, context window management is one of the agent’s many responsibilities. Now, let’s dive in to see how Codex runs the agent loop.</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">模型推理</p>
+<p class="source" lang="en">Model inference</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">Codex CLI向Responses API发送HTTP请求（在新窗口中打开）以运行模型推理。我们将探讨信息如何通过Codex传递，该平台使用Responses API来驱动智能体循环。</p>
+<p class="source" lang="en">The Codex CLI sends HTTP requests to the Responses API⁠(opens in a new window) to run model inference. We’ll examine how information flows through Codex, which uses the Responses API to drive the agent loop.</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">Codex CLI使用的 Responses API端点是可以配置的（在新窗口中打开），因此它可以与任何实现 Responses API 的端点一起使用（在新窗口中打开）：</p>
+<p class="source" lang="en">The Responses API endpoint that the Codex CLI uses is configurable⁠(opens in a new window), so it can be used with any endpoint that implements the Responses API⁠(opens in a new window):</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">当使用 Codex CLI 登录 ChatGPT⁠（在新窗口中打开）时，它使用 https://chatgpt.com/backend-api/codex/responses 作为端点</p>
+<p class="source" lang="en">When using ChatGPT login⁠(opens in a new window) with the Codex CLI, it uses https://chatgpt.com/backend-api/codex/responses as the endpoint</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">当使用 Codex CLI 登录 ChatGPT⁠（在新窗口中打开）时，它会将 https://chatgpt.com/backend-api/codex/responses 作为端点使用</p>
+<p class="source" lang="en">When using ChatGPT login⁠(opens in a new window) with the Codex CLI, it uses https://chatgpt.com/backend-api/codex/responses as the endpoint</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">当使用 API-key 认证（在新窗口中打开）与 OpenAI 托管的模型时，会使用 https://api.openai.com/v1/responses 作为端点</p>
+<p class="source" lang="en">When using API-key authentication⁠(opens in a new window) with OpenAI hosted models, it uses https://api.openai.com/v1/responses as the endpoint</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">当使用 API-key 认证与 OpenAI 托管的模型一起使用时，会将 https://api.openai.com/v1/responses 作为端点。</p>
+<p class="source" lang="en">When using API-key authentication⁠(opens in a new window) with OpenAI hosted models, it uses https://api.openai.com/v1/responses as the endpoint</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">当使用 Codex CLI 并添加 --oss 参数来使用 gpt-oss，配合 ollama 0.13.4+ 或 LM Studio 0.3.39+ 时（会在新窗口中打开），默认会在您的计算机上本地运行 http://localhost:11434/v1/responses</p>
+<p class="source" lang="en">When running Codex CLI with --oss to use gpt-oss⁠ with ollama 0.13.4+⁠(opens in a new window) or LM Studio 0.3.39+⁠(opens in a new window), it defaults to http://localhost:11434/v1/responses running locally on your computer</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">当使用 Codex CLI 并添加 --oss 参数来使用 gpt-oss，配合 ollama 0.13.4+ 或 LM Studio 0.3.39+ 时（会在新窗口中打开），默认会在您的计算机上本地运行 http://localhost:11434/v1/responses</p>
+<p class="source" lang="en">When running Codex CLI with --oss to use gpt-oss⁠ with ollama 0.13.4+⁠(opens in a new window) or LM Studio 0.3.39+⁠(opens in a new window), it defaults to http://localhost:11434/v1/responses running locally on your computer</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">Codex CLI可以与由 Azure 等云提供商提供的 Responses API 一起使用。</p>
+<p class="source" lang="en">Codex CLI can be used with the Responses API hosted by a cloud provider such as Azure</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">Codex CLI可以与由 Azure 等云提供商提供的 Responses API 一起使用。</p>
+<p class="source" lang="en">Codex CLI can be used with the Responses API hosted by a cloud provider such as Azure</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">让我们来探讨 Codex 在对话中的第一次推理调用中是如何生成提示的。</p>
+<p class="source" lang="en">Let’s explore how Codex creates the prompt for the first inference call in a conversation.</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">构建初始提示词</p>
+<p class="source" lang="en">Building the initial prompt</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">作为最终用户，当您使用 Responses API 查询时，无需指定用于采样模型的原始提示。相反，您可以在查询中指定各种输入类型，而 Responses API 服务器则负责将这些信息整理成模型能够理解的提示。可以将提示视为一个“项目列表”；本部分将说明您的查询是如何被转化为该列表的。</p>
+<p class="source" lang="en">As an end user, you don’t specify the prompt used to sample the model verbatim when you query the Responses API. Instead, you specify various input types as part of your query, and the Responses API server decides how to structure this information into a prompt that the model is designed to consume. You can think of the prompt as a “list of items”; this section will explain how your query gets transformed into that list.</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">在初始提示中，列表中的每个项目都与一个角色相关联。该角色决定了相关内容的权重，其取值为以下值之一（按优先级递减顺序）：系统、开发者、用户、助手。</p>
+<p class="source" lang="en">In the initial prompt, every item in the list is associated with a role. The role indicates how much weight the associated content should have and is one of the following values (in decreasing order of priority): system, developer, user, assistant.</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">Responses API（在新窗口中打开）接受一个包含多个参数的 JSON 数据。我们将重点介绍这三个参数：</p>
+<p class="source" lang="en">The Responses API⁠(opens in a new window) takes a JSON payload with many parameters. We’ll focus on these three:</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">说明（在新窗口中打开）：插入到模型上下文中的系统或开发者消息</p>
+<p class="source" lang="en">instructions⁠(opens in a new window): system (or developer) message inserted into the model’s context</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">说明（在新窗口中打开）：插入到模型上下文中的系统或开发者消息</p>
+<p class="source" lang="en">instructions⁠(opens in a new window): system (or developer) message inserted into the model’s context</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">工具（在新窗口中打开）：模型在生成回复时可能调用的工具列表</p>
+<p class="source" lang="en">tools⁠(opens in a new window): a list of tools the model may call while generating a response</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">工具（在新窗口中打开）：模型在生成响应时可能调用的工具列表</p>
+<p class="source" lang="en">tools⁠(opens in a new window): a list of tools the model may call while generating a response</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">输入（在新窗口中打开）：模型所需的文本、图像或文件输入列表</p>
+<p class="source" lang="en">input⁠(opens in a new window): a list of text, image, or file inputs to the model</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">输入（在新窗口中打开）：模型所需的文本、图片或文件输入列表</p>
+<p class="source" lang="en">input⁠(opens in a new window): a list of text, image, or file inputs to the model</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">在 Codex 中，如果指定了，则指令字段从 ~/.codex/config.toml 中的 model_instructions_file 读取（在新窗口中打开）；否则则使用与模型相关的 base_instructions（在新窗口中打开）。特定于模型的指令存储在 Codex 仓库中，并打包到 CLI 中（例如，gpt-5.2-codex_prompt.md）。</p>
+<p class="source" lang="en">In Codex, the instructions field is read from the model_instructions_file⁠(opens in a new window) in ~/.codex/config.toml, if specified; otherwise, the base_instructions associated with a model⁠(opens in a new window) are used. Model-specific instructions live in the Codex repo and are bundled into the CLI (e.g., gpt-5.2-codex_prompt.md⁠(opens in a new window)).</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">工具字段是一个工具定义列表，这些定义符合 Responses API 定义的模式。对于 Codex 而言，这包括由 Codex CLI 提供的工具、由 Responses API 提供且应提供给 Codex 的工具，以及由用户通过 MCP 服务器提供的工具。</p>
+<p class="source" lang="en">The tools field is a list of tool definitions that conform to a schema defined by the Responses API. For Codex, this includes tools that are provided by the Codex CLI, tools that are provided by the Responses API that should be made available to Codex, as well as tools provided by the user, usually via MCP servers:</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">1[2 // Codex的默认shell工具，用于本地生成新进程。3 {4 &quot;type&quot;: &quot;function&quot;,5 &quot;name&quot;: &quot;shell&quot;,6 &quot;description&quot;: &quot;执行shell命令并返回其输出...&quot;,7 &quot;strict&quot;: false,8 &quot;parameters&quot;: {9 &quot;type&quot;: &quot;object&quot;,10 &quot;properties&quot;: {11 &quot;command&quot;: {&quot;type&quot;: &quot;array&quot;, &quot;description&quot;: &quot;要执行的命令&quot;, ...},12 &quot;workdir&quot;: {&quot;description&quot;: &quot;工作目录...&quot;, ...},13 &quot;timeout_ms&quot;: {&quot;description&quot;: &quot;命令的超时时间...&quot;, ...},14 ...15 },16 &quot;required&quot;: [&quot;command&quot;],17 }18 }1920 // Codex的内置计划工具。21 {22 &quot;type&quot;: &quot;function&quot;,23 &quot;name&quot;: &quot;update_plan&quot;,24 &quot;description&quot;: &quot;更新任务计划...&quot;,25 &quot;strict&quot;: false,26 &quot;parameters&quot;: {27 &quot;type&quot;: &quot;object&quot;,28 &quot;properties&quot;: {&quot;plan&quot;:..., &quot;explanation&quot;:...},29 &quot;required&quot;: [&quot;plan&quot;]30 }31 },3233 // Responses API提供的网络搜索工具。34 {35 &quot;type&quot;: &quot;web_search&quot;,36 &quot;external_web_access&quot;: false37 },3839 // MCP服务器，用于获取在40 // 用户 ~/.codex/config.toml中配置的天气信息。41 {42 &quot;type&quot;: &quot;function&quot;,43 &quot;name&quot;: &quot;mcp__weather__get-forecast&quot;,44 &quot;description&quot;: &quot;获取美国州的天气警报&quot;,45 &quot;strict&quot;: false,46 &quot;parameters&quot;: {47 &quot;type&quot;: &quot;object&quot;,48 &quot;properties&quot;: {&quot;latitude&quot;: {...}, &quot;longitude&quot;: {...}},49 &quot;required&quot;: [&quot;latitude&quot;, &quot;longitude&quot;]50 }51 }52]</p>
+<p class="source" lang="en">1[2 // Codex&#39;s default shell tool for spawning new processes locally.3 {4 &quot;type&quot;: &quot;function&quot;,5 &quot;name&quot;: &quot;shell&quot;,6 &quot;description&quot;: &quot;Runs a shell command and returns its output...&quot;,7 &quot;strict&quot;: false,8 &quot;parameters&quot;: {9 &quot;type&quot;: &quot;object&quot;,10 &quot;properties&quot;: {11 &quot;command&quot;: {&quot;type&quot;: &quot;array&quot;, &quot;description&quot;: &quot;The command to execute&quot;, ...},12 &quot;workdir&quot;: {&quot;description&quot;: &quot;The working directory...&quot;, ...},13 &quot;timeout_ms&quot;: {&quot;description&quot;: &quot;The timeout for the command...&quot;, ...},14 ...15 },16 &quot;required&quot;: [&quot;command&quot;],17 }18 }1920 // Codex&#39;s built-in plan tool.21 {22 &quot;type&quot;: &quot;function&quot;,23 &quot;name&quot;: &quot;update_plan&quot;,24 &quot;description&quot;: &quot;Updates the task plan...&quot;,25 &quot;strict&quot;: false,26 &quot;parameters&quot;: {27 &quot;type&quot;: &quot;object&quot;,28 &quot;properties&quot;: {&quot;plan&quot;:..., &quot;explanation&quot;:...},29 &quot;required&quot;: [&quot;plan&quot;]30 }31 },3233 // Web search tool provided by the Responses API.34 {35 &quot;type&quot;: &quot;web_search&quot;,36 &quot;external_web_access&quot;: false37 },3839 // MCP server for getting weather as configured in the40 // user&#39;s ~/.codex/config.toml.41 {42 &quot;type&quot;: &quot;function&quot;,43 &quot;name&quot;: &quot;mcp__weather__get-forecast&quot;,44 &quot;description&quot;: &quot;Get weather alerts for a US state&quot;,45 &quot;strict&quot;: false,46 &quot;parameters&quot;: {47 &quot;type&quot;: &quot;object&quot;,48 &quot;properties&quot;: {&quot;latitude&quot;: {...}, &quot;longitude&quot;: {...}},49 &quot;required&quot;: [&quot;latitude&quot;, &quot;longitude&quot;]50 }51 }52]</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">最后，JSON负载的输入字段是一个项目列表。在添加用户消息之前，Codex会在输入中插入以下项目（在新窗口中打开）。</p>
+<p class="source" lang="en">Finally, the input field of the JSON payload is a list of items. Codex inserts the following items⁠(opens in a new window) into the input before adding the user message:</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">1. 一条带有 role=developer 的消息，用于描述仅适用于 tools 部分中定义的 Codex 提供的 shell 工具的沙箱环境。也就是说，其他工具，如从 MCP 服务器提供的工具，不会由 Codex 进行沙箱化，并且它们需要自行执行其保护机制。</p>
+<p class="source" lang="en">1. A message with role=developer that describes the sandbox that applies only to the Codex-provided shell tool defined in the tools section. That is, other tools, such as those provided from MCP servers, are not sandboxed by Codex and are responsible for enforcing their own guardrails.</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">该消息是由模板构建的，关键内容来自打包在 Codex CLI 中的 Markdown 片段，例如 workspace_write.md⁠（在新窗口中打开）和 on_request.md⁠（在新窗口中打开）：</p>
+<p class="source" lang="en">The message is built from a template where the key pieces of content come from snippets of Markdown bundled into the Codex CLI, such as workspace_write.md⁠(opens in a new window) and on_request.md⁠(opens in a new window):</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">1&lt;权限说明&gt;2 - 沙箱描述，说明文件权限和网络访问情况3 - 关于何时向用户请求权限以运行shell命令的说明4 - Codex可写入的文件夹列表，如有5&lt;/权限说明&gt;</p>
+<p class="source" lang="en">1&lt;permissions instructions&gt;2 - description of the sandbox explaining file permissions and network access3 - instructions for when to ask the user for permissions to run a shell command4 - list of folders writable by Codex, if any5&lt;/permissions instructions&gt;</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">2. （可选）一个包含 role=developer 属性的消息，其内容来自用户 config.toml 文件中的 developer_instructions 值。</p>
+<p class="source" lang="en">2. (Optional) A message with role=developer whose contents are the developer_instructions value read from the user’s config.toml file.</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">3. （可选）一条角色为 user 的消息，内容包含“用户指令”，这些指令并非来自单一文件，而是从多个来源汇总而来（在新窗口中打开）。通常，更具体的指令出现在后面。</p>
+<p class="source" lang="en">3. (Optional) A message with role=user whose contents are the “user instructions,” which are not sourced from a single file but are aggregated across multiple sources⁠(opens in a new window). In general, more specific instructions appear later:</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">$CODEX_HOME 中 AGENTS.override.md 和 AGENTS.md 的内容</p>
+<p class="source" lang="en">Contents of AGENTS.override.md and AGENTS.md in $CODEX_HOME</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">$CODEX_HOME 中 AGENTS.override.md 和 AGENTS.md 的内容</p>
+<p class="source" lang="en">Contents of AGENTS.override.md and AGENTS.md in $CODEX_HOME</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">受限于限制（默认为 32 KiB），请从 cwd 的 Git/project 根目录开始，检查每个文件夹，直到 cwd 本身：将 AGENTS.override.md、AGENTS.md 或 config.toml 中的 project_doc_fallback_filenames 指定的任何文件名中的内容添加进去。</p>
+<p class="source" lang="en">Subject to a limit (32 KiB, by default), look in each folder from the Git/project root of the cwd (if it it exists) up to the cwd itself: add the contents of any of AGENTS.override.md, AGENTS.md, or any filename specified by project_doc_fallback_filenames in config.toml</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">受限于限制（默认为 32 KiB），请检查 cwd 下的 Git/project 根目录中的每个文件夹（如果存在），直至 cwd 本身：将 AGENTS.override.md、AGENTS.md 或 config.toml 中的 project_doc_fallback_filenames 指定的任何文件名中的内容添加进去。</p>
+<p class="source" lang="en">Subject to a limit (32 KiB, by default), look in each folder from the Git/project root of the cwd (if it it exists) up to the cwd itself: add the contents of any of AGENTS.override.md, AGENTS.md, or any filename specified by project_doc_fallback_filenames in config.toml</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">如果已配置任何技能（打开新窗口）：关于技能的简短介绍；每个技能的技能元数据（打开新窗口）；以及如何使用这些技能的说明部分（打开新窗口）</p>
+<p class="source" lang="en">If any skills⁠(opens in a new window) have been configured:a short preamble about skillsthe skill metadata⁠(opens in a new window) for each skilla section on how to use skills⁠(opens in a new window)</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">如果已经配置了任何技能（在新窗口中打开），</p>
+<p class="source" lang="en">If any skills⁠(opens in a new window) have been configured:</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">关于技能的简短介绍</p>
+<p class="source" lang="en">a short preamble about skills</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">关于技能的简短介绍</p>
+<p class="source" lang="en">a short preamble about skills</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">每个技能的技能元数据（在新窗口中打开）</p>
+<p class="source" lang="en">the skill metadata⁠(opens in a new window) for each skill</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">每个技能的技能元数据（在新窗口中打开）</p>
+<p class="source" lang="en">the skill metadata⁠(opens in a new window) for each skill</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">关于如何使用技能的部分（在新窗口中打开）</p>
+<p class="source" lang="en">a section on how to use skills⁠(opens in a new window)</p>
+</div>
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">关于如何使用技能的部分（在新窗口中打开）</p>
+<p class="source" lang="en">a section on how to use skills⁠(opens in a new window)</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">4. 一条角色为 user 的消息，描述了智能体当前运行的本地环境。这指定了当前工作目录和用户的 shell⁠（在新窗口中打开）：</p>
+<p class="source" lang="en">4. A message with role=user that describes the local environment in which the agent is currently operating. This specifies the current working directory and the user’s shell⁠(opens in a new window):</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">1&lt;环境上下文&gt;2 &lt;cwd&gt;/Users/mbolin/code/codex5&lt;/cwd&gt;3 &lt;shell&gt;zsh&lt;/shell&gt;4&lt;/环境上下文&gt;
+&lt;/text&gt;</p>
+<p class="source" lang="en">1&lt;environment_context&gt;2 &lt;cwd&gt;/Users/mbolin/code/codex5&lt;/cwd&gt;3 &lt;shell&gt;zsh&lt;/shell&gt;4&lt;/environment_context&gt;</p>
+</div>
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">一旦 Codex 完成上述所有计算以初始化输入，它就会添加用户消息以开始对话。</p>
+<p class="source" lang="en">Once Codex has done all of the above computation to initialize the input, it appends the user message to start the conversation.</p>
+</div>
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">之前的示例主要关注每条消息的内容，但请注意，输入中的每个元素都是一个 JSON 对象，包含类型、角色（在新窗口中打开）和内容。</p>
+<p class="source" lang="en">The previous examples focused on the content of each message, but note that each element of input is a JSON object with type, role⁠(opens in a new window), and content as follows:</p>
+</div>
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">1{2 &quot;type&quot;: &quot;message&quot;,3 &quot;role&quot;: &quot;user&quot;,4 &quot;content&quot;: [5 {6 &quot;type&quot;: &quot;input_text&quot;,7 &quot;text&quot;: &quot;在 README.md 中添加架构图&quot;8 }9 ]10}</p>
+<p class="source" lang="en">1{2 &quot;type&quot;: &quot;message&quot;,3 &quot;role&quot;: &quot;user&quot;,4 &quot;content&quot;: [5 {6 &quot;type&quot;: &quot;input_text&quot;,7 &quot;text&quot;: &quot;Add an architecture diagram to the README.md&quot;8 }9 ]10}</p>
+</div>
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">当 Codex 构建好要发送到 Responses API 的完整 JSON 数据后，它会根据 ~/.codex/config.toml 中 Responses API 端点的配置，使用带有 Authorization 头部的 HTTP POST 请求进行发送（如果指定，还会添加额外的 HTTP 头部和查询参数）。</p>
+<p class="source" lang="en">Once Codex builds up the full JSON payload to send to the Responses API, it then makes the HTTP POST request with an Authorization header depending on how the Responses API endpoint is configured in ~/.codex/config.toml (additional HTTP headers and query parameters are added if specified).</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">当 OpenAI Responses API 服务器收到请求时，它会使用 JSON 来生成模型的提示词，具体方式如下（当然，对 Responses API 的自定义实现可能会选择不同的方法）：</p>
+<p class="source" lang="en">When an OpenAI Responses API server receives the request, it uses the JSON to derive the prompt for the model as follows (to be sure, a custom implementation of the Responses API could make a different choice):</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6CSnMeSFYZBLfSYRTUD7ez/13a686c9ff4ccde76e3a85df0d994c12/oai_Unrolling_the_Codex_agent_loop_Snapshot_1_desktop-light.svg?w=3840&amp;q=90" alt="Snapshot diagram showing a single step in an AI agent loop. A user request enters the model, which produces a thought, an action with a tool name, and a tool input. The diagram highlights this intermediate reasoning step before the tool is called." loading="lazy">
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">如您所见，提示词中前三个项目的顺序由服务器决定，而非客户端。不过，在这三个项目中，只有系统消息的内容由服务器控制，而工具和说明则由客户端决定。之后是来自 JSON 负载的输入内容，以完成整个提示词。</p>
+<p class="source" lang="en">As you can see, the order of the first three items in the prompt is determined by the server, not the client. That said, of those three items, only the content of the system message is also controlled by the server, as the tools and instructions are determined by the client. These are followed by the input from the JSON payload to complete the prompt.</p>
+</div>
+<div class="pair" id="p-64">
+<p class="target" lang="zh-CN">现在我们已经有了提示词，就可以开始对模型进行采样了。</p>
+<p class="source" lang="en">Now that we have our prompt, we are ready to sample the model.</p>
+</div>
+<div class="pair" id="p-65">
+<p class="target" lang="zh-CN">第一轮比赛</p>
+<p class="source" lang="en">The first turn</p>
+</div>
+<div class="pair" id="p-66">
+<p class="target" lang="zh-CN">这个向 Responses API 发送的 HTTP 请求开启了 Codex 中对话的第一阶段。服务器随后通过 Server-Sent Events (SSE) 流进行回复。每个事件的数据都是一个包含“type”字段的 JSON 负载，该字段以“response”开头，可能如下所示（所有事件的完整列表可以在我们的 API 文档中查看⁠(opens in a new window))：</p>
+<p class="source" lang="en">This HTTP request to the Responses API initiates the first “turn” of a conversation in Codex. The server replies with a Server-Sent Events (SSE⁠(opens in a new window)) stream. The data of each event is a JSON payload with a &quot;type&quot; that starts with &quot;response&quot;, which could be something like this (a full list of events can be found in our API docs⁠(opens in a new window)):</p>
+</div>
+<div class="pair" id="p-67">
+<p class="target" lang="zh-CN">1data: {&quot;type&quot;:&quot;response.reasoning_summary_text.delta&quot;,&quot;delta&quot;:&quot;ah &quot;, ...}2data: {&quot;type&quot;:&quot;response.reasoning_summary_text.delta&quot;,&quot;delta&quot;:&quot;ha!&quot;, ...}3data: {&quot;type&quot;:&quot;response.reasoning_summary_text.done&quot;, &quot;item_id&quot;:...}4data: {&quot;type&quot;:&quot;response.output_item.added&quot;, &quot;item&quot;:{...}}5data: {&quot;type&quot;:&quot;response.output_text.delta&quot;, &quot;delta&quot;:&quot;forty-&quot;, ...}6data: {&quot;type&quot;:&quot;response.output_text.delta&quot;, &quot;delta&quot;:&quot;two!&quot;, ...}7data: {&quot;type&quot;:&quot;response.completed&quot;,&quot;response&quot;:{...}}</p>
+<p class="source" lang="en">1data: {&quot;type&quot;:&quot;response.reasoning_summary_text.delta&quot;,&quot;delta&quot;:&quot;ah &quot;, ...}2data: {&quot;type&quot;:&quot;response.reasoning_summary_text.delta&quot;,&quot;delta&quot;:&quot;ha!&quot;, ...}3data: {&quot;type&quot;:&quot;response.reasoning_summary_text.done&quot;, &quot;item_id&quot;:...}4data: {&quot;type&quot;:&quot;response.output_item.added&quot;, &quot;item&quot;:{...}}5data: {&quot;type&quot;:&quot;response.output_text.delta&quot;, &quot;delta&quot;:&quot;forty-&quot;, ...}6data: {&quot;type&quot;:&quot;response.output_text.delta&quot;, &quot;delta&quot;:&quot;two!&quot;, ...}7data: {&quot;type&quot;:&quot;response.completed&quot;,&quot;response&quot;:{...}}</p>
+</div>
+<div class="pair" id="p-68">
+<p class="target" lang="zh-CN">Codex 会处理事件流（在新窗口中打开），并将它们重新定义为内部事件对象，供客户端使用。像 response.output_text.delta 这样的事件用于支持 UI 的流式传输，而像 response.output_item.added 这样的其他事件则被转换为对象，并添加到输入中，以便进行后续的 Responses API 调用。</p>
+<p class="source" lang="en">Codex consumes the stream of events⁠(opens in a new window) and republishes them as internal event objects that can be used by a client. Events like response.output_text.delta are used to support streaming in the UI, whereas other events like response.output_item.added are transformed into objects that are appended to the input for subsequent Responses API calls.</p>
+</div>
+<div class="pair" id="p-69">
+<p class="target" lang="zh-CN">假设对 Responses API 的第一个请求包含两个 response.output_item.done 事件：一个类型为 reasoning，另一个为 function_call。当我们再次使用工具调用的响应来查询模型时，这些事件必须在 JSON 的输入字段中体现出来。</p>
+<p class="source" lang="en">Suppose the first request to the Responses API includes two response.output_item.done events: one with type=reasoning and one with type=function_call. These events must be represented in the input field of the JSON when we query the model again with the response to the tool call:</p>
+</div>
+<div class="pair" id="p-70">
+<p class="target" lang="zh-CN">1[2 /* ... 输入数组中的 5 项 ... */3 {4 &quot;type&quot;: &quot;reasoning&quot;,5 &quot;summary&quot;: [6 &quot;type&quot;: &quot;summary_text&quot;,7 &quot;text&quot;: &quot;**为 README.md 添加架构图**\n\n我需要...&quot;8 ],9 &quot;encrypted_content&quot;: &quot;gAAAAABpaDWNMxMeLw...&quot;10 },11 {12 &quot;type&quot;: &quot;function_call&quot;,13 &quot;name&quot;: &quot;shell&quot;,14 &quot;arguments&quot;: &quot;{\&quot;command\&quot;:\&quot;cat README.md\&quot;,\&quot;workdir\&quot;:\&quot;/Users/mbolin/code/codex5\&quot;}&quot;,15 &quot;call_id&quot;: &quot;call_8675309...&quot;16 },17 {18 &quot;type&quot;: &quot;function_call_output&quot;,19 &quot;call_id&quot;: &quot;call_8675309...&quot;,20 &quot;output&quot;: &quot;&lt;p align=\&quot;center\&quot;&gt;&lt;code&gt;npm i -g @openai/codex&lt;/code&gt;...&quot;21 }22]
+&lt;/text&gt;</p>
+<p class="source" lang="en">1[2 /* ... original 5 items from the input array ... */3 {4 &quot;type&quot;: &quot;reasoning&quot;,5 &quot;summary&quot;: [6 &quot;type&quot;: &quot;summary_text&quot;,7 &quot;text&quot;: &quot;**Adding an architecture diagram for README.md**\n\nI need to...&quot;8 ],9 &quot;encrypted_content&quot;: &quot;gAAAAABpaDWNMxMeLw...&quot;10 },11 {12 &quot;type&quot;: &quot;function_call&quot;,13 &quot;name&quot;: &quot;shell&quot;,14 &quot;arguments&quot;: &quot;{\&quot;command\&quot;:\&quot;cat README.md\&quot;,\&quot;workdir\&quot;:\&quot;/Users/mbolin/code/codex5\&quot;}&quot;,15 &quot;call_id&quot;: &quot;call_8675309...&quot;16 },17 {18 &quot;type&quot;: &quot;function_call_output&quot;,19 &quot;call_id&quot;: &quot;call_8675309...&quot;,20 &quot;output&quot;: &quot;&lt;p align=\&quot;center\&quot;&gt;&lt;code&gt;npm i -g @openai/codex&lt;/code&gt;...&quot;21 }22]</p>
+</div>
+<div class="pair" id="p-71">
+<p class="target" lang="zh-CN">作为后续查询中用于模型采样结果的提示词，看起来会像这样：</p>
+<p class="source" lang="en">The resulting prompt used to sample the model as part of the subsequent query would look like this:</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/1DzRt8bt6pC273urRPUVs1/716e333051c8839cffa2f4109d94661e/oai_EngBlog_Unrolling_the_Codex_agent_loop_Snapshot_2_desktop-light.svg?w=3840&amp;q=90" alt="Diagram labeled “Snapshot 2” showing an AI agent after a tool call. The model receives a tool observation and produces a new thought and action. Arrows connect inputs, observations, and outputs to illustrate how the agent iterates its reasoning loop." loading="lazy">
+<div class="pair" id="p-72">
+<p class="target" lang="zh-CN">特别是，请注意旧提示是新提示的精确前缀。这是有意为之，因为这样能使得后续请求更加高效，因为我们能够利用提示缓存（我们将在关于性能的下一节中讨论）。</p>
+<p class="source" lang="en">In particular, note how the old prompt is an exact prefix of the new prompt. This is intentional, as this makes subsequent requests much more efficient because it enables us to take advantage of prompt caching (which we’ll discuss in the next section on performance).</p>
+</div>
+<div class="pair" id="p-73">
+<p class="target" lang="zh-CN">回顾我们最初的代理循环图，我们可以看到在推理和工具调用之间可能有很多次迭代。提示内容可能会继续增长，直到我们最终收到助手消息，这标志着回合的结束：</p>
+<p class="source" lang="en">Looking back at our first diagram of the agent loop, we see that there could be many iterations between inference and tool calling. The prompt may continue to grow until we finally receive an assistant message, indicating the end of the turn:</p>
+</div>
+<div class="pair" id="p-74">
+<p class="target" lang="zh-CN">1data: {&quot;type&quot;:&quot;response.output_text.done&quot;,&quot;text&quot;: &quot;我添加了一个图表来解释...&quot;, ...}2data: {&quot;type&quot;:&quot;response.completed&quot;,&quot;response&quot;:{...}}</p>
+<p class="source" lang="en">1data: {&quot;type&quot;:&quot;response.output_text.done&quot;,&quot;text&quot;: &quot;I added a diagram to explain...&quot;, ...}2data: {&quot;type&quot;:&quot;response.completed&quot;,&quot;response&quot;:{...}}</p>
+</div>
+<div class="pair" id="p-75">
+<p class="target" lang="zh-CN">在 Codex CLI 中，我们会向用户展示助手消息，并引导 composer 让用户知道现在是他们继续对话的时候了。如果用户做出回应，之前的助手消息以及用户的新消息都必须在 Responses API 请求的输入中追加，以开始新的对话轮次。</p>
+<p class="source" lang="en">In the Codex CLI, we present the assistant message to the user and focus the composer to indicate to the user that it’s their “turn” to continue the conversation. If the user responds, both the assistant message from the previous turn, as well as the user’s new message, must be appended to the input in the Responses API request to start the new turn:</p>
+</div>
+<div class="pair" id="p-76">
+<p class="target" lang="zh-CN">1[2 /* ... 所有来自 last Responses API 请求的项 ... */3 {4 &quot;type&quot;: &quot;message&quot;,5 &quot;role&quot;: &quot;assistant&quot;,6 &quot;content&quot;: [7 {8 &quot;type&quot;: &quot;output_text&quot;,9 &quot;text&quot;: &quot;我添加了一个图表来说明客户端/服务器架构。&quot;10 }11 ]12 },13 {14 &quot;type&quot;: &quot;message&quot;,15 &quot;role&quot;: &quot;user&quot;,16 &quot;content&quot;: [17 {18 &quot;type&quot;: &quot;input_text&quot;,19 &quot;text&quot;: &quot;不错，但图表中缺少自行车棚。&quot;20 }21 ]22 }23]</p>
+<p class="source" lang="en">1[2 /* ... all items from the last Responses API request ... */3 {4 &quot;type&quot;: &quot;message&quot;,5 &quot;role&quot;: &quot;assistant&quot;,6 &quot;content&quot;: [7 {8 &quot;type&quot;: &quot;output_text&quot;,9 &quot;text&quot;: &quot;I added a diagram to explain the client/server architecture.&quot;10 }11 ]12 },13 {14 &quot;type&quot;: &quot;message&quot;,15 &quot;role&quot;: &quot;user&quot;,16 &quot;content&quot;: [17 {18 &quot;type&quot;: &quot;input_text&quot;,19 &quot;text&quot;: &quot;That&#39;s not bad, but the diagram is missing the bike shed.&quot;20 }21 ]22 }23]</p>
+</div>
+<div class="pair" id="p-77">
+<p class="target" lang="zh-CN">再次说明一下，由于我们正在继续对话，我们向 Responses API 发送的输入长度一直在增加：</p>
+<p class="source" lang="en">Once again, because we are continuing a conversation, the length of the input we send to the Responses API keeps increasing:</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/29dQVXimfduA5GoUR6uWhe/eb25359d27a683352878fe78c6d3e27b/oai_EngBlog_Unrolling_the_Codex_agent_loop_Snapshot_3_desktop-light.svg?w=3840&amp;q=90" alt="Diagram labeled “Snapshot 3” showing the final stage of an AI agent loop. After receiving tool results, the model generates a concluding thought and a final answer returned to the user. Arrows illustrate the transition from tool output to completed response." loading="lazy">
+<div class="pair" id="p-78">
+<p class="target" lang="zh-CN">让我们来看看这个不断增长的提示对性能有什么影响。</p>
+<p class="source" lang="en">Let’s examine what this ever-growing prompt means for performance.</p>
+</div>
+<div class="pair" id="p-79">
+<p class="target" lang="zh-CN">性能考虑因素</p>
+<p class="source" lang="en">Performance considerations</p>
+</div>
+<div class="pair" id="p-80">
+<p class="target" lang="zh-CN">您可能会问自己：“等等，在对话过程中发送到 Responses API 的 JSON 数量方面，代理循环不是应该是二次方的吗？”您的想法是正确的。虽然 Responses API 支持可选的 previous_response_id⁠（在新窗口中打开）参数来解决这一问题，但 Codex 目前并不使用该参数，主要是为了保持请求完全无状态，并支持零数据保留（ZDR）配置。</p>
+<p class="source" lang="en">You might be asking yourself, “Wait, isn’t the agent loop quadratic in terms of the amount of JSON sent to the Responses API over the course of the conversation?” And you would be right. While the Responses API does support an optional previous_response_id⁠(opens in a new window) parameter to mitigate this issue, Codex does not use it today, primarily to keep requests fully stateless and to support Zero Data Retention (ZDR) configurations.</p>
+</div>
+<div class="pair" id="p-81">
+<p class="target" lang="zh-CN">避免使用 previous_response_id 可以简化 Responses API 提供者的工作，因为它确保每个请求都是无状态的。这也有助于支持选择零数据保留（Zero Data Retention，ZDR）的客户，因为存储支持 previous_response_id 所需的数据会与 ZDR 原则相悖。请注意，ZDR 客户不会失去利用之前回合中的专有推理消息的能力，因为相关的加密内容可以在服务器上解密。（OpenAI 保留 ZDR 客户的解密密钥，但不保留其数据。）有关支持 ZDR 的 Codex 相关更改，请参阅 PRs #642 和 #1641。</p>
+<p class="source" lang="en">Avoiding previous_response_id simplifies things for the provider of the Responses API because it ensures that every request is stateless. This also makes it straightforward to support customers who have opted into Zero Data Retention (ZDR)⁠(opens in a new window), as storing the data required to support previous_response_id would be at odds with ZDR. Note that ZDR customers do not sacrifice the ability to benefit from proprietary reasoning messages from prior turns, as the associated encrypted_content can be decrypted on the server. (OpenAI persists a ZDR customer’s decryption key, but not their data.) See PRs #642⁠(opens in a new window) and #1641⁠(opens in a new window) for the related changes to Codex to support ZDR.</p>
+</div>
+<div class="pair" id="p-82">
+<p class="target" lang="zh-CN">通常来说，模型采样成本占网络流量成本的主导地位，因此采样是我们提升效率的重点工作。这就是提示缓存如此重要的原因，因为它能让我们复用之前的推理计算结果。当缓存命中时，模型采样的成本是线性的而非二次方的。我们的提示缓存文档详细解释了这一点：</p>
+<p class="source" lang="en">Generally, the cost of sampling the model dominates the cost of network traffic, making sampling the primary target of our efficiency efforts. This is why prompt caching is so important, as it enables us to reuse computation from a previous inference call. When we get cache hits, sampling the model is linear rather than quadratic. Our prompt caching ⁠(opens in a new window)documentation explains this in more detail:</p>
+</div>
+<div class="pair" id="p-83">
+<p class="target" lang="zh-CN">缓存命中仅能在提示词中精确的前缀匹配时实现。为了充分利用缓存优势，请将指令和示例等静态内容放在提示词的开头，而将用户特定信息等可变内容放在结尾。这同样适用于图像和工具，这些内容在请求之间必须保持一致。</p>
+<p class="source" lang="en">Cache hits are only possible for exact prefix matches within a prompt. To realize caching benefits, place static content like instructions and examples at the beginning of your prompt, and put variable content, such as user-specific information, at the end. This also applies to images and tools, which must be identical between requests.</p>
+</div>
+<div class="pair" id="p-84">
+<p class="target" lang="zh-CN">考虑到这一点，让我们来看看在 Codex 中哪些操作可能导致“缓存未命中”：</p>
+<p class="source" lang="en">With this in mind, let’s consider what types of operations could cause a “cache miss” in Codex:</p>
+</div>
+<div class="pair" id="p-85">
+<p class="target" lang="zh-CN">在对话过程中改变模型可使用的工具。</p>
+<p class="source" lang="en">Changing the tools available to the model in the middle of the conversation.</p>
+</div>
+<div class="pair" id="p-86">
+<p class="target" lang="zh-CN">在对话过程中改变模型可使用的工具。</p>
+<p class="source" lang="en">Changing the tools available to the model in the middle of the conversation.</p>
+</div>
+<div class="pair" id="p-87">
+<p class="target" lang="zh-CN">更改作为 Responses API 请求目标的模型（实际上，这意味着改变原始提示中的第三项，因为它包含特定于模型的说明）。</p>
+<p class="source" lang="en">Changing the model that is the target of the Responses API request (in practice, this changes the third item in the original prompt, as it contains model-specific instructions).</p>
+</div>
+<div class="pair" id="p-88">
+<p class="target" lang="zh-CN">更改作为 Responses API 请求目标的模型（实际上，这意味着更改原始提示中的第三项，因为它包含特定于模型的说明）。</p>
+<p class="source" lang="en">Changing the model that is the target of the Responses API request (in practice, this changes the third item in the original prompt, as it contains model-specific instructions).</p>
+</div>
+<div class="pair" id="p-89">
+<p class="target" lang="zh-CN">更改沙箱配置、审批模式或当前工作目录。</p>
+<p class="source" lang="en">Changing the sandbox configuration, approval mode, or current working directory.</p>
+</div>
+<div class="pair" id="p-90">
+<p class="target" lang="zh-CN">更改沙箱配置、审批模式或当前工作目录。</p>
+<p class="source" lang="en">Changing the sandbox configuration, approval mode, or current working directory.</p>
+</div>
+<div class="pair" id="p-91">
+<p class="target" lang="zh-CN">&lt;text&gt;
+Codex团队在引入可能影响提示缓存的Codex CLI新功能时必须非常谨慎。例如，我们最初对MCP工具的支持就引入了一个漏洞，导致工具没有按一致的顺序列出⁠（在新窗口中打开），从而引发了缓存缺失问题。需要注意的是，MCP工具特别复杂，因为MCP服务器可以通过通知“工具列表已更改”⁠（在新窗口中打开）来随时更改提供的工具列表。在长时间对话中处理这种通知会导致昂贵的缓存缺失问题。
+&lt;/text&gt;</p>
+<p class="source" lang="en">The Codex team must be diligent when introducing new features in the Codex CLI that could compromise prompt caching. As an example, our initial support for MCP tools introduced a bug where we failed to enumerate the tools in a consistent order⁠(opens in a new window), causing cache misses. Note that MCP tools can be particularly tricky because MCP servers can change the list of tools they provide on the fly via a notifications/tools/list_changed⁠(opens in a new window) notification. Honoring this notification in the middle of a long conversation can cause an expensive cache miss.</p>
+</div>
+<div class="pair" id="p-92">
+<p class="target" lang="zh-CN">如果可能的话，我们会通过向输入中添加新消息来反映变更，而不是修改之前的消息，从而处理对话过程中发生的配置变更。</p>
+<p class="source" lang="en">When possible, we handle configuration changes that happen mid-conversation by appending a new message to input to reflect the change rather than modifying an earlier message:</p>
+</div>
+<div class="pair" id="p-93">
+<p class="target" lang="zh-CN">如果沙箱配置或审批模式发生变化，我们会插入一个新的 role=developer 消息，其格式与原始的 &lt;permissions instructions&gt; 项相同。</p>
+<p class="source" lang="en">If the sandbox configuration or approval mode changes, we insert⁠(opens in a new window) a new role=developer message with the same format as the original &lt;permissions instructions&gt; item.</p>
+</div>
+<div class="pair" id="p-94">
+<p class="target" lang="zh-CN">如果沙箱配置或审批模式发生变化，我们会插入一个新的 role=developer 消息，其格式与原始的 &lt;permissions instructions&gt; 项相同。</p>
+<p class="source" lang="en">If the sandbox configuration or approval mode changes, we insert⁠(opens in a new window) a new role=developer message with the same format as the original &lt;permissions instructions&gt; item.</p>
+</div>
+<div class="pair" id="p-95">
+<p class="target" lang="zh-CN">如果当前工作目录发生变化，我们会插入一个新的 role=user 消息，其格式与原始 &lt;environment_context&gt; 相同（在新窗口中打开）。</p>
+<p class="source" lang="en">If the current working directory changes, we insert⁠(opens in a new window) a new role=user message with the same format as the original &lt;environment_context&gt;.</p>
+</div>
+<div class="pair" id="p-96">
+<p class="target" lang="zh-CN">如果当前工作目录发生变化，我们会插入一个新的“角色=用户”消息，其格式与原始 &lt;environment_context&gt; 相同（在新窗口中打开）。</p>
+<p class="source" lang="en">If the current working directory changes, we insert⁠(opens in a new window) a new role=user message with the same format as the original &lt;environment_context&gt;.</p>
+</div>
+<div class="pair" id="p-97">
+<p class="target" lang="zh-CN">我们竭尽全力确保缓存命中以提升性能。还有另一个需要管理的关键资源：上下文窗口。</p>
+<p class="source" lang="en">We go to great lengths to ensure cache hits for performance. There’s another key resource we have to manage: the context window.</p>
+</div>
+<div class="pair" id="p-98">
+<p class="target" lang="zh-CN">我们的避免上下文窗口不足的一般策略是，当标记数量超过一定阈值时，压缩对话内容。具体来说，我们用一个新的、较小的列表来替代输入内容，这个列表能够代表整个对话，从而使智能体能够继续理解迄今为止发生的事情。早期压缩实现需要用户手动调用 /compact 命令，该命令会使用现有的对话和自定义总结指令来查询 Responses API（打开新窗口）。Codex则使用包含总结内容的助手消息作为新的输入（打开新窗口），用于后续的对话轮次。</p>
+<p class="source" lang="en">Our general strategy to avoid running out of context window is to compact the conversation once the number of tokens exceeds some threshold. Specifically, we replace the input with a new, smaller list of items that is representative of the conversation, enabling the agent to continue with an understanding of what has happened thus far. An early implementation of compaction⁠(opens in a new window) required the user to manually invoke the /compact command, which would query the Responses API using the existing conversation plus custom instructions for summarization⁠(opens in a new window). Codex used the resulting assistant message containing the summary as the new input⁠(opens in a new window) for subsequent conversation turns.</p>
+</div>
+<div class="pair" id="p-99">
+<p class="target" lang="zh-CN">从那时起，Responses API 已经发展到了支持一个特殊的 /responses/compact 端点（在新窗口中打开），该端点能够更高效地实现压缩功能。它会返回一个项目列表（在新窗口中打开），这些项目可以替代之前的输入以继续对话，同时释放上下文窗口的空间。这个列表中包含一种特殊的类型=compaction 项目，该项目包含了一个不透明的加密内容项，能够保留模型对原始对话的潜在理解。现在，当 auto_compact_limit 超过时，Codex 会自动使用这个端点来压缩对话。</p>
+<p class="source" lang="en">Since then, the Responses API has evolved to support a special /responses/compact endpoint⁠(opens in a new window) that performs compaction more efficiently. It returns a list of items⁠(opens in a new window) that can be used in place of the previous input to continue the conversation while freeing up the context window. This list includes a special type=compaction item with an opaque encrypted_content item that preserves the model’s latent understanding of the original conversation. Now, Codex automatically uses this endpoint to compact the conversation when the auto_compact_limit⁠(opens in a new window) is exceeded.</p>
+</div>
+<div class="pair" id="p-100">
+<p class="target" lang="zh-CN">接下来登场</p>
+<p class="source" lang="en">Coming next</p>
+</div>
+<div class="pair" id="p-101">
+<p class="target" lang="zh-CN">我们介绍了 Codex 智能体循环，并详细介绍了 Codex 在查询模型时如何构建和管理其上下文。在此过程中，我们强调了适用于任何使用 Responses API 构建智能体循环的人们的实用考虑和最佳实践。</p>
+<p class="source" lang="en">We’ve introduced the Codex agent loop and walked through how Codex crafts and manages its context when querying a model. Along the way, we highlighted practical considerations and best practices that apply to anyone building an agent loop on top of the Responses API.</p>
+</div>
+<div class="pair" id="p-102">
+<p class="target" lang="zh-CN">虽然代理循环为 Codex 提供了基础，但这只是开始。在后续的文章中，我们将深入探讨 CLI 的架构，研究工具使用的实现方式，并进一步了解 Codex 的沙箱模型。</p>
+<p class="source" lang="en">While the agent loop provides the foundation for Codex, it’s only the beginning. In upcoming posts, we’ll dig into the CLI’s architecture, explore how tool use is implemented, and take a closer look at Codex’s sandboxing model.</p>
+</div>
+<div class="pair" id="p-103">
+<p class="target" lang="zh-CN">法典</p>
+<p class="source" lang="en">Codex</p>
+</div>
+<div class="pair" id="p-104">
+<p class="target" lang="zh-CN">2026</p>
+<p class="source" lang="en">2026</p>
+</div>
+<div class="pair" id="p-105">
+<p class="target" lang="zh-CN">作者</p>
+<p class="source" lang="en">Author</p>
+</div>
+<div class="pair" id="p-106">
+<p class="target" lang="zh-CN">致谢</p>
+<p class="source" lang="en">Acknowledgments</p>
+</div>
+<div class="pair" id="p-107">
+<p class="target" lang="zh-CN">特别感谢构建 Codex CLI 的整个团队。</p>
+<p class="source" lang="en">Special thanks to the entire team that built the Codex CLI.</p>
+</div>
+<div class="pair" id="p-108">
+<p class="target" lang="zh-CN">继续阅读</p>
+<p class="source" lang="en">Keep reading</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6G64B5haCxDuphl2iqwZ1N/4f8d319293f5e5e98b319e01b4fbdf59/scaling-git-at-openai-art-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Scaling Git at OpenAI — art card" loading="lazy">
+<div class="pair" id="p-109">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年11月2日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringNov 2, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3a839ECHaGsidJPLJqqm5s/55968ec17735b96514d1bb4851f43bf8/scaling-storage-one-billion-users-part-two-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II) — card" loading="lazy">
+<div class="pair" id="p-110">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年10月23日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 23, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3aewhPPb5NQ5IqOKEkrtzA/7209065f6e6ccf3a0476b43feb8336e1/rethinking-ads-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rethinking the ad stack around a new user journey — Art card" loading="lazy">
+<div class="pair" id="p-111">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年10月21日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 21, 2026</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://openai.com/index/unrolling-the-codex-agent-loop" target="_blank" rel="noopener noreferrer">https://openai.com/index/unrolling-the-codex-agent-loop</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/inside-openai-s-in-house-data-agent.html">← Inside OpenAI’s in-house data agent</a><a href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html">Scaling PostgreSQL to power 800 million ChatGPT users →</a></nav>
+  <footer class="footer">文章版权归原作者所有，译文请以英文原文为准。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

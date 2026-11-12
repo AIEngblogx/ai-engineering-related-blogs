@@ -1,0 +1,830 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>An open-source spec for orchestration: Symphony · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ An open-source spec for orchestration: Symphony</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item current" href="../viewers/an-open-source-spec-for-orchestration-symphony.html" aria-current="page"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item current" href="../viewers/an-open-source-spec-for-orchestration-symphony.html" aria-current="page"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></details>
+<main class="main"><article class="page">
+  <h1>An open-source spec for orchestration: Symphony</h1>
+  <p class="subline">原文：<a href="https://openai.com/index/open-source-codex-orchestration-symphony" target="_blank" rel="noopener noreferrer">https://openai.com/index/open-source-codex-orchestration-symphony</a> · 2026-04-27 · OpenAI Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">2026年4月27日</p>
+<p class="source" lang="en">April 27, 2026</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">由 Alex Kotliarskyi、Victor Zhu 和 Zach Brock 撰写</p>
+<p class="source" lang="en">By Alex Kotliarskyi, Victor Zhu, and Zach Brock</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">六个月前，在开发一款内部生产力工具时，我们的团队做出了一个当时颇具争议的决策：我们不使用任何人工编写的代码来构建代码库。项目代码库中的每一行代码都必须由 Codex 生成。</p>
+<p class="source" lang="en">Six months ago, while working on an internal productivity tool, our team made a controversial (at the time) decision: we’d build our repo with no human-written code. Every line in our project repository had to be generated by Codex.</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">为了实现这一目标，我们彻底重新设计了工程工作流程。我们建立了适合智能代理的存储库，大量投入资源进行自动化测试和约束机制建设，并将 Codex 视为一个完整的团队成员。我们在关于 harness 工程的之前博客文章中记录了这一历程。</p>
+<p class="source" lang="en">To make that work, we redesigned our engineering workflow from the ground up. We built an agent-friendly repository, invested heavily in automated tests and guardrails, and treated Codex as a full-fledged teammate. We documented that journey in our previous blog post on harness engineering⁠.</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">而且它成功了，但随后我们遇到了下一个瓶颈：上下文切换。</p>
+<p class="source" lang="en">And it worked, but then we ran into the next bottleneck: context switching.</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">为了解决这个新问题，我们构建了一个名为 Symphony 的系统。Symphony 是一个代理调度器，能够将像 Linear 这样的项目管理板转变为编码代理的控制平面。每个开放任务都会有一个代理，代理会持续运行，而人类则负责审查结果。</p>
+<p class="source" lang="en">To solve this new problem, we built a system called Symphony. Symphony⁠(opens in a new window) is an agent orchestrator that turns a project-management board like Linear into a control plane for coding agents. Every open task gets an agent, agents run continuously, and humans review the results.</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">这篇文章介绍了我们如何创建 Symphony 系统——这导致某些团队的落地 Pull Request 数量增加了 500%——以及如何利用它将你自己的问题跟踪器转变为一个始终在线的代理调度器。</p>
+<p class="source" lang="en">This post explains how we created Symphony—resulting in a 500% increase in landed pull requests on some teams—and how to use it to turn your own issue tracker into an always-on agent orchestrator.</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">交互式编码智能体的界面</p>
+<p class="source" lang="en">The ceiling of interactive coding agents</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">即使编码代理变得更加易于使用——无论是通过网页应用还是命令行界面——它们仍然是交互式工具。</p>
+<p class="source" lang="en">Even as they get easier to use, coding agents—whether accessed through web apps or CLI—are still interactive tools.</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">随着 OpenAI 中代理式工作的规模扩大，我们面临了一种新的负担。每位工程师需要开启几次 Codex 会话，分配任务，审查输出结果，引导代理行为，并重复这一过程。实际上，大多数人能够轻松处理三到五次会话，之后切换上下文就会变得很辛苦。超过这个数量后，生产力就会下降。我们会忘记哪个会话正在执行什么任务，在终端之间切换以调整代理的行为，以及调试那些在中途卡住的长时间任务。</p>
+<p class="source" lang="en">As the scale of agentic work increased at OpenAI, we found a new kind of burden. Each engineer would open a few Codex sessions, assign tasks, review the output, steer the agent, and repeat. In practice, most people could comfortably manage three to five sessions at a time before context switching became painful. Beyond that, productivity dropped. We’d forget which session was doing what, jump between terminals to nudge agents back on track, and debug long-running tasks that stalled halfway through.</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">这些代理非常高效，但我们的系统存在瓶颈：人类注意力问题。我们实际上组建了一支能力极强的初级工程师团队，却让人类工程师去微观管理他们。这样是无法扩展规模的。</p>
+<p class="source" lang="en">The agents were fast, but we had a system bottleneck: human attention. We had effectively built a team of extremely capable junior engineers, then assigned our human engineers to micromanaging them. That wasn’t going to scale.</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">视角转变</p>
+<p class="source" lang="en">A shift in perspective</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">我们意识到自己正在优化错误的东西。我们把系统围绕编程会议和合并请求来设计，而实际上合并请求和会议才是实现目标的方式。软件工作流程主要是以交付物为框架：问题、任务、工单和里程碑。</p>
+<p class="source" lang="en">We realized we were optimizing the wrong thing. We were orienting our system around coding sessions and merged PRs, when PRs and sessions are really a means to an end. Software workflows are largely organized around deliverables: issues, tasks, tickets, milestones.</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">所以我们问自己，如果不再直接监督代理，而是让它们从我们的任务跟踪器中获取工作，会发生什么。</p>
+<p class="source" lang="en">So we asked ourselves what would happen if we stopped supervising agents directly and instead let them pull work from our task tracker.</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">那个想法变成了 Symphony，一份书面规范，作为监督者来协调代理工作。</p>
+<p class="source" lang="en">That idea became Symphony, a written spec that functions as a supervisor to orchestrate agentic work.</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">将我们的问题跟踪器转化为智能代理协调器</p>
+<p class="source" lang="en">Turning our issue tracker into an agent orchestrator</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">Symphony 最初有一个简单的概念：任何开放任务都应该由代理来处理并完成。我们没有在多个标签页中管理 Codex 会话，而是将问题追踪器作为控制平面。</p>
+<p class="source" lang="en">Symphony started with a simple concept: any open task should get picked up and completed by an agent. Instead of managing Codex sessions in multiple tabs, we made our issue tracker the control plane.</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">在这种设置下，每个未解决的 Linear 问题都会对应到一个独立的代理工作空间。Symphony 会持续监控任务板，确保每个正在进行的任务都有代理在运行，直到任务完成。如果代理崩溃或停滞，Symphony 会重新启动它。如果有新任务出现，Symphony 会处理并开始安排工作。</p>
+<p class="source" lang="en">In this setup, each open Linear issue maps to a dedicated agent workspace. Symphony continuously watches the task board and ensures that every active task has an agent running in the loop until it’s done. If an agent crashes or stalls, Symphony restarts it. If new work appears, Symphony picks it up and starts organizing work.</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">我们基于任务状态构建了工作流程，使用任务管理器 Linear 作为状态机。</p>
+<p class="source" lang="en">We built our workflow based on ticket statuses, using the task manager Linear as a state machine.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/2RXkNLtpHGpak1yDzDzK0q/93d10db4325727ce9aba8a5b8e89274e/Coworking-Desktop-Light-Symphony__6_.svg?w=3840&amp;q=90" alt="Coding agents use Linear as a state machine to work alongside us." loading="lazy">
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">实际上，Symphony 将工作与会话以及拉取请求分离。有些问题会在多个仓库中产生多个 PR；而另一些则只是纯粹的调查或分析工作，不会涉及代码库。</p>
+<p class="source" lang="en">In practice, Symphony decouples work from sessions and from pull requests. Some issues produce multiple PRs across repos; others are pure investigation or analysis that never touch the codebase.</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">我们经常使用 Symphony 来协调复杂的功能与基础设施迁移工作。例如，我们会提交任务，让智能体分析代码库、Slack 或 Notion，并制定实施计划。当计划符合我们的要求后，智能体会生成任务树，将工作分解为多个阶段，并明确任务之间的依赖关系。</p>
+<p class="source" lang="en">We regularly use Symphony to orchestrate complex features and infrastructure migrations. For example, we might file a task asking the agent to analyze the codebase, Slack, or Notion and produce an implementation plan. Once we’re happy with the plan, the agent generates a tree of tasks, breaking the work into stages and defining dependencies between tasks.</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">代理仅开始处理未被阻塞的任务，因此在这个执行图（一系列执行步骤）中，执行能够自然且最优地并行进行。例如，我们将向 Vite 迁移时的 React 升级标记为阻塞任务。正如预期，代理在 Vite 迁移完成之后才开始升级 React。代理也可以自己创建工作。在实施或审查过程中，他们常常发现一些超出当前任务范围的改进：性能问题、重构机会或更好的架构设计。当这种情况发生时，他们只需提交一个新的问题，我们可以稍后评估并安排处理——许多后续任务也会被代理接手。在我们监督这一过程中，代理能够保持组织性，让工作继续推进。</p>
+<p class="source" lang="en">Agents only start working on tasks that aren’t blocked, so execution unfolds naturally and optimally in parallel for this DAG (a sequence of execution steps). For example, we marked the React upgrade as blocked on a migration to Vite. As expected, agents started upgrading React only after the migration to Vite was complete.Agents can also create work themselves. During implementation or review, they often notice improvements that fall outside the scope of the current task: a performance issue, a refactoring opportunity, or a better architecture. When that happens, they simply file a new issue that we can evaluate and schedule later—many of these follow-up tasks also get picked up by agents. While we oversee this process, agents stay organized and keep work moving forward.</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">这种工作方式大大降低了开始模糊任务时的认知成本。如果智能体出错，那也是有用的信息，对我们来说成本几乎为零。我们可以很低成本地提交工单，让智能体进行原型设计和探索，然后丢弃那些我们不喜欢的探索结果。</p>
+<p class="source" lang="en">This way of working dramatically reduces the cognitive cost of kicking off ambiguous work. If the agent gets something wrong, that’s still useful information, and the cost to us is near zero. We can very cheaply file tickets for the agent to go prototype and explore, and throw away any explorations we don’t like.</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">由于编排器在开发机箱上运行且从不休眠，我们可以从任何地方添加任务，并且知道代理会处理它们。例如，我们团队中的一名工程师在条件较差的Wi-Fi环境下，从舒适的小屋里通过手机使用Linear应用进行了三次重要的修改。</p>
+<p class="source" lang="en">Because the orchestrator runs on devboxes and never sleeps, we can add tasks from anywhere and know an agent will pick it up. For instance, one engineer on our team made three significant changes from the Linear app on his phone from a cozy cabin on shoddy wifi.</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">采用这种方式进行勘探会有所增加</p>
+<p class="source" lang="en">An increase in exploration from working this way</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">当观察使用 Symphony 带来的效果时，最明显的变化是输出结果。在 OpenAI 的一些团队中，我们在前三周内看到提交到 PR 的数量增加了 500%。除了 OpenAI 之外，Linear 的创始人 Karri Saarinen 指出，当我们发布 Symphony 时，工作空间的数量也出现了激增。然而，更深刻的转变是团队对工作的思维方式。</p>
+<p class="source" lang="en">When observing the effects of working with Symphony, the most obvious change was output. Among some teams at OpenAI, we saw the number of landed PRs increase by 500% in the first three weeks. Outside of OpenAI, Linear founder Karri Saarinen highlighted a spike in workspaces created⁠(opens in a new window) as we released Symphony. However, the deeper shift is how teams think about work.</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">当我们的工程师不再花费时间监督 Codex 会议时，代码变更的经济性也发生了改变。每次变更所感受到的成本降低了，因为我们不再投入人力来推动实际实施。</p>
+<p class="source" lang="en">When our engineers no longer spend time supervising Codex sessions, the economics of code changes completely. The perceived cost of each change drops because we’re no longer investing human effort in driving the implementation itself.</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">这改变了我们的行为方式。在 Symphony 中启动推测性任务变得非常简单。提出一个想法，尝试一次重构，验证一个假设，然后只保留那些看起来有希望的结果。</p>
+<p class="source" lang="en">That changed our behavior. It’s become trivial to spin up speculative tasks in Symphony. Try an idea, explore a refactor, test a hypothesis, and only keep the results that look promising.</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">它还扩大了可以发起工作的人选范围。我们的产品经理和设计师现在可以直接在 Symphony 中提交功能请求。他们无需查看代码库或管理 Codex 会话，只需描述功能需求，就能得到包含该功能实际产品使用情况的视频演示的评审文档。</p>
+<p class="source" lang="en">It also broadens who can initiate work. Our product manager and designer can now file feature requests directly into Symphony. They don’t need to check out the repo or manage a Codex session. They describe the feature and get back a review packet that includes a video walkthrough of the feature working inside the real product.</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">Symphony在大型单仓库中也很出色（比如我们在 OpenAI 的仓库），在那里发布请求的最后一步既慢又容易出错。该系统会监控 CI 过程，在需要时进行重构建，解决冲突，重试不稳定的检查，并整体引导变更通过管道流程。当任务到达合并阶段时，我们有很高的信心认为变更会无需人工干预就能进入主分支。</p>
+<p class="source" lang="en">Symphony also shines in large monorepos (like the one we have at OpenAI) where the last mile of landing a PR is slow and fragile. The system watches CI, rebases when needed, resolves conflicts, retries flaky checks, and generally shepherds changes through the pipeline. By the time a ticket reaches Merging, we have high confidence the change will make it into the main branch without human babysitting.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3JqiAwJncbbrd5pkpf29BW/3a326157e27ec43bf9fd821fddab1287/BeforeAndAfter-Desktop-Light-Symphony__2_.svg?w=3840&amp;q=90" alt="Before and after grid of Symphony" loading="lazy">
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">实施 Symphony 后，我们将更多工作委托给代理，并专注于更困难、更具探索性的任务。</p>
+<p class="source" lang="en">After implementing Symphony, we delegate more work to agents and focus on harder, more exploratory tasks.</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">进展伴随着新的、不同的问题</p>
+<p class="source" lang="en">Progress comes with new, different problems</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">在这种级别上运作存在权衡。当我们从交互式指导代理转变为按工单分配任务时，我们就失去了在过程中不断引导代理并根据需要调整方向的能力。有时代理会生成完全不符合要求的结果。但这很有用——这些失败揭示了系统的漏洞，帮助我们提高了系统的可靠性。</p>
+<p class="source" lang="en">Operating at this level comes with tradeoffs. When we moved from steering agents interactively to assigning them work at the ticket level, we lost the ability to constantly nudge them mid-flight and course-correct when needed. Sometimes the agent produced something that completely missed the mark. That was useful—those failures revealed gaps in the system and helped us make it more robust.</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">与其手动修复结果，我们增加了约束条件和技能，这样代理就能下次成功运行。随着时间的推移，我们还在我们的工具中添加了新功能，比如运行端到端测试、通过 Chrome DevTools 运行应用，以及管理 QA 测试。我们的文档也得到了显著改进，明确了什么是好的表现方式。</p>
+<p class="source" lang="en">Instead of patching the result manually, we added guardrails and skills so the agents could succeed the next time. Over time, this led us to add new capabilities to our harness, like running end-to-end tests, driving the app through Chrome DevTools, and managing QA smoke tests. We significantly improved our documentation and clarified what good looks like.</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">并非所有任务都符合 Symphony 的工作风格。有些问题仍然需要工程师直接参与互动 Codex 会话来解决，尤其是那些模糊不清的问题或需要高度判断力和专业知识的任务。实际上，这些通常是我们的工程师最有趣且最令人享受的任务。</p>
+<p class="source" lang="en">Not every task fits the Symphony style of work. Some problems still require engineers working directly with interactive Codex sessions, especially ambiguous problems or work that requires strong judgment and expertise. In practice, these are usually the most interesting and enjoyable tasks for our engineers to spend time on.</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">不同之处在于，Symphony可以处理大部分常规实施工作。这样，工程师就可以一次专注于一个难题，而不需要不断在较小的任务之间切换。</p>
+<p class="source" lang="en">The difference is that Symphony can handle the bulk of routine implementation work. That lets engineers focus on a single hard problem at a time instead of constantly context-switching between smaller tasks.</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">我们还了解到，将代理视为状态机中的固定节点并不有效。模型会变得更智能，能够解决我们试图纳入其范围内的更大问题。我们早期关于代理技术的版本只是要求 Codex 执行任务。这种方法显得过于局限。Codex 完全能够创建多个 Pull Request，以及阅读审查反馈并解决这些问题。因此，我们给了它一些工具——如 gh CLI、读取 CI 日志的技能等——现在我们可以让 Codex 做更多事情，比如关闭旧的 Pull Request 或获取已完成与被放弃工作的报告。这类任务远远超出了最初的功能实现范围。</p>
+<p class="source" lang="en">We also learned that treating agents as rigid nodes in a state machine doesn’t work well. Models get smarter and can solve bigger problems than the box we try to fit them in. Our early versions of agentic work was only asking Codex to implement the task. That approach proved too limiting. Codex is perfectly capable of creating multiple PRs as well as reading review feedback and addressing it. So we gave it tools—gh CLI, skills to read CI logs, etc.—and now we can ask Codex to do more, like closing old PRs or pulling reports on completed vs. abandoned work. These types of tasks fell way outside the initial feature implementation box.</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">因此，我们最终选择了给智能体设定目标而不是严格的指令，就像优秀的管理者给团队中的下属设定目标一样。模型的力量在于其推理能力，所以给它们提供工具和环境，让它们自己发挥能力。</p>
+<p class="source" lang="en">So we eventually moved toward giving agents objectives instead of strict transitions, much like a good manager would assign a goal to a direct report on their team. The power of models comes from their ability to reason, so give them tools and context and let them cook.</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">使用 Symphony 来构建 Symphony</p>
+<p class="source" lang="en">Using Symphony to build Symphony</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">当您打开 Symphony 仓库时（会在新窗口中打开），您首先会注意到的是，从技术上讲，Symphony 实际上只是一个 SPEC.md 文件——即问题的定义和预期的解决方案。我们并没有构建复杂的监督系统，而是定义了问题和预期解决方案，从而为智能体提供高层次的指导。</p>
+<p class="source" lang="en">When you open the Symphony repository,⁠(opens in a new window) the first thing you’ll notice is that Symphony is technically just a SPEC.md file—a definition of the problem and the intended solution. Rather than building a complex supervision system, we defined the problem and intended solutions, giving agents high-level steering.</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">&lt;text&gt;
+1# Symphony服务规范23状态：草稿v1（与语言无关）45目的：定义一个服务，协调编码代理完成项目工作。67## 1. 问题陈述89Symphony是一个长期运行的自动化服务，持续从问题跟踪器读取工作10（在本规范版本中为线性），为每个问题创建隔离的工作空间，并在工作空间内运行一次编码代理会话。1213该服务解决了四个运营问题：1415 - 它将问题执行转化为可重复的守护进程工作流，而不是手动脚本。16 - 将代理执行隔离在每问题工作空间中，使代理命令仅在每问题工作空间目录中运行。18 - 将工作流策略保存在仓库中（`WORKFLOW.md`），以便团队与代码一起版本控制。20 - 提供足够的可观测性以操作和调试多个并发代理运行。2122实现应明确说明其信任和安全状态。此规范不需要单一批准、沙箱或操作员确认策略；一些实现可能针对高信任配置的可信环境，而其他实现可能需要更严格的批准或沙箱。2627重要边界：2829 - Symphony是一个调度/运行器，并且是跟踪器读取器。30 - 票证写入（状态转换、评论、PR元数据）由编码代理工具定义。151- 使用编码代理工具中的逻辑字段。161- 标签为小写。167 - 不再使用。169- 在当前工作空间目录中。171- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。181- 优先级。183- 状态为`Active_states`或`Terminal_states`。185 - 默认值为`Closed`、`Cancelled`、`Canceled`、`Duplicate`、`Done`。186 - 在`active-run reconciliation`中。189 - 结束。191 - 在已终止状态中。193 - 继续。195 - 在当前工作空间目录中。197 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。199 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。201 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。203 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。205 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。207 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。209 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。211 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。213 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。215 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。217 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。219 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。221 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。223 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。225 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。227 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。229 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。231 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。233 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。235 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。237 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。239 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。241 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。243 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。245 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。247 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。249 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。251 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。253 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。255 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。257 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。259 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。261 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。263 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。265 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。267 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。269 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。271 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。273 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。275 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。277 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。279 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。281 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。283 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。285 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。287 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。289 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。291 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。293 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。295 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。297 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。299 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。301 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。303 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。305 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。307 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。309 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。311 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。313 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。315 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。317 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。319 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。321 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。323 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。325 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。327 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。329 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。331 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。333 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。335 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。337 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。339 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。341 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。343 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。345 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。347 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。349 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。351 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。353 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。355 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。357 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。359 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。361 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。363 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。365 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。367 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。369 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。371 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。373 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。375 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。377 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。379 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。381 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。383 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。385 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。387 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。389 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。391 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。393 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。395 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。397 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。399 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。401 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。403 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。405 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。407 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。409 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。411 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。413 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。415 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。417 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。419 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。421 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。423 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。425 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。427 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。429 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。431 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。433 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。435 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。437 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。439 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。441 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。443 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。445 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。447 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。449 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。451 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。453 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。455 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。457 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。459 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。461 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。463 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。465 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。467 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。469 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。471 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。473 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。475 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。477 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。479 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。481 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。483 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。485 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。487 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。489 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。491 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。493 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。495 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。497 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。499 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。501 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。503 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。505 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。507 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。509 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。511 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。513 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。515 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。517 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。519 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。521 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。523 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。525 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。527 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。529 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。531 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。533 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。535 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。537 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。539 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。541 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。543 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。545 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。547 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。549 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。551 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。553 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。555 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。557 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。559 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。561 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。563 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。565 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。567 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。569 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。571 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。573 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。575 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。577 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。579 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。581 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。583 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。585 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。587 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。589 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。591 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。593 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。595 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。597 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。599 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。601 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。603 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。605 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。607 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。609 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。611 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。613 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。615 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。617 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。619 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。621 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。623 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。625 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。627 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。629 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。631 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。633 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。635 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。637 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。639 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。641 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。643 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。645 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。647 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。649 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。651 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。653 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。655 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。657 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。659 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。661 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。663 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。665 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。667 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。669 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。671 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。673 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。675 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。677 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。679 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。681 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。683 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。685 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。687 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。689 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。691 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。693 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。695 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。697 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。699 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。701 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。703 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。705 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。709 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。711 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。715 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。719 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。723 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。727 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。731 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。735 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。739 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。743 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。747 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。751 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。755 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。759 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。763 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。767 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。771 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。775 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。779 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。783 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。787 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。791 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。795 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。799 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。805 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。809 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。813 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。817 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。821 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。825 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。829 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。833 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。835 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。837 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。841 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。843 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。847 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。851 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。855 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。859 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。863 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。867 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。871 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。875 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。879 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。883 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。887 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。891 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。895 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。899 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。903 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。907 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。911 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。915 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。919 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。923 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。927 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。931 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。935 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。939 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。943 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。947 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。951 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。955 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。959 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。963 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。967 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。971 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。975 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。979 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。983 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。985 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。987 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。991 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。993 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。995 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。999 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1001 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1003 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1005 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1007 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1011 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1013 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1015 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1017 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1019 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1021 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1023 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1025 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1027 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1029 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1031 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1033 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1035 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1037 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1039 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1041 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1043 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1045 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1047 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1049 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1051 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1053 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1055 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1057 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1059 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1061 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1063 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1065 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1067 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1069 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1071 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1073 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1075 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1077 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1079 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1081 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1083 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1085 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1087 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1089 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1091 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1093 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1095 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1097 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1099 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1101 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1103 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1105 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1107 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1109 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1111 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1113 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1115 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1117 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。1119 - 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11301115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11312315- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11323515- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11334715- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11346115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11357515- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11369115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11381115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11395115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11401115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11413115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11435115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11448115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11461115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11478115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11489115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11501115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11513115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11535115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11548115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11561115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11578115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11601115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11613115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11635115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11648115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11661115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11678115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11689115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11701115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11713115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11735115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11748115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11761115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11778115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11789115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11901115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11913115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11935115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11948115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11961115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。11978115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。12101115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。12113115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。12135115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。12148115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。12167115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。12178115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。12301115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。12313115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。12335115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。12348115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。12367115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。12378115- 标题为`&lt;issue.identifier&gt;：&lt;issue.title&gt;`。</p>
+<p class="source" lang="en">1# Symphony Service Specification23Status: Draft v1 (language-agnostic)45Purpose: Define a service that orchestrates coding agents to get project work done.67## 1. Problem Statement89Symphony is a long-running automation service that continuously reads work from an issue tracker10(Linear in this specification version), creates an isolated workspace for each issue, and runs a11coding agent session for that issue inside the workspace.1213The service solves four operational problems:1415- It turns issue execution into a repeatable daemon workflow instead of manual scripts.16- It isolates agent execution in per-issue workspaces so agent commands run only inside per-issue17 workspace directories.18- It keeps the workflow policy in-repo (`WORKFLOW.md`) so teams version the agent prompt and runtime19 settings with their code.20- It provides enough observability to operate and debug multiple concurrent agent runs.2122Implementations are expected to document their trust and safety posture explicitly. This23specification does not require a single approval, sandbox, or operator-confirmation policy; some24implementations may target trusted environments with a high-trust configuration, while others may25require stricter approvals or sandboxing.2627Important boundary:2829- Symphony is a scheduler/runner and tracker reader.30- Ticket writes (state transitions, comments, PR links) are typically performed by the coding agent31 using tools available in the workflow/runtime environment.32- A successful run may end at a workflow-defined handoff state (for example `Human Review`), not33 necessarily `Done`.3435## 2. Goals and Non-Goals3637### 2.1 Goals3839- Poll the issue tracker on a fixed cadence and dispatch work with bounded concurrency.40- Maintain a single authoritative orchestrator state for dispatch, retries, and reconciliation.41- Create deterministic per-issue workspaces and preserve them across runs.42- Stop active runs when issue state changes make them ineligible.43- Recover from transient failures with exponential backoff.44- Load runtime behavior from a repository-owned `WORKFLOW.md` contract.45- Expose operator-visible observability (at minimum structured logs).46- Support restart recovery without requiring a persistent database.4748### 2.2 Non-Goals4950- Rich web UI or multi-tenant control plane.51- Prescribing a specific dashboard or terminal UI implementation.52- General-purpose workflow engine or distributed job scheduler.53- Built-in business logic for how to edit tickets, PRs, or comments. (That logic lives in the54 workflow prompt and agent tooling.)55- Mandating strong sandbox controls beyond what the coding agent and host OS provide.56- Mandating a single default approval, sandbox, or operator-confirmation posture for all57 implementations.5859## 3. System Overview6061### 3.1 Main Components62631. `Workflow Loader`64 - Reads `WORKFLOW.md`.65 - Parses YAML front matter and prompt body.66 - Returns `{config, prompt_template}`.67682. `Config Layer`69 - Exposes typed getters for workflow config values.70 - Applies defaults and environment variable indirection.71 - Performs validation used by the orchestrator before dispatch.72733. `Issue Tracker Client`74 - Fetches candidate issues in active states.75 - Fetches current states for specific issue IDs (reconciliation).76 - Fetches terminal-state issues during startup cleanup.77 - Normalizes tracker payloads into a stable issue model.78794. `Orchestrator`80 - Owns the poll tick.81 - Owns the in-memory runtime state.82 - Decides which issues to dispatch, retry, stop, or release.83 - Tracks session metrics and retry queue state.84855. `Workspace Manager`86 - Maps issue identifiers to workspace paths.87 - Ensures per-issue workspace directories exist.88 - Runs workspace lifecycle hooks.89 - Cleans workspaces for terminal issues.90916. `Agent Runner`92 - Creates workspace.93 - Builds prompt from issue + workflow template.94 - Launches the coding agent app-server client.95 - Streams agent updates back to the orchestrator.96977. `Status Surface` (optional)98 - Presents human-readable runtime status (for example terminal output, dashboard, or other99 operator-facing view).1001018. `Logging`102 - Emits structured runtime logs to one or more configured sinks.103104### 3.2 Abstraction Levels105106Symphony is easiest to port when kept in these layers:1071081. `Policy Layer` (repo-defined)109 - `WORKFLOW.md` prompt body.110 - Team-specific rules for ticket handling, validation, and handoff.1111122. `Configuration Layer` (typed getters)113 - Parses front matter into typed runtime settings.114 - Handles defaults, environment tokens, and path normalization.1151163. `Coordination Layer` (orchestrator)117 - Polling loop, issue eligibility, concurrency, retries, reconciliation.1181194. `Execution Layer` (workspace + agent subprocess)120 - Filesystem lifecycle, workspace preparation, coding-agent protocol.1211225. `Integration Layer` (Linear adapter)123 - API calls and normalization for tracker data.1241256. `Observability Layer` (logs + optional status surface)126 - Operator visibility into orchestrator and agent behavior.127128### 3.3 External Dependencies129130- Issue tracker API (Linear for `tracker.kind: linear` in this specification version).131- Local filesystem for workspaces and logs.132- Optional workspace population tooling (for example Git CLI, if used).133- Coding-agent executable that supports JSON-RPC-like app-server mode over stdio.134- Host environment authentication for the issue tracker and coding agent.135136## 4. Core Domain Model137138### 4.1 Entities139140#### 4.1.1 Issue141142Normalized issue record used by orchestration, prompt rendering, and observability output.143144Fields:145146- `id` (string)147 - Stable tracker-internal ID.148- `identifier` (string)149 - Human-readable ticket key (example: `ABC-123`).150- `title` (string)151- `description` (string or null)152- `priority` (integer or null)153 - Lower numbers are higher priority in dispatch sorting.154- `state` (string)155 - Current tracker state name.156- `branch_name` (string or null)157 - Tracker-provided branch metadata if available.158- `url` (string or null)159- `labels` (list of strings)160 - Normalized to lowercase.161- `blocked_by` (list of blocker refs)162 - Each blocker ref contains:163 - `id` (string or null)164 - `identifier` (string or null)165 - `state` (string or null)166- `created_at` (timestamp or null)167- `updated_at` (timestamp or null)168169#### 4.1.2 Workflow Definition170171Parsed `WORKFLOW.md` payload:172173- `config` (map)174 - YAML front matter root object.175- `prompt_template` (string)176 - Markdown body after front matter, trimmed.177178#### 4.1.3 Service Config (Typed View)179180Typed runtime values derived from `WorkflowDefinition.config` plus environment resolution.181182Examples:183184- poll interval185- workspace root186- active and terminal issue states187- concurrency limits188- coding-agent executable/args/timeouts189- workspace hooks190191#### 4.1.4 Workspace192193Filesystem workspace assigned to one issue identifier.194195Fields (logical):196197- `path` (workspace path; current runtime typically uses absolute paths, but relative roots are198 possible if configured without path separators)199- `workspace_key` (sanitized issue identifier)200- `created_now` (boolean, used to gate `after_create` hook)201202#### 4.1.5 Run Attempt203204One execution attempt for one issue.205206Fields (logical):207208- `issue_id`209- `issue_identifier`210- `attempt` (integer or null, `null` for first run, `&gt;=1` for retries/continuation)211- `workspace_path`212- `started_at`213- `status`214- `error` (optional)215216#### 4.1.6 Live Session (Agent Session Metadata)217218State tracked while a coding-agent subprocess is running.219220Fields:221222- `session_id` (string, `&lt;thread_id&gt;-&lt;turn_id&gt;`)223- `thread_id` (string)224- `turn_id` (string)225- `codex_app_server_pid` (string or null)226- `last_codex_event` (string/enum or null)227- `last_codex_timestamp` (timestamp or null)228- `last_codex_message` (summarized payload)229- `codex_input_tokens` (integer)230- `codex_output_tokens` (integer)231- `codex_total_tokens` (integer)232- `last_reported_input_tokens` (integer)233- `last_reported_output_tokens` (integer)234- `last_reported_total_tokens` (integer)235- `turn_count` (integer)236 - Number of coding-agent turns started within the current worker lifetime.237238#### 4.1.7 Retry Entry239240Scheduled retry state for an issue.241242Fields:243244- `issue_id`245- `identifier` (best-effort human ID for status surfaces/logs)246- `attempt` (integer, 1-based for retry queue)247- `due_at_ms` (monotonic clock timestamp)248- `timer_handle` (runtime-specific timer reference)249- `error` (string or null)250251#### 4.1.8 Orchestrator Runtime State252253Single authoritative in-memory state owned by the orchestrator.254255Fields:256257- `poll_interval_ms` (current effective poll interval)258- `max_concurrent_agents` (current effective global concurrency limit)259- `running` (map `issue_id -&gt; running entry`)260- `claimed` (set of issue IDs reserved/running/retrying)261- `retry_attempts` (map `issue_id -&gt; RetryEntry`)262- `completed` (set of issue IDs; bookkeeping only, not dispatch gating)263- `codex_totals` (aggregate tokens + runtime seconds)264- `codex_rate_limits` (latest rate-limit snapshot from agent events)265266### 4.2 Stable Identifiers and Normalization Rules267268- `Issue ID`269 - Use for tracker lookups and internal map keys.270- `Issue Identifier`271 - Use for human-readable logs and workspace naming.272- `Workspace Key`273 - Derive from `issue.identifier` by replacing any character not in `[A-Za-z0-9._-]` with `_`.274 - Use the sanitized value for the workspace directory name.275- `Normalized Issue State`276 - Compare states after `lowercase`.277- `Session ID`278 - Compose from coding-agent `thread_id` and `turn_id` as `&lt;thread_id&gt;-&lt;turn_id&gt;`.279280## 5. Workflow Specification (Repository Contract)281282### 5.1 File Discovery and Path Resolution283284Workflow file path precedence:2852861. Explicit application/runtime setting (set by CLI startup path).2872. Default: `WORKFLOW.md` in the current process working directory.288289Loader behavior:290291- If the file cannot be read, return `missing_workflow_file` error.292- The workflow file is expected to be repository-owned and version-controlled.293294### 5.2 File Format295296`WORKFLOW.md` is a Markdown file with optional YAML front matter.297298Design note:299300- `WORKFLOW.md` should be self-contained enough to describe and run different workflows (prompt,301 runtime settings, hooks, and tracker selection/config) without requiring out-of-band302 service-specific configuration.303304Parsing rules:305306- If file starts with `---`, parse lines until the next `---` as YAML front matter.307- Remaining lines become the prompt body.308- If front matter is absent, treat the entire file as prompt body and use an empty config map.309- YAML front matter must decode to a map/object; non-map YAML is an error.310- Prompt body is trimmed before use.311312Returned workflow object:313314- `config`: front matter root object (not nested under a `config` key).315- `prompt_template`: trimmed Markdown body.316317### 5.3 Front Matter Schema318319Top-level keys:320321- `tracker`322- `polling`323- `workspace`324- `hooks`325- `agent`326- `codex`327328Unknown keys should be ignored for forward compatibility.329330Note:331332- The workflow front matter is extensible. Optional extensions may define additional top-level keys333 (for example `server`) without changing the core schema above.334- Extensions should document their field schema, defaults, validation rules, and whether changes335 apply dynamically or require restart.336- Common extension: `server.port` (integer) enables the optional HTTP server described in Section337 13.7.338339#### 5.3.1 `tracker` (object)340341Fields:342343- `kind` (string)344 - Required for dispatch.345 - Current supported value: `linear`346- `endpoint` (string)347 - Default for `tracker.kind == &quot;linear&quot;`: `https://api.linear.app/graphql`348- `api_key` (string)349 - May be a literal token or `$VAR_NAME`.350 - Canonical environment variable for `tracker.kind == &quot;linear&quot;`: `LINEAR_API_KEY`.351 - If `$VAR_NAME` resolves to an empty string, treat the key as missing.352- `project_slug` (string)353 - Required for dispatch when `tracker.kind == &quot;linear&quot;`.354- `active_states` (list of strings)355 - Default: `Todo`, `In Progress`356- `terminal_states` (list of strings)357 - Default: `Closed`, `Cancelled`, `Canceled`, `Duplicate`, `Done`358359#### 5.3.2 `polling` (object)360361Fields:362363- `interval_ms` (integer or string integer)364 - Default: `30000`365 - Changes should be re-applied at runtime and affect future tick scheduling without restart.366367#### 5.3.3 `workspace` (object)368369Fields:370371- `root` (path string or `$VAR`)372 - Default: `&lt;system-temp&gt;/symphony_workspaces`373 - `~` and strings containing path separators are expanded.374 - Bare strings without path separators are preserved as-is (relative roots are allowed but375 discouraged).376377#### 5.3.4 `hooks` (object)378379Fields:380381- `after_create` (multiline shell script string, optional)382 - Runs only when a workspace directory is newly created.383 - Failure aborts workspace creation.384- `before_run` (multiline shell script string, optional)385 - Runs before each agent attempt after workspace preparation and before launching the coding386 agent.387 - Failure aborts the current attempt.388- `after_run` (multiline shell script string, optional)389 - Runs after each agent attempt (success, failure, timeout, or cancellation) once the workspace390 exists.391 - Failure is logged but ignored.392- `before_remove` (multiline shell script string, optional)393 - Runs before workspace deletion if the directory exists.394 - Failure is logged but ignored; cleanup still proceeds.395- `timeout_ms` (integer, optional)396 - Default: `60000`397 - Applies to all workspace hooks.398 - Non-positive values should be treated as invalid and fall back to the default.399 - Changes should be re-applied at runtime for future hook executions.400401#### 5.3.5 `agent` (object)402403Fields:404405- `max_concurrent_agents` (integer or string integer)406 - Default: `10`407 - Changes should be re-applied at runtime and affect subsequent dispatch decisions.408- `max_retry_backoff_ms` (integer or string integer)409 - Default: `300000` (5 minutes)410 - Changes should be re-applied at runtime and affect future retry scheduling.411- `max_concurrent_agents_by_state` (map `state_name -&gt; positive integer`)412 - Default: empty map.413 - State keys are normalized (`lowercase`) for lookup.414 - Invalid entries (non-positive or non-numeric) are ignored.415416#### 5.3.6 `codex` (object)417418Fields:419420For Codex-owned config values such as `approval_policy`, `thread_sandbox`, and421`turn_sandbox_policy`, supported values are defined by the targeted Codex app-server version.422Implementors should treat them as pass-through Codex config values rather than relying on a423hand-maintained enum in this spec. To inspect the installed Codex schema, run424`codex app-server generate-json-schema --out &lt;dir&gt;` and inspect the relevant definitions referenced425by `v2/ThreadStartParams.json` and `v2/TurnStartParams.json`. Implementations may validate these426fields locally if they want stricter startup checks.427428- `command` (string shell command)429 - Default: `codex app-server`430 - The runtime launches this command via `bash -lc` in the workspace directory.431 - The launched process must speak a compatible app-server protocol over stdio.432- `approval_policy` (Codex `AskForApproval` value)433 - Default: implementation-defined.434- `thread_sandbox` (Codex `SandboxMode` value)435 - Default: implementation-defined.436- `turn_sandbox_policy` (Codex `SandboxPolicy` value)437 - Default: implementation-defined.438- `turn_timeout_ms` (integer)439 - Default: `3600000` (1 hour)440- `read_timeout_ms` (integer)441 - Default: `5000`442- `stall_timeout_ms` (integer)443 - Default: `300000` (5 minutes)444 - If `&lt;= 0`, stall detection is disabled.445446### 5.4 Prompt Template Contract447448The Markdown body of `WORKFLOW.md` is the per-issue prompt template.449450Rendering requirements:451452- Use a strict template engine (Liquid-compatible semantics are sufficient).453- Unknown variables must fail rendering.454- Unknown filters must fail rendering.455456Template input variables:457458- `issue` (object)459 - Includes all normalized issue fields, including labels and blockers.460- `attempt` (integer or null)461 - `null`/absent on first attempt.462 - Integer on retry or continuation run.463464Fallback prompt behavior:465466- If the workflow prompt body is empty, the runtime may use a minimal default prompt467 (`You are working on an issue from Linear.`).468- Workflow file read/parse failures are configuration/validation errors and should not silently fall469 back to a prompt.470471### 5.5 Workflow Validation and Error Surface472473Error classes:474475- `missing_workflow_file`476- `workflow_parse_error`477- `workflow_front_matter_not_a_map`478- `template_parse_error` (during prompt rendering)479- `template_render_error` (unknown variable/filter, invalid interpolation)480481Dispatch gating behavior:482483- Workflow file read/YAML errors block new dispatches until fixed.484- Template errors fail only the affected run attempt.485486## 6. Configuration Specification487488### 6.1 Source Precedence and Resolution Semantics489490Configuration precedence:4914921. Workflow file path selection (runtime setting -&gt; cwd default).4932. YAML front matter values.4943. Environment indirection via `$VAR_NAME` inside selected YAML values.4954. Built-in defaults.496497Value coercion semantics:498499- Path/command fields support:500 - `~` home expansion501 - `$VAR` expansion for env-backed path values502 - Apply expansion only to values intended to be local filesystem paths; do not rewrite URIs or503 arbitrary shell command strings.504505### 6.2 Dynamic Reload Semantics506507Dynamic reload is required:508509- The software should watch `WORKFLOW.md` for changes.510- On change, it should re-read and re-apply workflow config and prompt template without restart.511- The software should attempt to adjust live behavior to the new config (for example polling512 cadence, concurrency limits, active/terminal states, codex settings, workspace paths/hooks, and513 prompt content for future runs).514- Reloaded config applies to future dispatch, retry scheduling, reconciliation decisions, hook515 execution, and agent launches.516- Implementations are not required to restart in-flight agent sessions automatically when config517 changes.518- Extensions that manage their own listeners/resources (for example an HTTP server port change) may519 require restart unless the implementation explicitly supports live rebind.520- Implementations should also re-validate/reload defensively during runtime operations (for example521 before dispatch) in case filesystem watch events are missed.522- Invalid reloads should not crash the service; keep operating with the last known good effective523 configuration and emit an operator-visible error.524525### 6.3 Dispatch Preflight Validation526527This validation is a scheduler preflight run before attempting to dispatch new work. It validates528the workflow/config needed to poll and launch workers, not a full audit of all possible workflow529behavior.530531Startup validation:532533- Validate configuration before starting the scheduling loop.534- If startup validation fails, fail startup and emit an operator-visible error.535536Per-tick dispatch validation:537538- Re-validate before each dispatch cycle.539- If validation fails, skip dispatch for that tick, keep reconciliation active, and emit an540 operator-visible error.541542Validation checks:543544- Workflow file can be loaded and parsed.545- `tracker.kind` is present and supported.546- `tracker.api_key` is present after `$` resolution.547- `tracker.project_slug` is present when required by the selected tracker kind.548- `codex.command` is present and non-empty.549550### 6.4 Config Fields Summary (Cheat Sheet)551552This section is intentionally redundant so a coding agent can implement the config layer quickly.553554- `tracker.kind`: string, required, currently `linear`555- `tracker.endpoint`: string, default `https://api.linear.app/graphql` when `tracker.kind=linear`556- `tracker.api_key`: string or `$VAR`, canonical env `LINEAR_API_KEY` when `tracker.kind=linear`557- `tracker.project_slug`: string, required when `tracker.kind=linear`558- `tracker.active_states`: list of strings, default `[&quot;Todo&quot;, &quot;In Progress&quot;]`559- `tracker.terminal_states`: list of strings, default `[&quot;Closed&quot;, &quot;Cancelled&quot;, &quot;Canceled&quot;, &quot;Duplicate&quot;, &quot;Done&quot;]`560- `polling.interval_ms`: integer, default `30000`561- `workspace.root`: path, default `&lt;system-temp&gt;/symphony_workspaces`562- `worker.ssh_hosts` (extension): list of SSH host strings, optional; when omitted, work runs563 locally564- `worker.max_concurrent_agents_per_host` (extension): positive integer, optional; shared per-host565 cap applied across configured SSH hosts566- `hooks.after_create`: shell script or null567- `hooks.before_run`: shell script or null568- `hooks.after_run`: shell script or null569- `hooks.before_remove`: shell script or null570- `hooks.timeout_ms`: integer, default `60000`571- `agent.max_concurrent_agents`: integer, default `10`572- `agent.max_turns`: integer, default `20`573- `agent.max_retry_backoff_ms`: integer, default `300000` (5m)574- `agent.max_concurrent_agents_by_state`: map of positive integers, default `{}`575- `codex.command`: shell command string, default `codex app-server`576- `codex.approval_policy`: Codex `AskForApproval` value, default implementation-defined577- `codex.thread_sandbox`: Codex `SandboxMode` value, default implementation-defined578- `codex.turn_sandbox_policy`: Codex `SandboxPolicy` value, default implementation-defined579- `codex.turn_timeout_ms`: integer, default `3600000`580- `codex.read_timeout_ms`: integer, default `5000`581- `codex.stall_timeout_ms`: integer, default `300000`582- `server.port` (extension): integer, optional; enables the optional HTTP server, `0` may be used583 for ephemeral local bind, and CLI `--port` overrides it584585## 7. Orchestration State Machine586587The orchestrator is the only component that mutates scheduling state. All worker outcomes are588reported back to it and converted into explicit state transitions.589590### 7.1 Issue Orchestration States591592This is not the same as tracker states (`Todo`, `In Progress`, etc.). This is the service&#39;s internal593claim state.5945951. `Unclaimed`596 - Issue is not running and has no retry scheduled.5975982. `Claimed`599 - Orchestrator has reserved the issue to prevent duplicate dispatch.600 - In practice, claimed issues are either `Running` or `RetryQueued`.6016023. `Running`603 - Worker task exists and the issue is tracked in `running` map.6046054. `RetryQueued`606 - Worker is not running, but a retry timer exists in `retry_attempts`.6076085. `Released`609 - Claim removed because issue is terminal, non-active, missing, or retry path completed without610 re-dispatch.611612Important nuance:613614- A successful worker exit does not mean the issue is done forever.615- The worker may continue through multiple back-to-back coding-agent turns before it exits.616- After each normal turn completion, the worker re-checks the tracker issue state.617- If the issue is still in an active state, the worker should start another turn on the same live618 coding-agent thread in the same workspace, up to `agent.max_turns`.619- The first turn should use the full rendered task prompt.620- Continuation turns should send only continuation guidance to the existing thread, not resend the621 original task prompt that is already present in thread history.622- Once the worker exits normally, the orchestrator still schedules a short continuation retry623 (about 1 second) so it can re-check whether the issue remains active and needs another worker624 session.625626### 7.2 Run Attempt Lifecycle627628A run attempt transitions through these phases:6296301. `PreparingWorkspace`6312. `BuildingPrompt`6323. `LaunchingAgentProcess`6334. `InitializingSession`6345. `StreamingTurn`6356. `Finishing`6367. `Succeeded`6378. `Failed`6389. `TimedOut`63910. `Stalled`64011. `CanceledByReconciliation`641642Distinct terminal reasons are important because retry logic and logs differ.643644### 7.3 Transition Triggers645646- `Poll Tick`647 - Reconcile active runs.648 - Validate config.649 - Fetch candidate issues.650 - Dispatch until slots are exhausted.651652- `Worker Exit (normal)`653 - Remove running entry.654 - Update aggregate runtime totals.655 - Schedule continuation retry (attempt `1`) after the worker exhausts or finishes its in-process656 turn loop.657658- `Worker Exit (abnormal)`659 - Remove running entry.660 - Update aggregate runtime totals.661 - Schedule exponential-backoff retry.662663- `Codex Update Event`664 - Update live session fields, token counters, and rate limits.665666- `Retry Timer Fired`667 - Re-fetch active candidates and attempt re-dispatch, or release claim if no longer eligible.668669- `Reconciliation State Refresh`670 - Stop runs whose issue states are terminal or no longer active.671672- `Stall Timeout`673 - Kill worker and schedule retry.674675### 7.4 Idempotency and Recovery Rules676677- The orchestrator serializes state mutations through one authority to avoid duplicate dispatch.678- `claimed` and `running` checks are required before launching any worker.679- Reconciliation runs before dispatch on every tick.680- Restart recovery is tracker-driven and filesystem-driven (no durable orchestrator DB required).681- Startup terminal cleanup removes stale workspaces for issues already in terminal states.682683## 8. Polling, Scheduling, and Reconciliation684685### 8.1 Poll Loop686687At startup, the service validates config, performs startup cleanup, schedules an immediate tick, and688then repeats every `polling.interval_ms`.689690The effective poll interval should be updated when workflow config changes are re-applied.691692Tick sequence:6936941. Reconcile running issues.6952. Run dispatch preflight validation.6963. Fetch candidate issues from tracker using active states.6974. Sort issues by dispatch priority.6985. Dispatch eligible issues while slots remain.6996. Notify observability/status consumers of state changes.700701If per-tick validation fails, dispatch is skipped for that tick, but reconciliation still happens702first.703704### 8.2 Candidate Selection Rules705706An issue is dispatch-eligible only if all are true:707708- It has `id`, `identifier`, `title`, and `state`.709- Its state is in `active_states` and not in `terminal_states`.710- It is not already in `running`.711- It is not already in `claimed`.712- Global concurrency slots are available.713- Per-state concurrency slots are available.714- Blocker rule for `Todo` state passes:715 - If the issue state is `Todo`, do not dispatch when any blocker is non-terminal.716717Sorting order (stable intent):7187191. `priority` ascending (1..4 are preferred; null/unknown sorts last)7202. `created_at` oldest first7213. `identifier` lexicographic tie-breaker722723### 8.3 Concurrency Control724725Global limit:726727- `available_slots = max(max_concurrent_agents - running_count, 0)`728729Per-state limit:730731- `max_concurrent_agents_by_state[state]` if present (state key normalized)732- otherwise fallback to global limit733734The runtime counts issues by their current tracked state in the `running` map.735736Optional SSH host limit:737738- When `worker.max_concurrent_agents_per_host` is set, each configured SSH host may run at most739 that many concurrent agents at once.740- Hosts at that cap are skipped for new dispatch until capacity frees up.741742### 8.4 Retry and Backoff743744Retry entry creation:745746- Cancel any existing retry timer for the same issue.747- Store `attempt`, `identifier`, `error`, `due_at_ms`, and new timer handle.748749Backoff formula:750751- Normal continuation retries after a clean worker exit use a short fixed delay of `1000` ms.752- Failure-driven retries use `delay = min(10000 * 2^(attempt - 1), agent.max_retry_backoff_ms)`.753- Power is capped by the configured max retry backoff (default `300000` / 5m).754755Retry handling behavior:7567571. Fetch active candidate issues (not all issues).7582. Find the specific issue by `issue_id`.7593. If not found, release claim.7604. If found and still candidate-eligible:761 - Dispatch if slots are available.762 - Otherwise requeue with error `no available orchestrator slots`.7635. If found but no longer active, release claim.764765Note:766767- Terminal-state workspace cleanup is handled by startup cleanup and active-run reconciliation768 (including terminal transitions for currently running issues).769- Retry handling mainly operates on active candidates and releases claims when the issue is absent,770 rather than performing terminal cleanup itself.771772### 8.5 Active Run Reconciliation773774Reconciliation runs every tick and has two parts.775776Part A: Stall detection777778- For each running issue, compute `elapsed_ms` since:779 - `last_codex_timestamp` if any event has been seen, else780 - `started_at`781- If `elapsed_ms &gt; codex.stall_timeout_ms`, terminate the worker and queue a retry.782- If `stall_timeout_ms &lt;= 0`, skip stall detection entirely.783784Part B: Tracker state refresh785786- Fetch current issue states for all running issue IDs.787- For each running issue:788 - If tracker state is terminal: terminate worker and clean workspace.789 - If tracker state is still active: update the in-memory issue snapshot.790 - If tracker state is neither active nor terminal: terminate worker without workspace cleanup.791- If state refresh fails, keep workers running and try again on the next tick.792793### 8.6 Startup Terminal Workspace Cleanup794795When the service starts:7967971. Query tracker for issues in terminal states.7982. For each returned issue identifier, remove the corresponding workspace directory.7993. If the terminal-issues fetch fails, log a warning and continue startup.800801This prevents stale terminal workspaces from accumulating after restarts.802803## 9. Workspace Management and Safety804805### 9.1 Workspace Layout806807Workspace root:808809- `workspace.root` (normalized path; the current config layer expands path-like values and preserves810 bare relative names)811812Per-issue workspace path:813814- `&lt;workspace.root&gt;/&lt;sanitized_issue_identifier&gt;`815816Workspace persistence:817818- Workspaces are reused across runs for the same issue.819- Successful runs do not auto-delete workspaces.820821### 9.2 Workspace Creation and Reuse822823Input: `issue.identifier`824825Algorithm summary:8268271. Sanitize identifier to `workspace_key`.8282. Compute workspace path under workspace root.8293. Ensure the workspace path exists as a directory.8304. Mark `created_now=true` only if the directory was created during this call; otherwise831 `created_now=false`.8325. If `created_now=true`, run `after_create` hook if configured.833834Notes:835836- This section does not assume any specific repository/VCS workflow.837- Workspace preparation beyond directory creation (for example dependency bootstrap, checkout/sync,838 code generation) is implementation-defined and is typically handled via hooks.839840### 9.3 Optional Workspace Population (Implementation-Defined)841842The spec does not require any built-in VCS or repository bootstrap behavior.843844Implementations may populate or synchronize the workspace using implementation-defined logic and/or845hooks (for example `after_create` and/or `before_run`).846847Failure handling:848849- Workspace population/synchronization failures return an error for the current attempt.850- If failure happens while creating a brand-new workspace, implementations may remove the partially851 prepared directory.852- Reused workspaces should not be destructively reset on population failure unless that policy is853 explicitly chosen and documented.854855### 9.4 Workspace Hooks856857Supported hooks:858859- `hooks.after_create`860- `hooks.before_run`861- `hooks.after_run`862- `hooks.before_remove`863864Execution contract:865866- Execute in a local shell context appropriate to the host OS, with the workspace directory as867 `cwd`.868- On POSIX systems, `sh -lc &lt;script&gt;` (or a stricter equivalent such as `bash -lc &lt;script&gt;`) is a869 conforming default.870- Hook timeout uses `hooks.timeout_ms`; default: `60000 ms`.871- Log hook start, failures, and timeouts.872873Failure semantics:874875- `after_create` failure or timeout is fatal to workspace creation.876- `before_run` failure or timeout is fatal to the current run attempt.877- `after_run` failure or timeout is logged and ignored.878- `before_remove` failure or timeout is logged and ignored.879880### 9.5 Safety Invariants881882This is the most important portability constraint.883884Invariant 1: Run the coding agent only in the per-issue workspace path.885886- Before launching the coding-agent subprocess, validate:887 - `cwd == workspace_path`888889Invariant 2: Workspace path must stay inside workspace root.890891- Normalize both paths to absolute.892- Require `workspace_path` to have `workspace_root` as a prefix directory.893- Reject any path outside the workspace root.894895Invariant 3: Workspace key is sanitized.896897- Only `[A-Za-z0-9._-]` allowed in workspace directory names.898- Replace all other characters with `_`.899900## 10. Agent Runner Protocol (Coding Agent Integration)901902This section defines the language-neutral contract for integrating a coding agent app-server.903904Compatibility profile:905906- The normative contract is message ordering, required behaviors, and the logical fields that must907 be extracted (for example session IDs, completion state, approval handling, and usage/rate-limit908 telemetry).909- Exact JSON field names may vary slightly across compatible app-server versions.910- Implementations should tolerate equivalent payload shapes when they carry the same logical911 meaning, especially for nested IDs, approval requests, user-input-required signals, and912 token/rate-limit metadata.913914### 10.1 Launch Contract915916Subprocess launch parameters:917918- Command: `codex.command`919- Invocation: `bash -lc &lt;codex.command&gt;`920- Working directory: workspace path921- Stdout/stderr: separate streams922- Framing: line-delimited protocol messages on stdout (JSON-RPC-like JSON per line)923924Notes:925926- The default command is `codex app-server`.927- Approval policy, cwd, and prompt are expressed in the protocol messages in Section 10.2.928929Recommended additional process settings:930931- Max line size: 10 MB (for safe buffering)932933### 10.2 Session Startup Handshake934935Reference: https://developers.openai.com/codex/app-server/936937The client must send these protocol messages in order:938939Illustrative startup transcript (equivalent payload shapes are acceptable if they preserve the same940semantics):941942```json943{&quot;id&quot;:1,&quot;method&quot;:&quot;initialize&quot;,&quot;params&quot;:{&quot;clientInfo&quot;:{&quot;name&quot;:&quot;symphony&quot;,&quot;version&quot;:&quot;1.0&quot;},&quot;capabilities&quot;:{}}}944{&quot;method&quot;:&quot;initialized&quot;,&quot;params&quot;:{}}945{&quot;id&quot;:2,&quot;method&quot;:&quot;thread/start&quot;,&quot;params&quot;:{&quot;approvalPolicy&quot;:&quot;&lt;implementation-defined&gt;&quot;,&quot;sandbox&quot;:&quot;&lt;implementation-defined&gt;&quot;,&quot;cwd&quot;:&quot;/abs/workspace&quot;}}946{&quot;id&quot;:3,&quot;method&quot;:&quot;turn/start&quot;,&quot;params&quot;:{&quot;threadId&quot;:&quot;&lt;thread-id&gt;&quot;,&quot;input&quot;:[{&quot;type&quot;:&quot;text&quot;,&quot;text&quot;:&quot;&lt;rendered prompt-or-continuation-guidance&gt;&quot;}],&quot;cwd&quot;:&quot;/abs/workspace&quot;,&quot;title&quot;:&quot;ABC-123: Example&quot;,&quot;approvalPolicy&quot;:&quot;&lt;implementation-defined&gt;&quot;,&quot;sandboxPolicy&quot;:{&quot;type&quot;:&quot;&lt;implementation-defined&gt;&quot;}}}947```9489491. `initialize` request950 - Params include:951 - `clientInfo` object (for example `{name, version}`)952 - `capabilities` object (may be empty)953 - If the targeted Codex app-server requires capability negotiation for dynamic tools, include the954 necessary capability flag(s) here.955 - Wait for response (`read_timeout_ms`)9562. `initialized` notification9573. `thread/start` request958 - Params include:959 - `approvalPolicy` = implementation-defined session approval policy value960 - `sandbox` = implementation-defined session sandbox value961 - `cwd` = absolute workspace path962 - If optional client-side tools are implemented, include their advertised tool specs using the963 protocol mechanism supported by the targeted Codex app-server version.9644. `turn/start` request965 - Params include:966 - `threadId`967 - `input` = single text item containing rendered prompt for the first turn, or continuation968 guidance for later turns on the same thread969 - `cwd`970 - `title` = `&lt;issue.identifier&gt;: &lt;issue.title&gt;`971 - `approvalPolicy` = implementation-defined turn approval policy value972 - `sandboxPolicy` = implementation-defined object-form sandbox policy payload when required by973 the targeted app-server version974975Session identifiers:976977- Read `thread_id` from `thread/start` result `result.thread.id`978- Read `turn_id` from each `turn/start` result `result.turn.id`979- Emit `session_id = &quot;&lt;thread_id&gt;-&lt;turn_id&gt;&quot;`980- Reuse the same `thread_id` for all continuation turns inside one worker run981982### 10.3 Streaming Turn Processing983984The client reads line-delimited messages until the turn terminates.985986Completion conditions:987988- `turn/completed` -&gt; success989- `turn/failed` -&gt; failure990- `turn/cancelled` -&gt; failure991- turn timeout (`turn_timeout_ms`) -&gt; failure992- subprocess exit -&gt; failure993994Continuation processing:995996- If the worker decides to continue after a successful turn, it should issue another `turn/start`997 on the same live `threadId`.998- The app-server subprocess should remain alive across those continuation turns and be stopped only999 when the worker run is ending.10001001Line handling requirements:10021003- Read protocol messages from stdout only.1004- Buffer partial stdout lines until newline arrives.1005- Attempt JSON parse on complete stdout lines.1006- Stderr is not part of the protocol stream:1007 - ignore it or log it as diagnostics1008 - do not attempt protocol JSON parsing on stderr10091010### 10.4 Emitted Runtime Events (Upstream to Orchestrator)10111012The app-server client emits structured events to the orchestrator callback. Each event should1013include:10141015- `event` (enum/string)1016- `timestamp` (UTC timestamp)1017- `codex_app_server_pid` (if available)1018- optional `usage` map (token counts)1019- payload fields as needed10201021Important emitted events may include:10221023- `session_started`1024- `startup_failed`1025- `turn_completed`1026- `turn_failed`1027- `turn_cancelled`1028- `turn_ended_with_error`1029- `turn_input_required`1030- `approval_auto_approved`1031- `unsupported_tool_call`1032- `notification`1033- `other_message`1034- `malformed`10351036### 10.5 Approval, Tool Calls, and User Input Policy10371038Approval, sandbox, and user-input behavior is implementation-defined.10391040Policy requirements:10411042- Each implementation should document its chosen approval, sandbox, and operator-confirmation1043 posture.1044- Approval requests and user-input-required events must not leave a run stalled indefinitely. An1045 implementation should either satisfy them, surface them to an operator, auto-resolve them, or1046 fail the run according to its documented policy.10471048Example high-trust behavior:10491050- Auto-approve command execution approvals for the session.1051- Auto-approve file-change approvals for the session.1052- Treat user-input-required turns as hard failure.10531054Unsupported dynamic tool calls:10551056- Supported dynamic tool calls that are explicitly implemented and advertised by the runtime should1057 be handled according to their extension contract.1058- If the agent requests a dynamic tool call (`item/tool/call`) that is not supported, return a tool1059 failure response and continue the session.1060- This prevents the session from stalling on unsupported tool execution paths.10611062Optional client-side tool extension:10631064- An implementation may expose a limited set of client-side tools to the app-server session.1065- Current optional standardized tool: `linear_graphql`.1066- If implemented, supported tools should be advertised to the app-server session during startup1067 using the protocol mechanism supported by the targeted Codex app-server version.1068- Unsupported tool names should still return a failure result and continue the session.10691070`linear_graphql` extension contract:10711072- Purpose: execute a raw GraphQL query or mutation against Linear using Symphony&#39;s configured1073 tracker auth for the current session.1074- Availability: only meaningful when `tracker.kind == &quot;linear&quot;` and valid Linear auth is configured.1075- Preferred input shape:10761077 ```json1078 {1079 &quot;query&quot;: &quot;single GraphQL query or mutation document&quot;,1080 &quot;variables&quot;: {1081 &quot;optional&quot;: &quot;graphql variables object&quot;1082 }1083 }1084 ```10851086- `query` must be a non-empty string.1087- `query` must contain exactly one GraphQL operation.1088- `variables` is optional and, when present, must be a JSON object.1089- Implementations may additionally accept a raw GraphQL query string as shorthand input.1090- Execute one GraphQL operation per tool call.1091- If the provided document contains multiple operations, reject the tool call as invalid input.1092- `operationName` selection is intentionally out of scope for this extension.1093- Reuse the configured Linear endpoint and auth from the active Symphony workflow/runtime config; do1094 not require the coding agent to read raw tokens from disk.1095- Tool result semantics:1096 - transport success + no top-level GraphQL `errors` -&gt; `success=true`1097 - top-level GraphQL `errors` present -&gt; `success=false`, but preserve the GraphQL response body1098 for debugging1099 - invalid input, missing auth, or transport failure -&gt; `success=false` with an error payload1100- Return the GraphQL response or error payload as structured tool output that the model can inspect1101 in-session.11021103Illustrative responses (equivalent payload shapes are acceptable if they preserve the same outcome):11041105```json1106{&quot;id&quot;:&quot;&lt;approval-id&gt;&quot;,&quot;result&quot;:{&quot;approved&quot;:true}}1107{&quot;id&quot;:&quot;&lt;tool-call-id&gt;&quot;,&quot;result&quot;:{&quot;success&quot;:false,&quot;error&quot;:&quot;unsupported_tool_call&quot;}}1108```11091110Hard failure on user input requirement:11111112- If the agent requests user input, fail the run attempt immediately.1113- The client detects this via:1114 - explicit method (`item/tool/requestUserInput`), or1115 - turn methods/flags indicating input is required.11161117### 10.6 Timeouts and Error Mapping11181119Timeouts:11201121- `codex.read_timeout_ms`: request/response timeout during startup and sync requests1122- `codex.turn_timeout_ms`: total turn stream timeout1123- `codex.stall_timeout_ms`: enforced by orchestrator based on event inactivity11241125Error mapping (recommended normalized categories):11261127- `codex_not_found`1128- `invalid_workspace_cwd`1129- `response_timeout`1130- `turn_timeout`1131- `port_exit`1132- `response_error`1133- `turn_failed`1134- `turn_cancelled`1135- `turn_input_required`11361137### 10.7 Agent Runner Contract11381139The `Agent Runner` wraps workspace + prompt + app-server client.11401141Behavior:114211431. Create/reuse workspace for issue.11442. Build prompt from workflow template.11453. Start app-server session.11464. Forward app-server events to orchestrator.11475. On any error, fail the worker attempt (the orchestrator will retry).11481149Note:11501151- Workspaces are intentionally preserved after successful runs.11521153## 11. Issue Tracker Integration Contract (Linear-Compatible)11541155### 11.1 Required Operations11561157An implementation must support these tracker adapter operations:115811591. `fetch_candidate_issues()`1160 - Return issues in configured active states for a configured project.116111622. `fetch_issues_by_states(state_names)`1163 - Used for startup terminal cleanup.116411653. `fetch_issue_states_by_ids(issue_ids)`1166 - Used for active-run reconciliation.11671168### 11.2 Query Semantics (Linear)11691170Linear-specific requirements for `tracker.kind == &quot;linear&quot;`:11711172- `tracker.kind == &quot;linear&quot;`1173- GraphQL endpoint (default `https://api.linear.app/graphql`)1174- Auth token sent in `Authorization` header1175- `tracker.project_slug` maps to Linear project `slugId`1176- Candidate issue query filters project using `project: { slugId: { eq: $projectSlug } }`1177- Issue-state refresh query uses GraphQL issue IDs with variable type `[ID!]`1178- Pagination required for candidate issues1179- Page size default: `50`1180- Network timeout: `30000 ms`11811182Important:11831184- Linear GraphQL schema details can drift. Keep query construction isolated and test the exact query1185 fields/types required by this specification.11861187A non-Linear implementation may change transport details, but the normalized outputs must match the1188domain model in Section 4.11891190### 11.3 Normalization Rules11911192Candidate issue normalization should produce fields listed in Section 4.1.1.11931194Additional normalization details:11951196- `labels` -&gt; lowercase strings1197- `blocked_by` -&gt; derived from inverse relations where relation type is `blocks`1198- `priority` -&gt; integer only (non-integers become null)1199- `created_at` and `updated_at` -&gt; parse ISO-8601 timestamps12001201### 11.4 Error Handling Contract12021203Recommended error categories:12041205- `unsupported_tracker_kind`1206- `missing_tracker_api_key`1207- `missing_tracker_project_slug`1208- `linear_api_request` (transport failures)1209- `linear_api_status` (non-200 HTTP)1210- `linear_graphql_errors`1211- `linear_unknown_payload`1212- `linear_missing_end_cursor` (pagination integrity error)12131214Orchestrator behavior on tracker errors:12151216- Candidate fetch failure: log and skip dispatch for this tick.1217- Running-state refresh failure: log and keep active workers running.1218- Startup terminal cleanup failure: log warning and continue startup.12191220### 11.5 Tracker Writes (Important Boundary)12211222Symphony does not require first-class tracker write APIs in the orchestrator.12231224- Ticket mutations (state transitions, comments, PR metadata) are typically handled by the coding1225 agent using tools defined by the workflow prompt.1226- The service remains a scheduler/runner and tracker reader.1227- Workflow-specific success often means &quot;reached the next handoff state&quot; (for example1228 `Human Review`) rather than tracker terminal state `Done`.1229- If the optional `linear_graphql` client-side tool extension is implemented, it is still part of1230 the agent toolchain rather than orchestrator business logic.12311232## 12. Prompt Construction and Context Assembly12331234### 12.1 Inputs12351236Inputs to prompt rendering:12371238- `workflow.prompt_template`1239- normalized `issue` object1240- optional `attempt` integer (retry/continuation metadata)12411242### 12.2 Rendering Rules12431244- Render with strict variable checking.1245- Render with strict filter checking.1246- Convert issue object keys to strings for template compatibility.1247- Preserve nested arrays/maps (labels, blockers) so templates can iterate.12481249### 12.3 Retry/Continuation Semantics12501251`attempt` should be passed to the template because the workflow prompt may provide different1252instructions for:12531254- first run (`attempt` null or absent)1255- continuation run after a successful prior session1256- retry after error/timeout/stall12571258### 12.4 Failure Semantics12591260If prompt rendering fails:12611262- Fail the run attempt immediately.1263- Let the orchestrator treat it like any other worker failure and decide retry behavior.12641265## 13. Logging, Status, and Observability12661267### 13.1 Logging Conventions12681269Required context fields for issue-related logs:12701271- `issue_id`1272- `issue_identifier`12731274Required context for coding-agent session lifecycle logs:12751276- `session_id`12771278Message formatting requirements:12791280- Use stable `key=value` phrasing.1281- Include action outcome (`completed`, `failed`, `retrying`, etc.).1282- Include concise failure reason when present.1283- Avoid logging large raw payloads unless necessary.12841285### 13.2 Logging Outputs and Sinks12861287The spec does not prescribe where logs must go (stderr, file, remote sink, etc.).12881289Requirements:12901291- Operators must be able to see startup/validation/dispatch failures without attaching a debugger.1292- Implementations may write to one or more sinks.1293- If a configured log sink fails, the service should continue running when possible and emit an1294 operator-visible warning through any remaining sink.12951296### 13.3 Runtime Snapshot / Monitoring Interface (Optional but Recommended)12971298If the implementation exposes a synchronous runtime snapshot (for dashboards or monitoring), it1299should return:13001301- `running` (list of running session rows)1302- each running row should include `turn_count`1303- `retrying` (list of retry queue rows)1304- `codex_totals`1305 - `input_tokens`1306 - `output_tokens`1307 - `total_tokens`1308 - `seconds_running` (aggregate runtime seconds as of snapshot time, including active sessions)1309- `rate_limits` (latest coding-agent rate limit payload, if available)13101311Recommended snapshot error modes:13121313- `timeout`1314- `unavailable`13151316### 13.4 Optional Human-Readable Status Surface13171318A human-readable status surface (terminal output, dashboard, etc.) is optional and1319implementation-defined.13201321If present, it should draw from orchestrator state/metrics only and must not be required for1322correctness.13231324### 13.5 Session Metrics and Token Accounting13251326Token accounting rules:13271328- Agent events may include token counts in multiple payload shapes.1329- Prefer absolute thread totals when available, such as:1330 - `thread/tokenUsage/updated` payloads1331 - `total_token_usage` within token-count wrapper events1332- Ignore delta-style payloads such as `last_token_usage` for dashboard/API totals.1333- Extract input/output/total token counts leniently from common field names within the selected1334 payload.1335- For absolute totals, track deltas relative to last reported totals to avoid double-counting.1336- Do not treat generic `usage` maps as cumulative totals unless the event type defines them that1337 way.1338- Accumulate aggregate totals in orchestrator state.13391340Runtime accounting:13411342- Runtime should be reported as a live aggregate at snapshot/render time.1343- Implementations may maintain a cumulative counter for ended sessions and add active-session1344 elapsed time derived from `running` entries (for example `started_at`) when producing a1345 snapshot/status view.1346- Add run duration seconds to the cumulative ended-session runtime when a session ends (normal exit1347 or cancellation/termination).1348- Continuous background ticking of runtime totals is not required.13491350Rate-limit tracking:13511352- Track the latest rate-limit payload seen in any agent update.1353- Any human-readable presentation of rate-limit data is implementation-defined.13541355### 13.6 Humanized Agent Event Summaries (Optional)13561357Humanized summaries of raw agent protocol events are optional.13581359If implemented:13601361- Treat them as observability-only output.1362- Do not make orchestrator logic depend on humanized strings.1363</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">参考实现是用 Elixir 编写的——因为当代码真正自由时，就可以根据语言的优势来选择，比如 Elixir 的并发能力——但核心思想可以通过简单的 Markdown 文档来表达。我们建议您将您喜欢的编码工具指向该规范，让它实现自己的版本。</p>
+<p class="source" lang="en">The reference implementation is written in Elixir—because when code is effectively free, you can finally pick languages for their strengths, like Elixir&#39;s concurrency—but the core idea can be expressed in a simple Markdown document. We encourage you to point your favorite coding agent at the spec and have it implement its own version.</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">Symphony的第一个版本只是一个在tmux中运行的Codex会话，它定期查询Linear并生成子代理以处理新任务。虽然能运行，但不够稳定。第二个版本则存在于我们的主项目仓库中，该仓库是考虑到代理的存在的。我们已经构建了代理harness，让代理具备完成高质量工作所需的技能和上下文，因此Symphony只是将这一切连接在一起。</p>
+<p class="source" lang="en">The first version of Symphony was just a Codex session running in tmux, polling Linear and spawning sub-agents for new tasks. It worked, but it wasn’t particularly reliable. The second version lived inside our main project repository, which was built with agents in mind. We had already built the agent harness to give agents the skills and context to do high quality work in this repo, so Symphony simply connects it all.</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">一旦基本功能具备，我们就使用 Symphony 来构建 Symphony。</p>
+<p class="source" lang="en">Once the basic functionality existed, we used Symphony to build Symphony.</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">在我们内部演示该系统管理任务并展示其工作量证明视频时，反应非常积极：我们的 Symphony 项目频道流量增加了，整个组织的团队也开始自然地使用它。内部产品与市场的契合是向 OpenAI 外部推广的前提。根据在 OpenAI 看到的使用情况，很明显我们应该将 Symphony 推广到公司外部。</p>
+<p class="source" lang="en">When we internally demoed the system managing tasks and attaching its proof-of-work video, the reaction was overwhelmingly positive: our Symphony project channel grew, and teams across the organization started using it organically. Internal product market fit is a prerequisite for launching externally at OpenAI. Based on the usage we saw at OpenAI, it became clear we should share Symphony beyond company walls.</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">因此，我们将这个想法整理成独立的 SPEC.md 文件，然后让 Codex 来实现它。作为参考实现，我们选择了 Elixir 这种相对小众的语言，它拥有优秀的工具用于协调和监控并发进程。Codex 一次性构建了 Elixir 实现，从那时起，我们不断对规范和实现进行迭代改进。为了完善规范，我们甚至让 Codex 用其他几种语言实现——TypeScript、Go、Rust、Java、Python——并利用这些结果来识别模糊点并简化系统。它在所有语言中都取得了成功。</p>
+<p class="source" lang="en">So we extracted the idea into a standalone SPEC.md and asked Codex to implement it. For the reference implementation, we chose Elixir, a relatively niche language with excellent primitives for orchestrating and supervising concurrent processes. Codex built the Elixir implementation in one shot, and we kept iterating on both spec and implementation from there. To polish the spec, we even asked Codex to implement it in several other languages—TypeScript, Go, Rust, Java, Python—and use the results to identify ambiguities and simplify the system. It succeeded in every language.</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">通过构建 Symphony 的过程，我们消除了许多不必要的复杂性，比如对特定仓库或 Linear MCP 的依赖。Symphony 不再依赖我们的内部仓库或工作流程。核心方法变得简单了：</p>
+<p class="source" lang="en">Through the process of building Symphony, we removed a lot of incidental complexity, like dependencies on specific repositories or Linear MCP. Symphony no longer depends on our internal repositories or workflows. The core approach became simple:</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">除了帮助实际工作之外，开发流程现在也成为代理程序熟悉并遵循的规范。开发流程包括处理问题、查看代码库、标记为进行中以便项目经理知道正在处理、提交 PR、将其状态改为审核状态、添加视频等步骤，这些都被记录在一个简单的 WORKFLOW.md 文件中。这些都是人类遵循的过程，但之前从未被记录下来。我们不再依赖这些隐性的步骤，而是将其记录下来，Symphony 则确保代理程序遵循这些步骤。这样我们就能构建能够与我们一起工作的代理程序。如果我们决定代理程序在完成工作后还应添加自我反思内容，我们会将其添加到 WORKFLOW.md 中，Symphony 会引导代理程序执行该步骤。</p>
+<p class="source" lang="en">In addition to helping with the active work, the development workflow is now something agents know and follow. The development workflow—work on an issue, check out a repo, put it in progress so the PM knows it’s being worked on, add the PR, move it to the Review status, attach videos, etc.—is now captured in a simple WORKFLOW.md file. All of this is a process that humans followed, but it was never documented. Rather than relying on this implicit set of steps, we now document it, and Symphony ensures agents follow it. This lets us build agents that work alongside us. If we decide that agents should also attach self-reflection to finished work, we’ll add that to the WORKFLOW.md, and Symphony will guide the agents to that step.</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">我们还能够使用 Codex 的应用服务器模式（在新窗口中打开），这是一种内置的无服务器模式。这种模式使我们能够运行 Codex，并通过文档齐全的 JSON-RPC API以编程方式与其交互，例如启动线程或响应轮次顺序。相比通过 CLI 或实时 tmux 会话与 Codex 交互，这种方式更方便且可扩展。</p>
+<p class="source" lang="en">We also got to use Codex in app server mode⁠(opens in a new window), a built-in headless mode for Codex. This mode allowed us to run Codex and talk to it programmatically via a well documented JSON-RPC API for things like starting a thread or reacting to turns. It’s more convenient and scalable than trying to interact with Codex via CLI or live tmux sessions.</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">Codex App Server非常适合我们的使用场景：我们利用了 Codex 提供的工具，同时也有相应的接口可以连接。例如，为了不将 Linear 访问令牌暴露给子代理，我们使用动态工具调用来调用 raw linear_graphql 函数，该函数可以执行针对 Linear 的任意请求，而无需依赖 MCP，也无需将访问令牌暴露给容器。</p>
+<p class="source" lang="en">Codex App Server was a perfect fit for our use case: we take advantage of the harness Codex provides while having knobs and hooks to plug into. For example, to avoid exposing the Linear access token to subagents, we use dynamic tool calls⁠(opens in a new window) to expose the raw linear_graphql function that executes arbitrary requests against Linear, without relying on MCP or exposing the access token to containers.</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">接下来是什么</p>
+<p class="source" lang="en">What’s next</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">Symphony 是一个刻意简化的编排层。我们将其开源，以展示 Codex App Server 与 Linear 等不同工作流工具结合时的强大功能。因此，我们并不打算将 Symphony 作为独立产品进行维护。可以将其视为一个参考实现。就像许多开发者将他们的编码代理指向 harness 工程团队以构建他们的仓库一样，我们希望您将您喜欢的编码代理指向 Symphony 规范⁠（在新窗口中打开）和仓库⁠（在新窗口中打开），从而构建适合您环境的自定义版本。</p>
+<p class="source" lang="en">Symphony is an intentionally minimal orchestration layer. We’re open sourcing it to demonstrate the power of Codex App Server when paired with different workflow tools, like Linear. As such, we don’t plan to maintain Symphony as a standalone product. Think of it as a reference implementation. Similar to how many developers pointed their coding agents at the harness engineering post to scaffold their repositories, we hope you point your favorite coding agent at the Symphony spec⁠(opens in a new window) and repository⁠(opens in a new window) to build your own versions tailored to your environments.</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">权力来自 Codex 及其应用服务器。Symphony 是一种将 Codex 与 Linear 连接的方式，这两种工具我们之前就已经使用了，用于解决工作管理问题。随着编码代理在推理和遵循指令方面变得更熟练，我们推测其他公司的瓶颈将从编写代码转向管理代理工作。令人兴奋的是，尝试这些编码代理系统的障碍现在出奇地低，你只需使用 Codex 就能构建各种东西。</p>
+<p class="source" lang="en">The power comes from Codex and its app server. Symphony was a way to connect Codex to Linear, two things we already used, to solve the work management problem. As coding agents become better at reasoning and following instructions, we suspect the bottleneck at other companies will shift from writing code toward managing agentic work, too. The exciting part is that the barrier to experimenting with these coding agent systems is now surprisingly low. You can just build things with Codex.</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">社区推荐</p>
+<p class="source" lang="en">Community shoutouts</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">我们很高兴看到工程界在发布后的几周里开始使用 Symphony，截至4月23日，该项目的 GitHub 星星数已超过15,000。</p>
+<p class="source" lang="en">We’re thrilled to see the engineering community using Symphony in the weeks since release, garnering over 15K GitHub stars⁠(opens in a new window) as of April 23.</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://openai.com/index/open-source-codex-orchestration-symphony" target="_blank" rel="noopener noreferrer">https://openai.com/index/open-source-codex-orchestration-symphony</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html">← How OpenAI delivers low-latency voice AI at scale</a><a href="../viewers/an-update-on-recent-claude-code-quality-reports.html">An update on recent Claude Code quality reports →</a></nav>
+  <footer class="footer">文章版权归原作者所有，译文请以英文原文为准。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

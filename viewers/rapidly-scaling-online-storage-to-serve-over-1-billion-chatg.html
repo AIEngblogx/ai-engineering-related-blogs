@@ -1,0 +1,1461 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II) · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item current" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html" aria-current="page"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item current" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html" aria-current="page"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</h1>
+  <p class="subline">原文：<a href="https://openai.com/index/scaling-storage-one-billion-users-part-two" target="_blank" rel="noopener noreferrer">https://openai.com/index/scaling-storage-one-billion-users-part-two</a> · 2026-10-23 · OpenAI Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">2026年10月23日</p>
+<p class="source" lang="en">October 23, 2026</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">我们在应用存储平台 Habitat 中如何优化 Azure Cosmos DB，以应对前所未有的增长。</p>
+<p class="source" lang="en">How we optimized Azure Cosmos DB in our application storage platform, Habitat, to manage unprecedented growth.</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">由技术人员成员 Jon Lee、Hrachya Hakobyan 和 Chaomin Yu 撰写</p>
+<p class="source" lang="en">By Jon Lee, Hrachya Hakobyan, and Chaomin Yu, Members of Technical Staff</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">实现多租户在大规模应用中的可靠性</p>
+<p class="source" lang="en">Making multi-tenancy reliable at scale</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">关于 Azure Cosmos DB 容器的简单入门指南</p>
+<p class="source" lang="en">A simplified primer on Azure Cosmos DB containers</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">第一阶段：依赖 Azure Cosmos DB 基础功能逻辑分区键限制噪声邻居弱分区</p>
+<p class="source" lang="en">Phase I: Relying on Azure Cosmos DB primitivesLogical partition key limitsNoisy neighborsWeak partitions</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">逻辑分区键限制</p>
+<p class="source" lang="en">Logical partition key limits</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">吵闹的邻居</p>
+<p class="source" lang="en">Noisy neighbors</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">较弱的分区</p>
+<p class="source" lang="en">Weak partitions</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">第二阶段：尝试工作负载隔离和单租户模式 缺乏稳定的整体增长 容量规划</p>
+<p class="source" lang="en">Phase II: Trying workload isolation and single-tenancyLack of stable aggregate growthCapacity planning</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">聚合增长不稳定</p>
+<p class="source" lang="en">Lack of stable aggregate growth</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">容量规划</p>
+<p class="source" lang="en">Capacity planning</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">第三阶段：默认使用多租户模式，具备数据迁移功能；热键限制；服务质量（QoS）；无服务器模式</p>
+<p class="source" lang="en">Phase III: Using multi-tenancy by default, with data movement capabilityHot key throttlingQuality of Service (QoS)Serverless mode</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">热键限制</p>
+<p class="source" lang="en">Hot key throttling</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">服务质量 (QoS)</p>
+<p class="source" lang="en">Quality of Service (QoS)</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">无服务器模式</p>
+<p class="source" lang="en">Serverless mode</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">联合管理服务下的更高可靠性</p>
+<p class="source" lang="en">Better reliability as co-managed services</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">提升全球范围内的性能表现在能力允许的情况下将数据存储在用户附近仅广泛复制最小且对延迟最敏感的数据集其余部分则依靠集成缓存减少代理开销，使用 Rust 技术</p>
+<p class="source" lang="en">Improving performance at a global scaleStore data near users when capacity allowsBroadly replicate only the smallest and most latency-sensitive datasetsRely on integrated caching for everything elseReduce proxy overhead with Rust</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">在容量允许的情况下，将数据存储在用户附近</p>
+<p class="source" lang="en">Store data near users when capacity allows</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">大致上只复制最小且对延迟最敏感的数据集</p>
+<p class="source" lang="en">Broadly replicate only the smallest and most latency-sensitive datasets</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">其他内容依靠集成缓存处理</p>
+<p class="source" lang="en">Rely on integrated caching for everything else</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">使用 Rust 减少代理开销</p>
+<p class="source" lang="en">Reduce proxy overhead with Rust</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">扩展变更数据捕获</p>
+<p class="source" lang="en">Scaling Change Data Capture</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">展望未来</p>
+<p class="source" lang="en">Looking ahead</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">实现多租户在大规模应用中的可靠性</p>
+<p class="source" lang="en">Making multi-tenancy reliable at scale</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">关于 Azure Cosmos DB 容器的简单入门指南</p>
+<p class="source" lang="en">A simplified primer on Azure Cosmos DB containers</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">第一阶段：依赖 Azure Cosmos DB 基础功能逻辑分区键限制噪声邻居弱分区</p>
+<p class="source" lang="en">Phase I: Relying on Azure Cosmos DB primitivesLogical partition key limitsNoisy neighborsWeak partitions</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">逻辑分区键限制</p>
+<p class="source" lang="en">Logical partition key limits</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">嘈杂的邻居</p>
+<p class="source" lang="en">Noisy neighbors</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">薄弱的分割</p>
+<p class="source" lang="en">Weak partitions</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">第二阶段：尝试工作负载隔离和单租户模式 缺乏稳定的整体增长 容量规划</p>
+<p class="source" lang="en">Phase II: Trying workload isolation and single-tenancyLack of stable aggregate growthCapacity planning</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">聚合增长不稳定</p>
+<p class="source" lang="en">Lack of stable aggregate growth</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">容量规划</p>
+<p class="source" lang="en">Capacity planning</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">第三阶段：默认使用多租户模式，具备数据迁移功能；热键限制；服务质量（QoS）；无服务器模式</p>
+<p class="source" lang="en">Phase III: Using multi-tenancy by default, with data movement capabilityHot key throttlingQuality of Service (QoS)Serverless mode</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">热键节流</p>
+<p class="source" lang="en">Hot key throttling</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">服务质量 (QoS)</p>
+<p class="source" lang="en">Quality of Service (QoS)</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">无服务器模式</p>
+<p class="source" lang="en">Serverless mode</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">联合管理服务下的更高可靠性</p>
+<p class="source" lang="en">Better reliability as co-managed services</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">在全球范围内提升性能能力在资源允许的情况下将数据存储在用户附近仅广泛复制最小且延迟敏感性最高的数据集其余部分则依靠集成缓存减少 Rust 带来的代理开销</p>
+<p class="source" lang="en">Improving performance at a global scaleStore data near users when capacity allowsBroadly replicate only the smallest and most latency-sensitive datasetsRely on integrated caching for everything elseReduce proxy overhead with Rust</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">在容量允许的情况下，将数据存储在用户附近</p>
+<p class="source" lang="en">Store data near users when capacity allows</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">大致上只复制最小且对延迟最敏感的数据集</p>
+<p class="source" lang="en">Broadly replicate only the smallest and most latency-sensitive datasets</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">其他内容依靠集成缓存处理</p>
+<p class="source" lang="en">Rely on integrated caching for everything else</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">使用 Rust 减少代理开销</p>
+<p class="source" lang="en">Reduce proxy overhead with Rust</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">扩展变更数据捕获</p>
+<p class="source" lang="en">Scaling Change Data Capture</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">展望未来</p>
+<p class="source" lang="en">Looking ahead</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">所有 OpenAI 产品都需要快速且稳定的数据访问能力，这由我们的存储平台 Habitat 提供。该平台必须在毫秒级时间内为 40 个地理区域中的超过 10 亿用户提供服务。我们的基础设施面临一个巨大的挑战：在支持快速增长和新应用场景的同时，继续提升可靠性、性能以及产品开发效率。解决这一挑战需要重新思考我们的在线存储平台的设计与运营方式。我们不断评估各种权衡方案，遵循这样的模式：首先确保对关键产品流量足够可靠，然后足够快速满足全球用户需求，最后能够在大规模环境中灵活运作。</p>
+<p class="source" lang="en">All OpenAI products require fast, reliable access to data, provided by our storage platform, Habitat. It has to respond in milliseconds to over 1 billion users across 40 geographic regions. Our infrastructure faced an extraordinary challenge: supporting explosive growth and new use cases while continuing to improve reliability, performance, and product developer velocity. Solving that challenge required rethinking how our online storage platform was designed and operated. We constantly evaluated tradeoffs, following the pattern of: first become reliable enough for mission-critical product traffic, then fast enough for global users, and, finally, to deftly operate at massive scale.</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">这个两部分系列文章介绍了我们如何将 Habitat 从一个简单的客户端库和数据库发展成一个全球分布式存储平台，该平台能够处理超过 500 拍字节的数据。第一部分主要讲述了 Habitat 从 Python 客户端到服务的演变过程，还介绍了那些让我们能够将基于 Python 的服务发展到超出许多人认为实际范围的技术手段。</p>
+<p class="source" lang="en">This two-part series explains how we developed Habitat from a simple client library and database into a globally distributed storage platform serving over 500 petabytes of data. Part I focused on Habitat’s evolution from a Python client to a service. It also covered the techniques that allowed us to push a Python-based service far beyond what many would consider practical.</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">在本文的第二部分中，我们将介绍如何扩展底层存储组件：Azure Cosmos DB。通过与Azure团队密切合作，我们提出了一种可行的多租户方案，即共同管理容器，并在大规模、全球范围内实现出色的读取性能。</p>
+<p class="source" lang="en">In this post, Part II, we walk through how we scaled the underlying storage component: Azure Cosmos DB. Through a close working partnership with the Azure team, we arrived at a viable multi-tenancy approach of co-managed containers, with excellent read performance at massive, global scale.</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">图 01 · 什么是栖息地？</p>
+<p class="source" lang="en">Figure 01 · What is Habitat?</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">在线存储平台</p>
+<p class="source" lang="en">Online storage platform</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">栖息地是我们构建的在线存储平台，这样 OpenAI 产品就能快速且可靠地获取所需信息。</p>
+<p class="source" lang="en">Habitat is the online storage platform we built so OpenAI products can quickly and reliably access needed information.</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">请求</p>
+<p class="source" lang="en">Request</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">回复</p>
+<p class="source" lang="en">Response</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">&lt;text&gt;
+更改（CDC）
+&lt;/text&gt;</p>
+<p class="source" lang="en">Changes (CDC)</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">客户</p>
+<p class="source" lang="en">Clients</p>
+</div>
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">在线存储平台</p>
+<p class="source" lang="en">Online storage platform</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">存储资源</p>
+<p class="source" lang="en">Storage resources</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">ChatGPT</p>
+<p class="source" lang="en">ChatGPT</p>
+</div>
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">API</p>
+<p class="source" lang="en">API</p>
+</div>
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">法典</p>
+<p class="source" lang="en">Codex</p>
+</div>
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">内部服务</p>
+<p class="source" lang="en">Internal services</p>
+</div>
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">还有更多</p>
+<p class="source" lang="en">And more</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">栖息地</p>
+<p class="source" lang="en">Habitat</p>
+</div>
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">&lt;text&gt;
+缓存缓存
+&lt;/text&gt;</p>
+<p class="source" lang="en">CachingCaches</p>
+</div>
+<div class="pair" id="p-64">
+<p class="target" lang="zh-CN">ACL 策略授权</p>
+<p class="source" lang="en">ACL policiesAuthorization</p>
+</div>
+<div class="pair" id="p-65">
+<p class="target" lang="zh-CN">位置与数据驻留数据驻留</p>
+<p class="source" lang="en">Placement &amp; data residencyData residency</p>
+</div>
+<div class="pair" id="p-66">
+<p class="target" lang="zh-CN">加密数据安全</p>
+<p class="source" lang="en">EncryptionData security</p>
+</div>
+<div class="pair" id="p-67">
+<p class="target" lang="zh-CN">隔离多租户</p>
+<p class="source" lang="en">IsolationMulti-tenancy</p>
+</div>
+<div class="pair" id="p-68">
+<p class="target" lang="zh-CN">限制速率请求整形</p>
+<p class="source" lang="en">Rate limitingRequest shaping</p>
+</div>
+<div class="pair" id="p-69">
+<p class="target" lang="zh-CN">路由模式查找 · 数据驻留</p>
+<p class="source" lang="en">RoutingSchema lookup · Data residency</p>
+</div>
+<div class="pair" id="p-70">
+<p class="target" lang="zh-CN">Azure Cosmos DB在线存储</p>
+<p class="source" lang="en">Azure Cosmos DBOnline storage</p>
+</div>
+<div class="pair" id="p-71">
+<p class="target" lang="zh-CN">NanobaseOnline 存储</p>
+<p class="source" lang="en">NanobaseOnline storage</p>
+</div>
+<div class="pair" id="p-72">
+<p class="target" lang="zh-CN">ValkeyCaches</p>
+<p class="source" lang="en">ValkeyCaches</p>
+</div>
+<div class="pair" id="p-73">
+<p class="target" lang="zh-CN">&lt;text&gt;
+Blob 存储
+存储资源
+&lt;/text&gt;</p>
+<p class="source" lang="en">Blob storageStorage resources</p>
+</div>
+<div class="pair" id="p-74">
+<p class="target" lang="zh-CN">Databricks</p>
+<p class="source" lang="en">Databricks</p>
+</div>
+<div class="pair" id="p-75">
+<p class="target" lang="zh-CN">Rockset</p>
+<p class="source" lang="en">Rockset</p>
+</div>
+<div class="pair" id="p-76">
+<p class="target" lang="zh-CN">Kafka</p>
+<p class="source" lang="en">Kafka</p>
+</div>
+<div class="pair" id="p-77">
+<p class="target" lang="zh-CN">还有更多</p>
+<p class="source" lang="en">And more</p>
+</div>
+<div class="pair" id="p-78">
+<p class="target" lang="zh-CN">实现多租户在大规模应用中的可靠性</p>
+<p class="source" lang="en">Making multi-tenancy reliable at scale</p>
+</div>
+<div class="pair" id="p-79">
+<p class="target" lang="zh-CN">随着公司规模扩大，基础设施团队通常会从运行单租户系统转变为多租户系统。单租户模式下，每个产品团队都维护自己的系统，这样可以减少影响范围，并便于划分责任边界和隔离工作负载。然而，随着团队和产品数量增加，这种模式会变得难以维护。单租户模式使得每个产品团队都需要负责容量规划，往往会导致严重的资源过度配置。</p>
+<p class="source" lang="en">As companies scale, infra teams often evolve from running single-tenant systems to multi-tenant ones. Single-tenancy, where every product surface team maintains their own system, reduces blast radius and provides easy ownership boundaries and workload isolation. As teams and product surfaces grow, this becomes expensive to run. Single-tenancy makes every product team responsible for capacity planning and often results in significant over-provisioning.</p>
+</div>
+<div class="pair" id="p-80">
+<p class="target" lang="zh-CN">相反，多租户模式将控制权交给中央数据库团队，他们拥有更丰富的知识和经验来配置资源。但多租户模式也带来了自身的问题，例如“噪音邻居”问题，即一个租户消耗了过多的资源，从而损害其他租户的利益。</p>
+<p class="source" lang="en">Conversely, multi-tenancy assigns control to a centralized database team, with better knowledge and experience for provisioning resources. But multi-tenancy creates its own problems, such as noisy-neighbor issues, where one tenant consumes an unusually large share of the resources to the detriment of the other tenants.</p>
+</div>
+<div class="pair" id="p-81">
+<p class="target" lang="zh-CN">在 Habitat 中，我们必须权衡各种权衡因素，以设计出一个可靠且高效的大规模存储系统。如今，Habitat 是许多 OpenAI 产品的多租户数据库层，但我们经历了从使用一个多租户 Azure Cosmos DB 容器，到配置单租户支持容器，再到默认恢复为多租户容器的过程。我们在 Habitat 的多租户发展阶段仍然处于早期阶段：我们支持大量用例，但通过在可能的情况下利用 Azure Cosmos DB 的内置功能，我们能够推迟在这一领域的投资。</p>
+<p class="source" lang="en">In Habitat, we had to weigh all these tradeoffs to design a reliable, efficient, storage system at scale. Today, Habitat is a multi-tenant database layer for many OpenAI products, but we went through a circular journey from using one multi-tenant Azure Cosmos DB container to provisioning single-tenant backing containers to reverting to a multi-tenant container by default. We’re still very early in our multi-tenancy story on Habitat: we support a large set of use cases, but we’ve been able to defer investment in this area by leveraging Azure Cosmos DB’s built-in primitives wherever possible.</p>
+</div>
+<div class="pair" id="p-82">
+<p class="target" lang="zh-CN">关于 Azure Cosmos DB 容器的简单入门指南</p>
+<p class="source" lang="en">A simplified primer on Azure Cosmos DB containers</p>
+</div>
+<div class="pair" id="p-83">
+<p class="target" lang="zh-CN">在介绍我们的 Azure Cosmos DB 之旅之前，有一些基本背景信息：</p>
+<p class="source" lang="en">Before walking through our Azure Cosmos DB journey, some basic context:</p>
+</div>
+<div class="pair" id="p-84">
+<p class="target" lang="zh-CN">Azure Cosmos DB 账户定义了一组容器和复制策略</p>
+<p class="source" lang="en">An Azure Cosmos DB account defines a set of containers and a replication policy</p>
+</div>
+<div class="pair" id="p-85">
+<p class="target" lang="zh-CN">Azure Cosmos DB 账户定义了一组容器和复制策略</p>
+<p class="source" lang="en">An Azure Cosmos DB account defines a set of containers and a replication policy</p>
+</div>
+<div class="pair" id="p-86">
+<p class="target" lang="zh-CN">每个容器都被配置为每秒请求单位（RU/s）的特定吞吐量。</p>
+<p class="source" lang="en">Each container is provisioned for a certain amount of throughput in request units per second (RU/s)</p>
+</div>
+<div class="pair" id="p-87">
+<p class="target" lang="zh-CN">每个容器都被配置为一定的吞吐量，以每秒请求单位（RU/s）为单位。</p>
+<p class="source" lang="en">Each container is provisioned for a certain amount of throughput in request units per second (RU/s)</p>
+</div>
+<div class="pair" id="p-88">
+<p class="target" lang="zh-CN">每个容器中的数据以典型的“分片-特定逻辑分区键”方式存储，并且对每个逻辑分区键的存储量和吞吐量有明确的限制。</p>
+<p class="source" lang="en">Data within each container is stored in a typical shard-by-specified-logical-partition-key manner with documented limits on storage and throughput per logical partition key</p>
+</div>
+<div class="pair" id="p-89">
+<p class="target" lang="zh-CN">每个容器中的数据以典型的“分片-特定逻辑分区键”方式存储，并且对每个逻辑分区键的存储量和吞吐量有明确的限制。</p>
+<p class="source" lang="en">Data within each container is stored in a typical shard-by-specified-logical-partition-key manner with documented limits on storage and throughput per logical partition key</p>
+</div>
+<div class="pair" id="p-90">
+<p class="target" lang="zh-CN">Azure Cosmos DB 会将逻辑分区键的分片分布到更少的物理分区中，当存储量超过阈值或容器需要更多物理分区以维持预期的吞吐量时，则将其拆分为多个物理分区。</p>
+<p class="source" lang="en">Azure Cosmos DB handles sharding logical partition keys across fewer backing physical partitions, splitting them into multiple physical partitions when storage exceeds a threshold or when the container requires more physical partitions to sustain the provisioned throughput</p>
+</div>
+<div class="pair" id="p-91">
+<p class="target" lang="zh-CN">Azure Cosmos DB 会将逻辑分区键的分片分布到更少的物理分区中，当存储量超过阈值或容器需要更多物理分区以维持预期的吞吐量时，就会将其拆分为多个物理分区。</p>
+<p class="source" lang="en">Azure Cosmos DB handles sharding logical partition keys across fewer backing physical partitions, splitting them into multiple physical partitions when storage exceeds a threshold or when the container requires more physical partitions to sustain the provisioned throughput</p>
+</div>
+<div class="pair" id="p-92">
+<p class="target" lang="zh-CN">第一阶段：使用 Azure Cosmos DB 基础功能</p>
+<p class="source" lang="en">Phase I: Relying on Azure Cosmos DB primitives</p>
+</div>
+<div class="pair" id="p-93">
+<p class="target" lang="zh-CN">我们最初允许任何客户端负载通过，依靠每个逻辑分区键的10K RU/s限制来产生回压。刚开始时，每个账户也只使用一个默认的 Azure Cosmos DB 容器。这效果不错，但后来因为几个原因变得有问题：</p>
+<p class="source" lang="en">We originally allowed any client load through, relying on the stated 10K RU/s limit per logical partition key to provide back pressure. When we first set out, we also used only one default Azure Cosmos DB container in each account. This worked well enough, but proved problematic for a few reasons:</p>
+</div>
+<div class="pair" id="p-94">
+<p class="target" lang="zh-CN">逻辑分区键限制</p>
+<p class="source" lang="en">Logical partition key limits</p>
+</div>
+<div class="pair" id="p-95">
+<p class="target" lang="zh-CN">由于早期的 API 设计选择，我们直接将逻辑分区键的选择方式暴露给客户端。因此，在不同的产品使用场景中，如 user_id 或 workspace_id 这类常用的分区键上，经常会出现冲突。由于这些场景在相同的逻辑分区键上共享 Azure Cosmos DB 的限制，这种设计方式限制了特定用户的整体吞吐量。</p>
+<p class="source" lang="en">Due to early API choices, we exposed logical partition key selection directly to clients. As a result, we have frequent collisions on commonly used partition keys, such as user_id or workspace_id, across different product use cases. Because these use cases shared Azure Cosmos DB limits on the same logical partition keys, the design constrained overall throughput for a given user.</p>
+</div>
+<div class="pair" id="p-96">
+<p class="target" lang="zh-CN">在转向 Habitat 和 Azure Cosmos DB 之前，我们在扩展 Postgres 时遇到的一个常见问题是：来自一个非常繁忙的组织或热门租户的大量请求会导致整个数据库承受过重的负担。我们花费了大量精力来缓存这些请求，并在缓存缺失时建立租约，以避免缓存缺失对底层数据库造成压力。</p>
+<p class="source" lang="en">One common problem we faced in scaling Postgres before we moved to Habitat and Azure Cosmos DB was the ability for many requests from a very hot organization or hot key—one tenant generating a disproportionately high load—to take out the whole database. Significant collective effort was spent to cache those keys and build leases into cache misses so that the resulting cache miss load does not stomp on the underlying database.</p>
+</div>
+<div class="pair" id="p-97">
+<p class="target" lang="zh-CN">图 02a · 逻辑分区键限制</p>
+<p class="source" lang="en">Figure 02a · Logical partition key limits</p>
+</div>
+<div class="pair" id="p-98">
+<p class="target" lang="zh-CN">不同的客户，相同的分区键</p>
+<p class="source" lang="en">Different clients, the same partition key</p>
+</div>
+<div class="pair" id="p-99">
+<p class="target" lang="zh-CN">嘈杂的邻居</p>
+<p class="source" lang="en">Noisy neighbors</p>
+</div>
+<div class="pair" id="p-100">
+<p class="target" lang="zh-CN">虽然记录中的数据大小和吞吐量限制适用于逻辑分区键，但实际上限制是针对物理分区的。这意味着逻辑分区无法达到 10,000 RU/s，而是与该物理分区上所有其他逻辑分区键共享该物理分区的限制。</p>
+<p class="source" lang="en">While documented data size and throughput limits apply to logical partition keys, the physical partition is actually where limits are enforced. In practice, this means logical partitions are unable to reach 10,000 RU/s. Instead, they share the physical partition’s limits with every other logical partition key colocated on that physical partition.</p>
+</div>
+<div class="pair" id="p-101">
+<p class="target" lang="zh-CN">这使得嘈杂的邻居影响许多不相关的逻辑分区键，而处理特定产品功能相关数据的工作负载则会干扰核心登录和注册流程。</p>
+<p class="source" lang="en">This allowed noisy neighbors to impact many unrelated logical partition keys, with workloads operating on data for niche product features disrupting core login and signup flows.</p>
+</div>
+<div class="pair" id="p-102">
+<p class="target" lang="zh-CN">图 02b · 噪声邻居</p>
+<p class="source" lang="en">Figure 02b · Noisy neighbors</p>
+</div>
+<div class="pair" id="p-103">
+<p class="target" lang="zh-CN">不同的用户，相同的物理分区</p>
+<p class="source" lang="en">Different users, the same physical partition</p>
+</div>
+<div class="pair" id="p-104">
+<p class="target" lang="zh-CN">较弱的分区</p>
+<p class="source" lang="en">Weak partitions</p>
+</div>
+<div class="pair" id="p-105">
+<p class="target" lang="zh-CN">给定物理分区的吞吐量限制也是可变的，取决于分配给 Azure Cosmos DB 容器的总吞吐量。该容器的预分配吞吐量大致均匀分配到该容器的所有物理分区中。</p>
+<p class="source" lang="en">The throughput limit for a given physical partition is also variable, dependent on the total throughput assigned to the Azure Cosmos DB container. The container’s provisioned throughput is distributed roughly evenly across the physical partitions for that container.</p>
+</div>
+<div class="pair" id="p-106">
+<p class="target" lang="zh-CN">随着数据量的增加，物理分区会被拆分，导致总分区数量上升，而总分配吞吐量保持不变。因此，随着数据大小的增加，每个分区的有效吞吐量限制会缩小。</p>
+<p class="source" lang="en">As data volume grows, physical partitions split, increasing the total partition count while total provisioned throughput remains unchanged. The result is that the effective throughput limit per partition shrinks as data size grows.</p>
+</div>
+<div class="pair" id="p-107">
+<p class="target" lang="zh-CN">对于存储需求最大的类似 Blob 的使用场景，会出现一种故障模式：即使请求率和使用量保持稳定，仅存储增长就会降低活跃工作负载的吞吐量能力。</p>
+<p class="source" lang="en">For our most storage-heavy, blob-like use cases, this creates a failure mode where storage growth alone reduces throughput capacity for active workloads even while request rates and usage remain stable.</p>
+</div>
+<div class="pair" id="p-108">
+<p class="target" lang="zh-CN">图 02C · 弱划分</p>
+<p class="source" lang="en">Figure 02C · Weak partitions</p>
+</div>
+<div class="pair" id="p-109">
+<p class="target" lang="zh-CN">限制水平低于需求</p>
+<p class="source" lang="en">The limit falls below demand</p>
+</div>
+<div class="pair" id="p-110">
+<p class="target" lang="zh-CN">当分区达到存储限制时，就会分裂。每个子分区将获得一半的吞吐量能力。</p>
+<p class="source" lang="en">A partition splits when it reaches its storage limit. Each child receives half the throughput capacity.</p>
+</div>
+<div class="pair" id="p-111">
+<p class="target" lang="zh-CN">拆分前：10K RU/s 处理能力</p>
+<p class="source" lang="en">Before split: 10K RU/s capacity</p>
+</div>
+<div class="pair" id="p-112">
+<p class="target" lang="zh-CN">拆分后：5K RU/s 容量 × 2 个分区</p>
+<p class="source" lang="en">After split: 5K RU/s capacity × 2 partitions</p>
+</div>
+<div class="pair" id="p-113">
+<p class="target" lang="zh-CN">第二阶段：尝试工作负载隔离和单租户模式</p>
+<p class="source" lang="en">Phase II: Trying workload isolation and single-tenancy</p>
+</div>
+<div class="pair" id="p-114">
+<p class="target" lang="zh-CN">独立的容器有助于部分解决这些分区键限制和噪声邻居问题。通过使用独立容器，每个容器可以拥有独立的物理分区，只有该容器上的不同工作负载才可能成为噪声邻居或在分区键空间中产生重叠。然而，新容器的配置会带来一定的开销——每个容器都需要单独的容量规划——因此，我们希望仅在具有意义的服务或用例边界处创建容器。</p>
+<p class="source" lang="en">Separate containers help partially solve these partition key limits and noisy neighbors. By using separate containers, each can be assigned its own independent physical partitions and only the varying workloads on that container itself could be noisy neighbors or overlap in partition key space. On the downside, there is non-zero overhead in provisioning new containers—each container requires individualized capacity planning—so we want to create containers only at a service or use case boundary that makes sense.</p>
+</div>
+<div class="pair" id="p-115">
+<p class="target" lang="zh-CN">我们开始使用单独的 Azure Cosmos DB 容器来处理那些需要严格隔离的最关键新用例。通过编写一个脚本来管理弱分区，将每个容器分配的总吞吐量与其物理分区数进行同步，我们基本避免了所面临的所有问题。</p>
+<p class="source" lang="en">We began to use separate Azure Cosmos DB containers for the most critical new use cases requiring strong isolation. Combined with a script for managing weak partitions by synchronizing the total throughput provisioned for each container with its number of physical partitions, we mostly avoided all the problems we were facing.</p>
+</div>
+<div class="pair" id="p-116">
+<p class="target" lang="zh-CN">然而，由于我们是从默认容器开始使用的，许多重要的旧有用例不幸地被卡在了那里，无法进行数据迁移。为了保护仍然依赖共享默认容器中数据的关键服务，我们常常建议团队为新的服务或重要产品功能创建单独的容器。随着我们的规模扩大，对默认容器的压力越来越大，生产事故也越来越多。我们开始为任何新服务或重要产品功能提供容器，只是为了保护默认容器免受更多负载的影响。</p>
+<p class="source" lang="en">However, since we started with a default container, many legacy critical use cases were unfortunately stuck there without a data migration. To protect critical services that still relied on data in the shared default container, we often advised teams to create separate containers for new services or major product features. As we scaled, pressure on the default container grew and production incidents also grew. We began to provision containers for any new service or large product feature just to protect the default container from more load.</p>
+</div>
+<div class="pair" id="p-117">
+<p class="target" lang="zh-CN">这让我们避免了许多网站范围内的中断，将影响范围限制在功能或服务故障上。然而，提供新容器的成本最终还是超出了我们的承受能力。</p>
+<p class="source" lang="en">This saved us from many site-wide outages, limiting the blast radius to feature or service degradation outages. However, the overhead of provisioning new containers eventually caught up to us:</p>
+</div>
+<div class="pair" id="p-118">
+<p class="target" lang="zh-CN">聚合增长不稳定</p>
+<p class="source" lang="en">Lack of stable aggregate growth</p>
+</div>
+<div class="pair" id="p-119">
+<p class="target" lang="zh-CN">在旧的共享默认容器中，任何新的使用场景从0 QPS增加到1百万 QPS，不太可能显著改变整体总使用量。然而，在独立的容器中，新的使用场景从0 QPS增加到1百万 QPS，可能带来的负载是基线的1000倍，而基线仅代表内部测试使用的情况。</p>
+<p class="source" lang="en">In the old shared default container, any particular new use case going from 0 QPS to 1 million QPS was unlikely to significantly shift the total aggregate usage. On an isolated container however, a new use case going from 0 to 1 million QPS might represent 1,000x more load than the baseline attributed to only internal dogfooding.</p>
+</div>
+<div class="pair" id="p-120">
+<p class="target" lang="zh-CN">使用专用容器后，团队现在需要记住提前为容器分配足够的资源，以满足部署时的预期吞吐量。产品团队常常将功能发布到生产环境，却忘记进行预扩展，而在发布当天我们则坐在 SEV 房间里，试图在最后一刻扩展容器规模。</p>
+<p class="source" lang="en">With dedicated containers, teams now needed to remember to pre-provision containers to the expected level of throughput for their launches. Product teams would often ship their features to production and forget to pre-scale and we’d sit in SEV rooms on launch day attempting to scale up containers last minute.</p>
+</div>
+<div class="pair" id="p-121">
+<p class="target" lang="zh-CN">这是多租户系统的一项核心工作负载混合优势，我们通过这种容器策略获得更好的隔离效果，从而放弃了这一优势。</p>
+<p class="source" lang="en">This is a core workload mixing benefit of multi-tenant systems that we lose in favor of better isolation with this container strategy.</p>
+</div>
+<div class="pair" id="p-122">
+<p class="target" lang="zh-CN">图 03 · 稳定骨料生长不足</p>
+<p class="source" lang="en">Figure 03 · Lack of stable aggregate growth</p>
+</div>
+<div class="pair" id="p-123">
+<p class="target" lang="zh-CN">相同的工作负荷，不同的空间余量</p>
+<p class="source" lang="en">The same workload, different headroom</p>
+</div>
+<div class="pair" id="p-124">
+<p class="target" lang="zh-CN">负载测试期间为1K RU/s，正式发布时达到1M RU/s</p>
+<p class="source" lang="en">1K RU/s during load testing → 1M RU/s at launch</p>
+</div>
+<div class="pair" id="p-125">
+<p class="target" lang="zh-CN">共享容器</p>
+<p class="source" lang="en">Shared container</p>
+</div>
+<div class="pair" id="p-126">
+<p class="target" lang="zh-CN">100M RU/s 容量 · 已使用 80%</p>
+<p class="source" lang="en">100M RU/s capacity · 80% utilized</p>
+</div>
+<div class="pair" id="p-127">
+<p class="target" lang="zh-CN">0.005%</p>
+<p class="source" lang="en">0.005%</p>
+</div>
+<div class="pair" id="p-128">
+<p class="target" lang="zh-CN">剩余空间</p>
+<p class="source" lang="en">of headroom</p>
+</div>
+<div class="pair" id="p-129">
+<p class="target" lang="zh-CN">5%</p>
+<p class="source" lang="en">5%</p>
+</div>
+<div class="pair" id="p-130">
+<p class="target" lang="zh-CN">剩余空间</p>
+<p class="source" lang="en">of headroom</p>
+</div>
+<div class="pair" id="p-131">
+<p class="target" lang="zh-CN">新的专用容器</p>
+<p class="source" lang="en">New dedicated container</p>
+</div>
+<div class="pair" id="p-132">
+<p class="target" lang="zh-CN">10K RU/s 处理能力 · 没有其他工作负载</p>
+<p class="source" lang="en">10 K RU/s capacity · no other workloads</p>
+</div>
+<div class="pair" id="p-133">
+<p class="target" lang="zh-CN">10%</p>
+<p class="source" lang="en">10%</p>
+</div>
+<div class="pair" id="p-134">
+<p class="target" lang="zh-CN">剩余空间</p>
+<p class="source" lang="en">of headroom</p>
+</div>
+<div class="pair" id="p-135">
+<p class="target" lang="zh-CN">10,000%</p>
+<p class="source" lang="en">10,000%</p>
+</div>
+<div class="pair" id="p-136">
+<p class="target" lang="zh-CN">剩余空间</p>
+<p class="source" lang="en">of headroom</p>
+</div>
+<div class="pair" id="p-137">
+<p class="target" lang="zh-CN">容量规划</p>
+<p class="source" lang="en">Capacity planning</p>
+</div>
+<div class="pair" id="p-138">
+<p class="target" lang="zh-CN">随着时间的推移，监控专用容器的使用情况还需要对流量如何变化或增长有深入的产品知识。</p>
+<p class="source" lang="en">Over time, monitoring usage of dedicated containers also required intimate product knowledge of when traffic would shift or grow.</p>
+</div>
+<div class="pair" id="p-139">
+<p class="target" lang="zh-CN">我们可以提供一个基本的控制平面脚本，根据增长趋势来扩大每个容器的配置吞吐量，但如果没有稳定的整体增长，正确进行扩展实际上需要 OpenAI 的每个产品团队参与容量规划。</p>
+<p class="source" lang="en">We can provide a basic control plane script to scale up the provisioned throughput for each container based on growth trends, but without the stable aggregate growth, scaling these correctly required essentially every product team at OpenAI to be involved in capacity planning.</p>
+</div>
+<div class="pair" id="p-140">
+<p class="target" lang="zh-CN">这种做法无法在组织层面实现扩展，因为各个服务团队在 Azure Cosmos DB 配置上投入的细致程度存在很大差异。</p>
+<p class="source" lang="en">This failed to scale organizationally with a wide variance in how much diligence each service’s owning team paid to their Azure Cosmos DB provisioning.</p>
+</div>
+<div class="pair" id="p-141">
+<p class="target" lang="zh-CN">第三阶段：默认使用多租户模式，并具备数据迁移功能</p>
+<p class="source" lang="en">Phase III: Using multi-tenancy by default, with data movement capability</p>
+</div>
+<div class="pair" id="p-142">
+<p class="target" lang="zh-CN">随着组织的成长，那些运营问题变得难以扩展。没有一个中央团队负责规划，导致许多团队规划工作不佳。因此，我们最终又转向多租户解决方案，并与 Azure 团队紧密合作，通过共享租户设计来解决原有的多租户问题。</p>
+<p class="source" lang="en">As the organization grew, those operational problems became difficult to scale. No lone, central team doing planning resulted in many teams planning poorly. As a result, we ended up shifting back towards a multi-tenant solution and worked closely with the Azure team to engineer fixes for our original multi-tenancy issues with a shared-tenancy design:</p>
+</div>
+<div class="pair" id="p-143">
+<p class="target" lang="zh-CN">热键限制</p>
+<p class="source" lang="en">Hot key throttling</p>
+</div>
+<div class="pair" id="p-144">
+<p class="target" lang="zh-CN">首先限制使用最频繁的键，可以防止高使用率的邻居键占用整个物理分区可用的传输能力。这样就能减少“高使用率邻居效应”，即一个高使用率键可能会在整个站点范围内产生影响。</p>
+<p class="source" lang="en">Throttling the hottest keys first prevents noisy neighbors from consuming all of the available throughput for a given physical partition. This reduces the noisy neighbor effect, where one hot key can have a site-wide blast radius.</p>
+</div>
+<div class="pair" id="p-145">
+<p class="target" lang="zh-CN">服务质量 (QoS)</p>
+<p class="source" lang="en">Quality of Service (QoS)</p>
+</div>
+<div class="pair" id="p-146">
+<p class="target" lang="zh-CN">请求分级 QoS 同样可以防止离线工作负载，如批量插入或数据提取，占用给定物理分区的所有吞吐量。通过为这些工作负载的请求分配较低的优先级，它们会首先被限制，从而防止对服务最终用户的更高优先级、交互式请求受到限制。</p>
+<p class="source" lang="en">Request tiering QoS similarly prevents offline workloads, such as bulk inserts or data extracts from utilizing all of the throughput for a given physical partition. By assigning the requests for these workloads a lower priority, they are throttled first, preventing throttling on higher priority, interactive requests that serve end users.</p>
+</div>
+<div class="pair" id="p-147">
+<p class="target" lang="zh-CN">无服务器模式</p>
+<p class="source" lang="en">Serverless mode</p>
+</div>
+<div class="pair" id="p-148">
+<p class="target" lang="zh-CN">Azure Cosmos DB 已经有一个无服务器模式，如果采用预配置模式的话就能解决我们的弱分区问题。然而，有一个主要缺点：它仅根据存储使用情况进行扩展，并且每个物理分区的最大 RU 使用量限制为 5K RU/s。虽然这能解决弱分区问题，但会限制我们处理高 RU 使用场景的能力。</p>
+<p class="source" lang="en">Azure Cosmos DB already had a serverless mode that would’ve fixed our weak partitions problem with the provisioned mode. However, there was a major downside: it scaled based on storage usage only and limited RU usage to 5K RU/s per physical partition. This would solve our weak partitions problem, but prevent us from scaling up RU-heavy use cases.</p>
+</div>
+<div class="pair" id="p-149">
+<p class="target" lang="zh-CN">Azure Cosmos DB团队为我们开发了一种新的改进型服务器less模式，使得每个物理分区可以扩展至10K RU/s，并且引入了基于RU使用量的分割方式，以及基于存储使用量的分割方式。这些功能让我们无需手动监控和扩展容器。</p>
+<p class="source" lang="en">A new improved serverless mode Azure Cosmos DB team built for us allowed every physical partition to scale up to 10K RU/s and introduced RU-usage-based splits in addition to storage-usage-based splits allowed us to stop monitoring and scaling up containers manually.</p>
+</div>
+<div class="pair" id="p-150">
+<p class="target" lang="zh-CN">通过这些调整，我们重新使用了同一个共享容器，这大大简化了产品团队进行前期或持续容量规划的需求，同时保留了工作负载之间的隔离性。尽管产品开发速度加快，但在之后的几个月里，没有发生任何资源分配或“噪音邻居”问题。</p>
+<p class="source" lang="en">With these changes, we’ve been able to shift back to using one shared container which has significantly simplified the need to do any upfront or continued capacity planning for product teams while preserving isolation between workloads. We have not had any provisioning or noisy neighbor incidents in the months since, despite accelerating product development.</p>
+</div>
+<div class="pair" id="p-151">
+<p class="target" lang="zh-CN">联合管理服务下的更高可靠性</p>
+<p class="source" lang="en">Better reliability as co-managed services</p>
+</div>
+<div class="pair" id="p-152">
+<p class="target" lang="zh-CN">当公司发展到 OpenAI 的规模时，托管服务的性质就会发生变化。许多工作负载会在云服务提供商的基础设施中成为异常值。随着 OpenAI 成为 Azure Cosmos DB 的最大用户之一，其运营需要一种不同的模式：共享测试、共享仪表板、直接的工程沟通渠道，以及针对我们规模才会出现的故障模式的共同责任。目前，我们最大的 Azure Cosmos DB 账户存储着数十 petabytes 的数据，并支持超过 20M QPS 的流量。据我们所知，我们是唯一一家在如此规模下部署 Azure Cosmos DB 的公司。</p>
+<p class="source" lang="en">When companies grow to OpenAI’s scale, managed services become less “managed.” Many workloads become outliers in the cloud provider’s infrastructure. As OpenAI became one of the largest users of Azure Cosmos DB, operating it successfully required a different model: shared tests, shared dashboards, direct engineering channels, and joint ownership of failure modes that only appear at our scale. Today, our largest Azure Cosmos DB account stores 10s of petabytes of data and serves more than 20M QPS. To our knowledge, we are the only company which has deployed Azure Cosmos DB at this scale.</p>
+</div>
+<div class="pair" id="p-153">
+<p class="target" lang="zh-CN">2024年末的一次地区性服务中断清楚地表明了这次合作为何必要。当时，我们的一个最大的 Azure Cosmos DB 账户所在的主要 Azure 区域出现了停电。在后续的故障转移测试中，我们发现我们的最大账户需要数小时才能切换到备用区域，而我们的团队和 Azure Cosmos DB 团队都从未在如此大的规模下进行过这样的测试。</p>
+<p class="source" lang="en">In late 2024, a regional outage made it clear why this collaboration was necessary. At the time, a power outage struck the primary Azure region for one of our largest Azure Cosmos DB accounts. In the resulting failover exercise, we realized that our largest accounts would take several hours to fail over to a secondary region, something neither our team nor the Azure Cosmos DB team had tested at our scale.</p>
+</div>
+<div class="pair" id="p-154">
+<p class="target" lang="zh-CN">大约一个月后，当这些账户重新回到原区域时，又发生了一次严重的服务中断。对原区域的连接拥塞导致原区域的 Azure Cosmos DB 网关不堪重负。由于网关模式的 Azure Cosmos DB 客户端在故障恢复时的处理方式不当，所有客户端立即建立连接并向原区域发送请求，尽管只有部分物理分区已经回到该区域。</p>
+<p class="source" lang="en">About a month later, while failing those accounts back to the original region, we triggered another serious outage. A connection stampede to the original region overwhelmed the original region’s Azure Cosmos DB gateway. A quirk in how the gateway-mode Azure Cosmos DB client handled failovers caused all clients to immediately establish connections and send requests to the original region, even though only a subset of physical partitions had moved back to that region.</p>
+</div>
+<div class="pair" id="p-155">
+<p class="target" lang="zh-CN">在每次故障中，OpenAI和Azure都按照他们的事件管理流程进行处理，并确定了多个根本原因并进行了修复。但这些故障实际上反映了我们团队与Azure Cosmos DB团队在操作和测试方面的系统性问题。最初，利用托管服务使我们能够快速行动并专注于业务目标。但在大规模应用中，托管服务变得不再那么容易管理，需要从设计到运营的各个层面与服务提供商进行深度集成。</p>
+<p class="source" lang="en">In each outage, both OpenAI and Azure ran through their incident management processes, with a number of root causes identified and fixes deployed. But these outages were symptoms of a larger systemic issue between the way our team and Azure Cosmos DB team operated and tested. At first, leveraging managed services allowed us to move fast and focus on business goals. At scale, managed services become less managed and require deep integrations with the service provider at all levels from design to operations.</p>
+</div>
+<div class="pair" id="p-156">
+<p class="target" lang="zh-CN">现在，Habitat和Azure工程团队共同监控从服务层到Azure Cosmos DB物理存储层的每一层。我们在一个具有生产规模但非生产环境的Azure Cosmos DB账户上进行操作和测试变更。我们共同测试并迭代SDK，确定如何扩展和调整Azure Cosmos DB账户的最佳实践。我们通过Teams直接进行工程交流，甚至可以直接互相查看信息，无需通过支持团队。</p>
+<p class="source" lang="en">Today, the Habitat and Azure engineering teams jointly monitor every layer of Habitat from our service layers down into Azure Cosmos DB’s physical storage layers. We operate and test changes against a production-sized but non-production Azure Cosmos DB account. We test and iterate on SDKs together and determine best practices for how we scale and size our Azure Cosmos DB accounts. We have direct engineering access to each other through Teams and have even exposed ways to directly page each other without going through support tiers.</p>
+</div>
+<div class="pair" id="p-157">
+<p class="target" lang="zh-CN">过去一年里，进行了大量联合工作，以提升 Azure Cosmos DB 控制平面和网关的可扩展性，包括在其网关中添加负载保护功能和各种 Azure Cosmos DB 元数据的缓存机制，以保护 Azure Cosmos DB 元数据分区；通过连接池技术和更高的连接复用率来减轻 Python habitat-service 进程的压力；在可能的情况下将工作负载集中在一起；并通过不同的 VPC 将关键工作负载与离线工作负载隔离。</p>
+<p class="source" lang="en">A substantial amount of joint work has occurred over the last year to improve Azure Cosmos DB control-plane and gateway scalability, adding load protection and caching of various Azure Cosmos DB metadata in their gateway to protect the Azure Cosmos DB metadata partition, reducing pressure from our fleet of Python habitat-service processes through connection pooling and higher connection reuse, colocating workloads where possible, and isolating critical workloads from offline workloads via different VPCs.</p>
+</div>
+<div class="pair" id="p-158">
+<p class="target" lang="zh-CN">这种协同工程在过去一年里对我们的 Azure Cosmos DB 稳定性至关重要。任何足够庞大或重要的系统都需要这种团队合作：打破责任界限，跨越组织边界进行协作。</p>
+<p class="source" lang="en">This level of co-engineering has been critical to our Azure Cosmos DB stability in the last year. Any system large or critical enough necessitates this kind of teamwork: breaking down ownership walls and operating across organizational boundaries.</p>
+</div>
+<div class="pair" id="p-159">
+<p class="target" lang="zh-CN">在全球范围内提升性能</p>
+<p class="source" lang="en">Improving performance at a global scale</p>
+</div>
+<div class="pair" id="p-160">
+<p class="target" lang="zh-CN">如第一部分所述，我们的核心理念是：让系统能运行，让运行速度快，让成本低。首先确保可靠性，然后追求性能，最后注重效率。Habitat已成为OpenAI的关键基础设施，因此首要任务是确保系统的可靠性。随着系统在2025年稳定，且OpenAI在全球范围内扩展，延迟成为用户和产品团队面临的下一个挑战。</p>
+<p class="source" lang="en">As mentioned in Part I, our core philosophy is: make it work, make it fast, make it cheap. Reliability first, then performance, then efficiency. Habitat had become critical infrastructure for OpenAI, so the first priority was making it reliable. As the system stabilized in 2025 and OpenAI expanded globally, latency became the next constraint for users and product teams.</p>
+</div>
+<div class="pair" id="p-161">
+<p class="target" lang="zh-CN">计算和存储能力通常位于不同的区域，因此跨区域请求是不可避免的。</p>
+<p class="source" lang="en">Compute and storage capacity were often located in different regions, making cross-region requests unavoidable.</p>
+</div>
+<div class="pair" id="p-162">
+<p class="target" lang="zh-CN">图 04 · 在全球范围内提升性能</p>
+<p class="source" lang="en">Figure 04 · Improving performance at a global scale</p>
+</div>
+<div class="pair" id="p-163">
+<p class="target" lang="zh-CN">全球流量</p>
+<p class="source" lang="en">Global traffic</p>
+</div>
+<div class="pair" id="p-164">
+<p class="target" lang="zh-CN">计算能力和存储能力通常位于不同的区域，因此跨区域请求是不可避免的。</p>
+<p class="source" lang="en">Compute and storage capacity were often located in different regions, making cross-region requests unavoidable.</p>
+</div>
+<div class="pair" id="p-165">
+<p class="target" lang="zh-CN">计算与存储的地理位置仅用于说明目的。</p>
+<p class="source" lang="en">Geographical locations of compute and storage are for illustrative purposes only.</p>
+</div>
+<div class="pair" id="p-166">
+<p class="target" lang="zh-CN">延迟因数据存储位置和请求处理地点的不同而差异很大。为了让 Habitat 请求能够高效运行，产品开发者依赖额外的客户端缓存、请求批量处理、减少数据库读写操作，并尽可能将工作从关键路径上移开。虽然这导致了一些对数据库问题更具抵抗力的产品设计，但也使得产品更加复杂，并减缓了产品迭代速度：无法实现 Habitat 促进快速产品开发的目标，也无需理解数据库的工作原理。</p>
+<p class="source" lang="en">Latency varied widely depending on where the data was stored and where the request was served. To make Habitat requests performant, product developers relied on additional client-side caching, request batching, minimizing database reads and writes, and moving work off the critical path wherever possible. While this led to some interesting product designs that were more resilient to database issues, it also made products more complex and slowed down product iteration: a failure to achieve Habitat’s goal to encourage fast product development and not needing to understand the database.</p>
+</div>
+<div class="pair" id="p-167">
+<p class="target" lang="zh-CN">这是我们在2026年重点关注的重点，我们制定了一种分层策略来优化读取性能，这占Habitat请求的90%以上。</p>
+<p class="source" lang="en">This has been a big focus for us in 2026, and we’ve developed a layered strategy for optimizing read performance, which represents over 90% of Habitat’s requests:</p>
+</div>
+<div class="pair" id="p-168">
+<p class="target" lang="zh-CN">在容量允许的情况下，将数据存储在用户附近</p>
+<p class="source" lang="en">Store data near users when capacity allows</p>
+</div>
+<div class="pair" id="p-169">
+<p class="target" lang="zh-CN">我们有多个位于全球不同 Azure 区域的 Azure Cosmos DB 账户，以满足有数据驻留要求的用户需求。即使是没有严格数据驻留要求的用户，将数据放置在用户附近也能通过降低延迟来提升他们的使用体验。</p>
+<p class="source" lang="en">We have a number of Azure Cosmos DB accounts in different Azure regions around the world for users with data residency requirements. Even for users without hard data residency requirements, colocating data near users also improves their experience through lower latency.</p>
+</div>
+<div class="pair" id="p-170">
+<p class="target" lang="zh-CN">实际上，在数据驻留应用场景之外，我们无法实现这一点，因为部署受到物理云容量的限制。由于我们的数据集规模较大，许多地区无法容纳与用户流量比例相对应的大量存储需求。</p>
+<p class="source" lang="en">In practice, we’re not able to achieve this broadly outside of data residency use cases because placement is constrained by physical cloud capacity. Due to the size of our data sets, many regions cannot accommodate the massive storage footprint required for their proportional share of user traffic.</p>
+</div>
+<div class="pair" id="p-171">
+<p class="target" lang="zh-CN">在数据中心容量、电力或冷却条件有限的地区，我们有时面临一个直接的权衡：要么预留容量用于本地存储并降低 Habitat 延迟，要么将这种容量用于处理更远的计算任务和路由存储请求。</p>
+<p class="source" lang="en">In regions with limited datacenter capacity, power, or cooling, we sometimes face a direct tradeoff: reserve capacity for colocated storage and lower Habitat latency, or use that capacity for additional serving compute and route storage requests farther away.</p>
+</div>
+<div class="pair" id="p-172">
+<p class="target" lang="zh-CN">因此，放置决策通常是在以下两个因素之间的权衡：A) 为不同的产品和用户子集优化延迟，以及 B) 原始存储和计算能力。</p>
+<p class="source" lang="en">As a result, placement decisions are often a product tradeoff between: A) optimizing latency for different products and user subsets, and B) raw storage and compute capacity.</p>
+</div>
+<div class="pair" id="p-173">
+<p class="target" lang="zh-CN">大致上只复制最小且对延迟最敏感的数据集</p>
+<p class="source" lang="en">Broadly replicate only the smallest and most latency-sensitive datasets</p>
+</div>
+<div class="pair" id="p-174">
+<p class="target" lang="zh-CN">对于对延迟要求极高的工作负载，比如每个请求都需要处理的认证元数据，我们通过使用具有多个辅助区域的高度复制 Azure Cosmos DB 账户，来减少计算与 Habitat 之间的 RTT。一些账户会复制到所有 40 个 Azure 区域，以覆盖我们的流量服务；其他账户则至少复制到一个大洲的每个区域。</p>
+<p class="source" lang="en">For the most latency-critical workloads, like authentication metadata that is needed on every request, we reduce RTT between compute and Habitat by using highly replicated Azure Cosmos DB accounts with many secondary regions. Some accounts replicate to all 40 Azure regions where we serve traffic; others replicate to at least one region per continent.</p>
+</div>
+<div class="pair" id="p-175">
+<p class="target" lang="zh-CN">我们不得不比预期更早地在 Habitat 中构建透明的数据移动和路由层，以便能够在具有不同复制拓扑结构的账户之间移动数据集。</p>
+<p class="source" lang="en">We’ve had to build a transparent data movement and routing layer into Habitat earlier than desired so that we can move datasets between accounts with different replication topologies.</p>
+</div>
+<div class="pair" id="p-176">
+<p class="target" lang="zh-CN">然而，这种方法最终受到计算能力的限制，因此只能使用少数经过精心挑选的数据集。</p>
+<p class="source" lang="en">However, this approach is also ultimately capacity constrained and therefore limited to a few hand-selected datasets.</p>
+</div>
+<div class="pair" id="p-177">
+<p class="target" lang="zh-CN">其他内容依靠集成缓存处理</p>
+<p class="source" lang="en">Rely on integrated caching for everything else</p>
+</div>
+<div class="pair" id="p-178">
+<p class="target" lang="zh-CN">环境工作负载主要依赖读取操作，应用程序不断获取设置、状态和其他属性；大量的流量主要来自于一小部分经常被访问的数据类型。这使得该系统特别适合分布式缓存。虽然缓存在单区域基础设施中能提升性能，但在跨区域环境中，这种效果会进一步增强，可以用来“隐藏”跨区域的延迟。</p>
+<p class="source" lang="en">Habitat workloads are overwhelmingly read-heavy, with applications constantly fetching settings, state, and other properties; a disproportionate amount of traffic is attributable to a relatively small working set of frequently accessed types. This makes the system particularly well suited for distributed caching. While caching improves performance in single-region infrastructure, the improvements compound when working across regions, where it can be used to “hide” cross-region latency.</p>
+</div>
+<div class="pair" id="p-179">
+<p class="target" lang="zh-CN">我们已在 Habitat 中集成了一个分布式 lookaside 缓存层。该缓存层在靠近用户请求处理地点的基础设施中的 Valkey 服务器上存储最近访问过的对象和边的副本。通常，这类缓存使用 TTL 机制来平衡命中率和缓存的陈旧性。较短的 TTL 可以减少缓存的陈旧性，但会削弱缓存的积极效果，因为项目很快会从缓存中过期，需要更频繁地检索。较长的 TTL 则能提高命中率，但会在较长时间内保留陈旧数据，导致用户体验不佳和产品行为不可预测。</p>
+<p class="source" lang="en">We’ve integrated a distributed lookaside caching layer into Habitat. It stores a copy of recently accessed objects and edges in Valkey servers placed in our infrastructure close to where user requests are processed. Typically, these sorts of caches use a TTL that trade off between hit rate and staleness. Short TTLs reduce staleness but blunt the positive impact of caching, because items expire out of the cache quickly and must be retrieved more frequently. Longer TTLs improve hit rates, but serve stale data for extended periods, leading to poor user experiences and unpredictable product behavior.</p>
+</div>
+<div class="pair" id="p-180">
+<p class="target" lang="zh-CN">另一种方法是，在应用程序对相同底层数据执行写入操作时执行明确的无效化操作。这能显著提升缓存数据的新鲜度，但实施起来可能较为困难。此外，它仍然面临许多边缘情况，比如部分失败，导致缓存变得陈旧。多区域部署进一步加剧了这些问题，因为跨区域网络可靠性较低，且缓存与底层存储的复制速度不匹配。加上时间限制（TTL）限制可以减少最大陈旧程度，但仍然存在上述底层TTL带来的问题。</p>
+<p class="source" lang="en">Another approach is to execute explicit invalidation operations when the application is performing write operations on the same underlying data. This dramatically improves the freshness of cached data, but can be hard to get right. It also remains subject to a number of edge cases, like partial failures, which leave the cache stale. Multi-region deployments compound these problems, with less reliable cross-region networks, and the cache racing with the replication of the underlying storage. Complementing this with TTLs bounds the maximum staleness, but still suffers from the same underlying TTL trade-off discussed above.</p>
+</div>
+<div class="pair" id="p-181">
+<p class="target" lang="zh-CN">我们采用了一种更先进的无效化机制，效仿了 Meta 的 TAO 等系统。Habitat 的集成缓存通过 Azure Cosmos DB 的变更流实现变更数据捕获（CDC），能够在几秒内全球范围内传播无效化信息，从而实现高命中率并降低数据陈旧度。我们的基础设施中的某个服务会消费该变更流，并在底层数据更新时将无效化操作执行到本地缓存中。这样，下次读取数据时就会出现缺失，而缓存则会被填充最新版本的数据。</p>
+<p class="source" lang="en">We’ve taken a more advanced approach to invalidation, following in the footsteps of systems like Meta’s TAO. Habitat’s integrated cache relies on change data capture (CDC) through Azure Cosmos DB’s change feed to propagate invalidations globally within seconds, achieving high hit rates while keeping staleness low. A service in our infrastructure consumes this change feed and executes invalidations to the local caches when the underlying data is updated. This causes a miss the next time the data is read, and the cache is filled with the latest version of the data.</p>
+</div>
+<div class="pair" id="p-182">
+<p class="target" lang="zh-CN">使用 Rust 减少代理开销</p>
+<p class="source" lang="en">Reduce proxy overhead with Rust</p>
+</div>
+<div class="pair" id="p-183">
+<p class="target" lang="zh-CN">我们通过用 Rust 重写代码来消除 Habitat 服务本身的开销，从而显著降低了延迟，而 Rust 的性能优于原始的 Python。</p>
+<p class="source" lang="en">We’ve also significantly reduced latency by removing overhead in the Habitat service itself through rewriting the code in Rust, which is more performant than the original Python.</p>
+</div>
+<div class="pair" id="p-184">
+<p class="target" lang="zh-CN">这些改进共同使我们的全球读取延迟 p50从大约 120 毫秒降低到了大约 10 毫秒，自今年早些时候开始关注性能以来，性能提升了 12 倍。</p>
+<p class="source" lang="en">Together, these changes have reduced our overall global read p50 from roughly 120 ms to roughly 10 ms, a 12x improvement since we began focusing on performance earlier this year.</p>
+</div>
+<div class="pair" id="p-185">
+<p class="target" lang="zh-CN">图 05 · 在全球范围内提升性能</p>
+<p class="source" lang="en">Figure 05 · Improving performance at a global scale</p>
+</div>
+<div class="pair" id="p-186">
+<p class="target" lang="zh-CN">读取时的 p50 延迟</p>
+<p class="source" lang="en">p50 latency for reads</p>
+</div>
+<div class="pair" id="p-187">
+<p class="target" lang="zh-CN">三个重要的设计变更降低了读取延迟</p>
+<p class="source" lang="en">Three major design changes improved read latency</p>
+</div>
+<div class="pair" id="p-188">
+<p class="target" lang="zh-CN">大约 120 毫秒 → 大约 10 毫秒</p>
+<p class="source" lang="en">roughly 120 ms → roughly 10 ms</p>
+</div>
+<div class="pair" id="p-189">
+<p class="target" lang="zh-CN">12倍提升</p>
+<p class="source" lang="en">12x improvement</p>
+</div>
+<div class="pair" id="p-190">
+<p class="target" lang="zh-CN">关键数据被复制到了附近的地理区域中</p>
+<p class="source" lang="en">critical data replicated into nearby geos</p>
+</div>
+<div class="pair" id="p-191">
+<p class="target" lang="zh-CN">区域内缓存已启动</p>
+<p class="source" lang="en">in-region caching launched</p>
+</div>
+<div class="pair" id="p-192">
+<p class="target" lang="zh-CN">Rust Rewrite 已推出</p>
+<p class="source" lang="en">rust rewrite launched</p>
+</div>
+<div class="pair" id="p-193">
+<p class="target" lang="zh-CN">虽然缓存显著降低了中位数延迟，但最慢的请求仍然需要从底层存储中获取未缓存的数据，通常涉及遥远的地区。随着更多资源上线以及存储效率的提高，我们计划解决一个更根本的问题：将数据放置在更靠近访问地点的位置。</p>
+<p class="source" lang="en">While caching has dramatically reduced median latency, the slowest requests still require fetching uncached data from underlying storage, often across distant regions. As more capacity comes online and we improve storage efficiency, we plan to address a more fundamental challenge: placing data closer to where it will be accessed from the start.</p>
+</div>
+<div class="pair" id="p-194">
+<p class="target" lang="zh-CN">扩展变更数据捕获</p>
+<p class="source" lang="en">Scaling Change Data Capture</p>
+</div>
+<div class="pair" id="p-195">
+<p class="target" lang="zh-CN">可靠的、可扩展的 CDC——将数据库变更传播到下游系统——不仅是 Habitat 缓存策略的关键组成部分。每秒数百万的变更数据，通过数千个容器和数百万个容器分区，通过一百多个 Kafka 主题传递，同时支持最终一致的二级索引、数据迁移管道、离线分析和其他实时产品功能。随着我们的支持基础设施在全球范围内扩展，监听行变更变得越来越复杂。如果客户端希望注册回调以在其类型行发生变化时运行，他们必须首先确定哪些 Cosmos 账户和容器包含其数据，哪些 CDC 服务部署在相应区域中监听这些容器，并正确扩展 CDC 服务工作负载、Kafka 及其消费者。我们的 CDC 平台旨在将这一切从产品开发者中抽象出来，提供一个简单的界面，让客户端注册他们希望在其变更行上调用的函数，而我们则负责所有的基础设施和扩展工作。</p>
+<p class="source" lang="en">Reliable and scalable CDC—propagating database changes to downstream systems—is a critical component in more than just Habitat’s caching strategy. Millions of captured changes per second, across thousands of containers and millions of container partitions feed through more than a hundred Kafka topics to also power eventually consistent secondary indexes, data-movement pipelines, offline analytics, and other real-time product features. As our backing infrastructure has grown globally, it’s become increasingly complex to listen to row changes. If a client wants to register a callback to run whenever rows of their type are changed, they must, among other things, first determine which Cosmos accounts and containers contain their data, which CDC service deployment is running in respective regions listening to those containers, and properly scale the CDC service worker fleet, Kafka, and their consumer. Our CDC platform aims to abstract all of this away from product developers and provide instead a simple surface where clients register a function they’d like called on their changed rows and we handle all of the plumbing and scaling.</p>
+</div>
+<div class="pair" id="p-196">
+<p class="target" lang="zh-CN">内部控制平面持续确保所有必要的容器都被捕获，选择要读取的 Cosmos 区域，并在多个地理区域中的数千名工人之间高效分配工作。使用副本区域和优先级较低的读取方式，可以保护对延迟敏感的 Habitat 流量不受后台捕获工作负载的影响。在如此庞大的集群中，工人崩溃、容器问题、租约存储错误、无效配置和目标失败等问题不断发生。我们强化了 CDC 工人生命周期和租约处理机制，隔离了不同流之间的故障，并建立了针对配置变更和部署的防护措施。我们利用死信队列来防止由于永久交付失败导致的排队阻塞。通过将读取器切换到其他 Cosmos 区域，我们可以容忍区域性的中断。在如此大的规模下，我们甚至不得不对 Azure 的 CDC SDK 进行修改，通过将检查点批量存储在内存中并仅定期刷新，使其检查点实现更加高效。</p>
+<p class="source" lang="en">An internal control plane continuously ensures all required containers are being captured, selects which Cosmos regions to read from, and efficiently distributes work among thousands of workers across multiple geographic regions. Using replica regions and lower-priority feed reads protect latency-sensitive Habitat traffic from background capture workloads. Worker crashes, container issues, lease-store errors, invalid configuration, and destination failures occur continually across a fleet this large. We hardened CDC worker lifecycle and lease handling, isolated failures between streams, and built safeguards for configuration changes and rollouts. We utilize dead letter queues to prevent head-of-line blocking from permanent delivery failures. We tolerate regional outages by switching readers to alternate Cosmos regions. At our scale, we’ve even had to make changes to Azure’s CDC SDK to make its checkpointing implementation more efficient by batching checkpoints in-memory and only periodically flushing them.</p>
+</div>
+<div class="pair" id="p-197">
+<p class="target" lang="zh-CN">虽然 Habitat 对 Azure Cosmos DB 的内部使用较为复杂，但其核心优势在于将基础设施细节从产品开发者中抽象出来，从而提升产品开发效率，我们的 CDC 平台也是如此。</p>
+<p class="source" lang="en">While Habitat’s internal usage of Azure Cosmos DB is complex, its value proposition has always been to abstract away infrastructure details from product developers to improve product development velocity, and our CDC platform is no different.</p>
+</div>
+<div class="pair" id="p-198">
+<p class="target" lang="zh-CN">展望未来</p>
+<p class="source" lang="en">Looking ahead</p>
+</div>
+<div class="pair" id="p-199">
+<p class="target" lang="zh-CN">一个小团队通过保持存储 API 的简洁性、持续扩展 Python 服务以及优先处理最紧急的工程问题，成功支持了一个快速增长的存储平台。我们首先关注关键任务产品流量的可靠性，然后关注全球用户的读取性能，最后关注大规模运营效率。这种策略不仅促进了快速增长和新的应用场景，还提升了可靠性、性能以及产品开发速度。</p>
+<p class="source" lang="en">A small team was able to support a rapidly growing storage platform by keeping the storage API deliberately narrow, continuing to scale the Python service, and prioritizing the most urgent engineering challenges. We focused first on reliability for mission-critical product traffic, then on read performance for global users, and finally on operational efficiency at scale. This approach enabled rapid growth and new use cases while improving reliability, performance, and product development velocity.</p>
+</div>
+<div class="pair" id="p-200">
+<p class="target" lang="zh-CN">为了为接下来的十亿用户扩展 Habitat 和对话存储功能，我们需要解决在更大规模上复制数据到基础设施中的难题。为了提前应对这个问题，我们正在构建一种定制的内部 Exabyte 级在线存储系统，该系统针对庞大的 Habitat 数据类型进行了优化。这个正在开发中的系统结合了 Rockset 的 RocksDB Cloud 核心和基于 Raft 的复制机制。它采用与 Azure Cosmos DB 相同的文档模型，但使用分散式存储和物理复制，以减少所需的闪存容量，从而降低峰值请求率。</p>
+<p class="source" lang="en">In order to scale Habitat and conversation storage for the next billion users, we need to address the difficulty of replicating our data across our infrastructure, on an even larger scale. To preempt this, we’ve been building a custom in-house exabyte-scale online storage system, optimized for bulky Habitat data types. This in-development system combines the RocksDB Cloud core from Rockset with Raft-based replication. It implements the same document model as Azure Cosmos DB, but uses disaggregated storage and physical replication to reduce the amount of flash capacity needed, in exchange for a lower peak qps.</p>
+</div>
+<div class="pair" id="p-201">
+<p class="target" lang="zh-CN">如果您对在前沿规模上从事此类数据基础设施工作感兴趣，可以查看我们的公开职位。</p>
+<p class="source" lang="en">If you’re interested in working on these types of data infrastructure efforts at frontier scale, check out our open roles⁠.</p>
+</div>
+<div class="pair" id="p-202">
+<p class="target" lang="zh-CN">2026</p>
+<p class="source" lang="en">2026</p>
+</div>
+<div class="pair" id="p-203">
+<p class="target" lang="zh-CN">ChatGPT</p>
+<p class="source" lang="en">ChatGPT</p>
+</div>
+<div class="pair" id="p-204">
+<p class="target" lang="zh-CN">作者</p>
+<p class="source" lang="en">Author</p>
+</div>
+<div class="pair" id="p-205">
+<p class="target" lang="zh-CN">继续阅读</p>
+<p class="source" lang="en">Keep reading</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6G64B5haCxDuphl2iqwZ1N/4f8d319293f5e5e98b319e01b4fbdf59/scaling-git-at-openai-art-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Scaling Git at OpenAI — art card" loading="lazy">
+<div class="pair" id="p-206">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年11月2日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringNov 2, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3aewhPPb5NQ5IqOKEkrtzA/7209065f6e6ccf3a0476b43feb8336e1/rethinking-ads-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rethinking the ad stack around a new user journey — Art card" loading="lazy">
+<div class="pair" id="p-207">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年10月21日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 21, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/2X23NOb0P4V1KDzUBkeNpl/888204b45a1c84ddfa24c9ed31111a9c/OAI_HabitatPT1_Art_Card_1x1.png?w=3840&amp;q=90&amp;fm=webp" alt="Scaling Storage for 1 Billion ChatGPT Users (Part I) card image" loading="lazy">
+<div class="pair" id="p-208">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学2026年9月11日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringSep 11, 2026</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://openai.com/index/scaling-storage-one-billion-users-part-two" target="_blank" rel="noopener noreferrer">https://openai.com/index/scaling-storage-one-billion-users-part-two</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/genie-4-a-new-generation-of-world-simulation.html">← Genie 4: A new generation of world simulation</a><a href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html">Beyond tree cover: mapping the world’s forest types →</a></nav>
+  <footer class="footer">文章版权归原作者所有，译文请以英文原文为准。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

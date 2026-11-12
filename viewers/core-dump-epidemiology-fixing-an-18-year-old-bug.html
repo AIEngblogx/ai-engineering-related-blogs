@@ -1,0 +1,1112 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Core dump epidemiology: fixing an 18-year-old bug · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Core dump epidemiology: fixing an 18-year-old bug</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item current" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html" aria-current="page"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item current" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html" aria-current="page"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Core dump epidemiology: fixing an 18-year-old bug</h1>
+  <p class="subline">原文：<a href="https://openai.com/index/core-dump-epidemiology-data-infrastructure-bug" target="_blank" rel="noopener noreferrer">https://openai.com/index/core-dump-epidemiology-data-infrastructure-bug</a> · 2026-06-30 · OpenAI Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">2026年6月30日</p>
+<p class="source" lang="en">June 30, 2026</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">利用群体级分析来排查我们的数据基础设施中的复杂故障。</p>
+<p class="source" lang="en">Using population-level analysis to debug tricky crashes in our data infrastructure.</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">第一次调试尝试：仔细分析几个核心转储文件</p>
+<p class="source" lang="en">First debugging attempt: carefully examining a few core dumps</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">栈中的线索</p>
+<p class="source" lang="en">Clues from the stack</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">医生还是流行病学家？</p>
+<p class="source" lang="en">Doctor or epidemiologist?</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">清理数据</p>
+<p class="source" lang="en">Cleaning the data</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">漏洞 #1：不良主机</p>
+<p class="source" lang="en">Bug #1: the bad host</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">异常处理是一种动态控制转移</p>
+<p class="source" lang="en">Exception handling is a dynamic control transfer</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">取消最后一个假设</p>
+<p class="source" lang="en">Undoing one last assumption</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">漏洞 #2：libunwind 漏洞</p>
+<p class="source" lang="en">Bug #2: the libunwind bug</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">为什么被标记为普通负面回报的核心项目</p>
+<p class="source" lang="en">Why the cores masked as ordinary bad returns</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">单条指令竞赛窗口</p>
+<p class="source" lang="en">A single-instruction race window</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">为什么现在出现了 libunwind 错误？</p>
+<p class="source" lang="en">Why did the libunwind bug appear now?</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">群体层面诊断的力量</p>
+<p class="source" lang="en">The power of a population-level diagnosis</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">第一次调试尝试：仔细分析几个核心转储文件</p>
+<p class="source" lang="en">First debugging attempt: carefully examining a few core dumps</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">栈中的线索</p>
+<p class="source" lang="en">Clues from the stack</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">医生还是流行病学家？</p>
+<p class="source" lang="en">Doctor or epidemiologist?</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">清理数据</p>
+<p class="source" lang="en">Cleaning the data</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">错误 #1：糟糕的主机</p>
+<p class="source" lang="en">Bug #1: the bad host</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">异常处理是一种动态控制转移</p>
+<p class="source" lang="en">Exception handling is a dynamic control transfer</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">取消最后一个假设</p>
+<p class="source" lang="en">Undoing one last assumption</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">漏洞 #2：libunwind 漏洞</p>
+<p class="source" lang="en">Bug #2: the libunwind bug</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">为什么被标记为普通负面回报的核心项目</p>
+<p class="source" lang="en">Why the cores masked as ordinary bad returns</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">单条指令竞赛窗口</p>
+<p class="source" lang="en">A single-instruction race window</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">为什么现在出现了 libunwind 错误？</p>
+<p class="source" lang="en">Why did the libunwind bug appear now?</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">人群层面诊断的力量</p>
+<p class="source" lang="en">The power of a population-level diagnosis</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">由技术员成员 Nathan Bronson 撰写OpenAI 的模型和代理越来越依赖可扩展的数据基础设施，以便在推理时搜索相关数据——即当模型正在思考你的问题时。其中一些服务是用 C++ 编写的，其低级别系统控制使我们能够最大化性能并最小化内存使用。这些效率优势在我们扩展规模时非常重要，但 C++ 缺乏内存安全性意味着错误可能会通过写入错误的或不存在的内存地址导致崩溃。</p>
+<p class="source" lang="en">By Nathan Bronson, Member of Technical StaffOpenAI’s models and agents increasingly rely on scalable data infrastructure in order to search for relevant data at inference time: when the models are thinking about your question. Some of these services are written in C++, whose low-level control of the system lets us maximize performance and minimize memory usage. Those efficiency benefits are important as we scale, but C++’s lack of memory safety means that bugs can cause crashes by writing to incorrect or non-existent memory addresses.</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">几个月前，我们观察到 Rockset 服务出现了一些崩溃现象。Rockset 是我们 ChatGPT 数据基础设施中的一部分，对许多数据插件和对话搜索功能至关重要。在这些崩溃中，一个正常的 C++ 函数似乎执行完毕后会返回到一个错误的地址，导致内核停止程序运行，因为指令指针不再指向代码。有时栈帧中的返回地址位置为 NULL。有时栈指针 CPU 寄存器本身似乎偏移了 8 个字节，就好像 %rsp 在正常执行过程中被递减了。在这两种情况下，崩溃都发生在返回时。</p>
+<p class="source" lang="en">A few months ago we observed some crashes from inside the Rockset service, a bespoke part of our ChatGPT data infrastructure which is key to many data plugins and to searching over conversations. In each of these crashes, a normal C++ function seemed to finish and then return to a bogus address, causing the kernel to stop the program because the instruction pointer no longer pointed at code. Sometimes the return address slot in the stack frame was NULL. Sometimes the stack pointer CPU register itself seemed to be off by 8 bytes, as if %rsp had somehow been decremented in the middle of normal execution. In both cases the crash happened on return.</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">这些并非应用程序代码的正常故障模式。虽然只有写入保存的返回地址的异常情况可能发生，但可能性极低。而一个不依赖内联汇编、setcontext或longjmp的、使%rsp偏移8的错误更是不可思议，因为编译后的代码仅在函数开头和结尾直接调整该寄存器。我们或ChatGPT能想到的所有假设都有强有力的反对证据，因此这个错误似乎不可能存在。</p>
+<p class="source" lang="en">These are not normal failure modes for application code. A stray write that lands only on a saved return address is possible, but extremely unlikely. A bug that misaligns %rsp by 8 without involving inline assembly, setcontext, or longjmp (none of which we use) is even stranger, because compiled code only adjusts that register directly in the function prologue and epilogue. Every hypothesis we (or ChatGPT) could think of had strong evidence against it, so the bug seemed impossible.</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">我们原本认为是一个问题，结果却发现是两个无关的漏洞，恰好同时被发现了。第一个是某个 Azure 主机上的无声硬件损坏问题，导致 CPU 无法正确计算。第二个是 GNU libunwind 中的 18 年历史竞争条件问题，这是一个广泛使用的开源库中未被发现的漏洞。</p>
+<p class="source" lang="en">What we assumed was one problem eventually turned out to be two unrelated bugs, coincidentally discovered at the same time. First, silent hardware corruption on one Azure host, where the CPU just didn’t do math correctly. Second, an 18-year-old race condition in GNU libunwind, an unnoticed bug in a widely used open source library.</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">这篇文章讲述了我们如何像流行病学家一样思考，并构建关于所有故障案例的高质量数据集，从而识别并解决那些看似无法解释的故障问题。</p>
+<p class="source" lang="en">This post is the story of how we identified and fixed seemingly inexplicable crashes by thinking like an epidemiologist and building a high-quality data set about the entire population of crashes.</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">第一次调试尝试：仔细分析几个核心转储文件</p>
+<p class="source" lang="en">First debugging attempt: carefully examining a few core dumps</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">首先，让我们更深入地了解 Rockset。它是一个云原生数据系统，用于搜索和实时分析，我们在 OpenAI 的许多内部场景中都使用它，例如同步连接器（Rockset 于 2024 年被 OpenAI 收购）。流式更新用于维护工作区知识库的最新索引，这样 ChatGPT 在回答问题或执行操作时就能搜索到相关信息。</p>
+<p class="source" lang="en">First, let’s go deeper on Rockset. It’s a cloud-native data system for search and real-time analytics that we use for many internal use cases at OpenAI, such as sync connectors (Rockset was acquired by OpenAI in 2024). Streaming updates are used to maintain an up-to-date index of a workspace’s knowledge base so that ChatGPT can search for relevant information when answering questions or performing actions.</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">Rockset的执行层是用C++编写的。C++语言能够提供对CPU的低级访问权限，这对性能和效率很有帮助，但这意味着应用错误可能导致无效内存访问和段错误。为了追踪这些问题，我们使用folly的致命信号处理器在崩溃时记录堆栈跟踪信息，并将相应的核心转储（程序崩溃时状态的快照）上传到Azure Blob存储中进行后续分析。Rockset的所有查询处理进程都会被复制，从而将崩溃对客户端的影响降到最低。然而，每个段错误都对应着一个需要修复的缺陷，以符合我们的可靠性和质量标准。</p>
+<p class="source" lang="en">Rockset’s execution layer is written in C++. The C++ language provides low-level access to the CPU, which is good for performance and efficiency, but it means that application bugs can lead to invalid memory accesses and segfaults. To help track these down we use folly’s fatal signal handler to log a stack trace when a crash happens, and we upload the corresponding core dumps (a snapshot of the state of the program when it crashed) to Azure blob storage for later analysis. All of Rockset’s query processing leaves are replicated, which minimizes the client impact of a crash. However, each segfault corresponds to a bug that needs to be fixed to meet our reliability and quality goals.</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">我们的初步方法是将这些核心视为常规的调试问题：仔细检查几个核心转储文件，提出假设，然后逐一排除这些假设。</p>
+<p class="source" lang="en">Our initial approach was to treat these cores like a conventional debugging problem: inspect a few core dumps very closely, form hypotheses, and rule them out one by one.</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">大多数崩溃发生在名为 DocumentTree::updateDocument 的方法中。在这些崩溃中，似乎 updateDocument 调用了某个未知函数 X，当 X 运行时栈被损坏，然后 X 返回到了一个不可执行代码的地址。在某些情况下，刚刚弹出的 X 帧看起来是有效的，只是其保存的返回地址为 NULL。在其他情况下，栈指针本身看起来也有问题，但下一个有效的帧仍然似乎是 updateDocument。</p>
+<p class="source" lang="en">Most of the crashes occurred in a method called DocumentTree::updateDocument. In these crashes it appeared that updateDocument had called some unknown function X, the stack had become corrupted while X was active, then X had returned to an address that wasn’t executable code. In some cases X’s just-popped frame looked valid except that its saved return address was NULL. In other cases the stack pointer itself looked wrong, but the next valid frame still seemed to be updateDocument.</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">我们不知道堆栈何时被损坏，这导致了一个巨大的搜索空间。updateDocument是一个复杂的函数，涉及大量的内联操作，因此用于 X 的候选项数量非常庞大。</p>
+<p class="source" lang="en">We didn’t know when the stack was getting corrupted, which left a huge search space. updateDocument is a large method that undergoes a lot of inlining, so the number of candidates for X was overwhelming.</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">这是我们的 C++ 代码中的错误吗？是编译器或链接问题？是我们某个运行时库的问题？是 Linux 内核在信号处理或上下文切换方面的错误？还是更罕见的情况？如果这是一次意外的写操作，为什么没有被我们的 ASAN 检测环境发现？</p>
+<p class="source" lang="en">Was this a bug in our C++ code? A compiler or linkage issue? A problem in one of our runtime libraries? A Linux kernel bug around signal delivery or context switching? Something even rarer? If this was a stray write, why wasn’t it caught by our ASAN staging environment?</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">我们试图使用应用程序级别的日志来识别该问题的所有出现情况，但由于记录的堆栈跟踪本身已经损坏或缺失，仅凭日志很难对堆栈损坏错误进行分类。我们无法构造出既没有误报也没有误报的日志查询。我们手动检查了更多核心，并发现了一些额外的案例，但这一过程过于耗时，无法得到可靠的数据集。</p>
+<p class="source" lang="en">We tried to use our application-level logs to identify all occurrences of the problem, but stack-corruption bugs are hard to classify from logs alone because the logged stack traces are themselves corrupted or missing. We weren’t able to construct a log query that didn’t have both false positives and false negatives. We manually inspected more cores and found some additional examples, but that process was too labor-intensive to give us a trustworthy data set.</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">在调查的这个阶段，我们错误地排除了硬件故障的可能性，因为我们在多个区域和多种硬件类型上都看到了崩溃现象，所以我们仍在寻找纯软件层面的原因。有几天时间，我们深入研究了一次未正确对齐-%rsp的崩溃，通过栈和注册器内容来还原崩溃前的状态。这提供了一些可能的线索，但由于我们仍然坚持最初认为所有故障都有相同原因的结论，这并没有帮助我们摆脱困境。</p>
+<p class="source" lang="en">At this stage of the investigation, we (incorrectly) ruled out a hardware bug, because we saw crashes across multiple regions and multiple hardware types, so we were still looking for software-only causes. For a few days, we went super-deep on a single misaligned-%rsp crash, reconstructing the pre-crash history using stack and register contents. This produced some possible clues, but because we didn’t let go of our initial conclusions that all of the bugs had the same cause, this didn’t get us unstuck.</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">栈中的线索</p>
+<p class="source" lang="en">Clues from the stack</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">在进入调查的关键转折点之前，先解释一下我们从核心文件中提取了哪些信息是很重要的。</p>
+<p class="source" lang="en">Before getting to the turning point of our investigation, it’s important to explain what kind of information we were extracting from the core files.</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">Rockset 使用 -fno-omit-frame-pointer 进行编译，因此活动栈帧始终可以通过 %rbp 访问，调用者则构成了一个帧指针的链表。</p>
+<p class="source" lang="en">Rockset is compiled with -fno-omit-frame-pointer, so the active stack frame is always reachable through %rbp, and callers form a linked list of frame pointers.</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">在 Linux x86_64 上，AMD64 System V ABI 还会在 %rsp 下方保留 128 字节作为红色区域。该区域可供用户空间代码使用，并且重要的是，内核承诺在传递信号时不会破坏该区域，这是 ABI 协议的一部分。</p>
+<p class="source" lang="en">On Linux x86_64, the AMD64 System V ABI also reserves 128 bytes below %rsp as the red zone. That region is available to userspace code and, importantly, the kernel promises not to clobber it when it delivers a signal, as part of the ABI contract.</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">红色区域对于我们调试返回后的崩溃问题至关重要，因为它保留了返回之前的一些信息。当触发 SIGSEGV 信号时，Folly 的致命信号处理器会在崩溃线程的栈上执行。不再活跃的栈帧（因为其函数已经返回）会被信号处理器覆盖，除了最后 128 个字节。因此，我们可以说“X 刚刚弹出的栈帧看起来是有效的，除了返回地址为 NULL 的情况”。红色区域保留了部分不活跃的栈帧，或者有时只是某个不活跃栈帧的尾部。</p>
+<p class="source" lang="en">The red zone was central to our debugging of a post-return crash, because it preserves some information from before the return. When a SIGSEGV is triggered, folly’s fatal signal handler runs on the crashing thread’s stack. Stack frames that are no longer active (because their function has returned) will get clobbered by the signal handler, except for the last 128 bytes. That’s why we can say things like “X’s just-popped stack frame looked valid, except for a NULL return address.” The red zone preserves some of the inactive frames, or sometimes just the tail of one inactive frame.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3eBjjDfMl3Ja4JE1V8skqx/99caec095d4669342d2a013f0b6befda/Corrupted-stack_crashes_light_desktop.svg?w=3840&amp;q=90" alt="Stack diagram showing corrupted stack frames that can overwrite return addresses and cause crashes." loading="lazy">
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">我们发现了一次堆栈错配崩溃，其中所有相关的函数都非常简单。这让我们看到，在执行一个相对简单的函数时，%rsp 发生了错配，之后又有更多的调用成功执行。程序只有在活跃函数最终尝试返回时才会崩溃。这些代码路径都没有使用异常、内联汇编、setcontext 或 longjmp，因此如果堆栈指针确实按照核心建议的方式发生变化，那么用户空间代码中的任何合理的漏洞都无法解释这个问题。</p>
+<p class="source" lang="en">We found one misaligned-stack crash in which all of the functions involved were very small. That let us see that %rsp had become misaligned during execution of a relatively simple function, and that more calls had succeeded afterward. The program only crashed when the active function finally tried to return. None of those code paths used exceptions, inline assembly, setcontext, or longjmp, so if the stack pointer truly changed in the way the core suggested, no plausible bug in userspace code explained the issue.</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">这促使我们向内核方向发展。</p>
+<p class="source" lang="en">That pushed us toward the kernel.</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">Rockset 比大多数程序更积极地使用信号。查询执行被分解为许多轻量级任务，这些任务之间会交换数据。这对于高效处理高 QPS 工作负载非常重要，但会导致每个查询的 CPU 统计变得复杂，因为许多查询的工作被合并到同一个线程池中。</p>
+<p class="source" lang="en">Rockset uses signals more aggressively than most programs. Query execution is broken into many lightweight tasks that exchange data. This is important for handling high-QPS workloads efficiently, but it makes per-query CPU accounting awkward as work for many queries is multiplexed onto the same thread pool.</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">我们的解决方案被称为 coarse_thread_cputime_clock，它能够以足够低廉的成本近似执行 clock_gettime(CLOCK_THREAD_CPUTIME_ID, ...) 操作，从而在每个任务边界都能进行采样。可以使用 timer_create API 根据多种时间流逝方式来安排周期性信号传递，包括 CPU 时间的累积。我们安排每几毫秒发送一次 SIGUSR2 信号，此时信号处理程序会更新线程本地值。尽管许多任务在执行过程中不会看到粗略的时钟推进，但将所有差异相加可以得到对实际查询 CPU 时间的无偏估计。</p>
+<p class="source" lang="en">Our solution is something we call coarse_thread_cputime_clock, which approximates clock_gettime(CLOCK_THREAD_CPUTIME_ID, ...) cheaply enough to sample at every task boundary. The timer_create API can be used to schedule a periodic signal delivery based on several notions of the passage of time, including the accumulation of CPU time. We schedule a signal (SIGUSR2) to be delivered every few milliseconds of CPU time, at which point the signal handler updates a thread-local value. Even though many tasks don’t see the coarse clock advance while they are executing, summing all of the deltas produces an unbiased estimate of the actual CPU time for a query.</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">由于我们频繁发送信号，关于上下文切换或信号传递的罕见内核错误似乎有可能发生。我们花了时间阅读错误报告、内核源代码以及与 Azure 相关的内核补丁。我们也进行了压力测试，但未能找到任何相关的线索。</p>
+<p class="source" lang="en">Because we deliver signals so often, a rare kernel bug around context switching or signal delivery seemed plausible. We spent time reading bug reports, kernel source code, and the Azure-specific kernel patches. We tried stress tests. We weren’t able to find anything that seemed related.</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">那时，我们决定退一步，尝试一种不同的方法。</p>
+<p class="source" lang="en">At that point we decided to step back and try a different approach.</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">医生还是流行病学家？</p>
+<p class="source" lang="en">Doctor or epidemiologist?</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">像这样的问题，有两种主要的调试方法。</p>
+<p class="source" lang="en">There are two broad ways to debug a problem like this.</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">一种方法就是像医生一样：专注于一个患者，进行大量检查，并试图根据详细证据诊断出单一病例。</p>
+<p class="source" lang="en">One is to act like a doctor of sorts: focus on one patient, run lots of tests, and try to diagnose a single case from detailed evidence.</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">另一种方式就是更像流行病学家一样行事：观察整个群体，探讨是否存在单一案例无法揭示的模式。问题是否从某个特定版本开始？是否与某个硬件SKU（具体的CPU和服务器型号）、某个地区或某个内核版本有关？还是看似一种综合症背后隐藏着多个不同的群体？</p>
+<p class="source" lang="en">The other is to act more like an epidemiologist: look at the entire population and ask whether there are patterns that a single case cannot reveal. Did the bug start at a specific release? Does it correlate with one hardware SKU (the specific CPU and server model), one region, or one kernel version? Are there multiple distinct clusters hiding inside what looks like one syndrome?</p>
+</div>
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">我们大部分时间都处于医生模式。关键的转变是决定我们需要收集高质量的人群数据。</p>
+<p class="source" lang="en">We had mostly been in doctor mode. The key shift was deciding that we needed to gather high-quality population data.</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">清理数据</p>
+<p class="source" lang="en">Cleaning the data</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">我们之前尝试自动找出该问题的所有实例失败了，因为当时只是尝试在日志上进行文本搜索。核心转储文件本身包含大量信息，但手动查看无法大规模处理。因此，我们决定投入精力构建一个能够自动分析核心转储文件的流程。</p>
+<p class="source" lang="en">Our previous attempts to automatically find all of the instances of the problem failed because we were trying to use text searches over the logs. The core dumps themselves have a lot more information, but looking at them manually didn’t scale. We decided to invest the effort to build a pipeline that could automatically analyze the core dumps.</p>
+</div>
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">我们让 ChatGPT 编写了一个脚本，该脚本会下载每个核心文件的前部分数据，提取寄存器信息，通过日志过滤已知的误报，并自动将崩溃情况标记为返回到空值、堆栈错位或其他情况。然后，我们同时运行这个脚本，针对前一年所有的生产 Rockset 核心转储文件进行处理。</p>
+<p class="source" lang="en">We had ChatGPT write a script that downloaded a prefix of each core file, extracted the registers, filtered known false positives using the logs, and automatically labeled the crash as return-to-null, misaligned-stack, or other. Then we ran that script in parallel over every production Rockset core dump from the previous year.</p>
+</div>
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">这是转折点。</p>
+<p class="source" lang="en">This was the turning point.</p>
+</div>
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">一旦我们得到了干净的数据集，相关性就立刻显现出来。我们原本认为是一个奇怪的故障，实际上其实是两个独立的崩溃现象。</p>
+<p class="source" lang="en">Once we had a clean data set, correlations appeared immediately. What we had been treating as one weird bug was actually two separate crash populations.</p>
+</div>
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">返回到空状态的核心处理器分布在多个集群和地理区域中。其出现频率最近有所增加，但并没有明确的开始日期，也没有清晰的基础设施边界。</p>
+<p class="source" lang="en">The return-to-null cores were spread across many clusters and geographic regions. Their frequency had increased recently, but there was no crisp start date and no clean infrastructure boundary.</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">错位堆栈故障看起来完全不同。这些故障都来自同一个区域，有明确的开始时间，并且不会发生在已经运行了很长时间的节点上。尽管涉及多个 Azure 虚拟机（在云端托管的虚拟机），但现象却像是一个硬件有问题的物理机器，导致恰好运行的虚拟机出现问题。</p>
+<p class="source" lang="en">The misaligned-stack crashes looked completely different. They all came from one region, had a clear start date, and never happened on nodes that had been running for a long time. Even though they involved multiple Azure VMs (virtual machines hosted in the cloud), the pattern looked like one physical machine with bad hardware causing problems for whichever VM happened to land on it.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/2Cu7fZUNQdMpqwby9xRFkE/1d171387051612f2f8fb5e352764a2a2/Crash_rate_by_cluster_light_desktop.svg?w=3840&amp;q=90" alt="Dot plot of crash rates by cluster over time, showing most crashes concentrated in clusters 2, 3, and 6, with a spike in cluster 1 near the end of the period." loading="lazy">
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">就在那一刻，我们意识到自己在心理上把两个错误混为一谈了。由于我们混合了这两个错误的反例，因此无法找到一个连贯的解释。</p>
+<p class="source" lang="en">That was the moment we realized we had been mentally conflating two bugs. Because we had been mixing counterexamples from both bugs, we couldn’t find a single coherent explanation.</p>
+</div>
+<div class="pair" id="p-64">
+<p class="target" lang="zh-CN">错误 #1：糟糕的主机</p>
+<p class="source" lang="en">Bug #1: the bad host</p>
+</div>
+<div class="pair" id="p-65">
+<p class="target" lang="zh-CN">拥有清晰的 Kubernetes 节点列表和时间戳，我们能够将不对齐的栈崩溃问题追溯到单个物理主机，从而轻松进行排除。</p>
+<p class="source" lang="en">Armed with a clean list of Kubernetes nodes and timestamps, we were able to trace the misaligned-stack crashes back to a single physical host, which was easy to denylist.</p>
+</div>
+<div class="pair" id="p-66">
+<p class="target" lang="zh-CN">在受控环境中，即使经过数周的压力测试，我们也无法重现该主机上的注册表损坏问题。然而，一旦问题主机停止运行，不对齐的栈崩溃现象就消失了。</p>
+<p class="source" lang="en">We were not able to reproduce the register corruption on that host in a controlled environment, even after several weeks of stress testing. Once the problematic host was taken out of service, however, the misaligned-stack crashes disappeared.</p>
+</div>
+<div class="pair" id="p-67">
+<p class="target" lang="zh-CN">移除不良主机并非永久解决方案，因为这无法防止相同问题再次发生。不过，我们可以通过修改软件，使得类似问题再次出现时能够轻松被检测和处理。我们改进了致命信号处理程序，加入了寄存器状态信息，这样只需从日志中就能检测到问题重复发生（无需核心转储）。我们还改变了控制平面设计，使得虚拟机能够被重复使用而不是回收，这使得在基础设施层面更容易检测不良节点。同时，我们也更新了运行手册以及团队的认知模型，以包含这种可能性。</p>
+<p class="source" lang="en">Removing the bad host isn’t a permanent solution, in the sense that it doesn’t prevent a new occurrence of the same problem. We can, however, change the software so that if a similar issue recurs, it is easily detected and handled. We improved our fatal signal handler to include register state so that we can detect recurrence only from the logs (no core dump needed). We changed the control plane so that VMs are usually reused instead of recycled, which makes bad-node detection much easier at our level of the infrastructure stack. We also updated our runbooks (and our team’s mental models) to include this possibility.</p>
+</div>
+<div class="pair" id="p-68">
+<p class="target" lang="zh-CN">将不良主机崩溃排除后，剩余的返回到空状态的核心就变得容易理解了。之前我们排除了异常展开的情况，因为我们认为有反例：那些异常绝对没有被使用的代码路径中的崩溃。但那些反例都来自硬件损坏集群。</p>
+<p class="source" lang="en">With the bad-host crashes separated out, the remaining return-to-null cores became much easier to reason about. Earlier we had ruled out exception unwinding because we thought we had counterexamples: crashes in code paths where exceptions were definitely not used. But those counterexamples were all from the hardware-corruption cluster.</p>
+</div>
+<div class="pair" id="p-69">
+<p class="target" lang="zh-CN">考虑到这一点，当我们再次检查剩余的核心时，发现这个结论恰恰相反：崩溃都发生在异常解卷过程中。</p>
+<p class="source" lang="en">Once we revisited the remaining cores with that in mind we found that this conclusion was exactly backward: the crashes were all happening during exception unwinding.</p>
+</div>
+<div class="pair" id="p-70">
+<p class="target" lang="zh-CN">异常处理是一种动态控制转移</p>
+<p class="source" lang="en">Exception handling is a dynamic control transfer</p>
+</div>
+<div class="pair" id="p-71">
+<p class="target" lang="zh-CN">当 C++ 抛出异常时，运行时必须确定哪个捕获块应该处理该异常，以及哪些析构函数或清理处理程序应在过程中执行。编译器会生成这些元数据，但实际匹配过程是在运行时动态进行的。</p>
+<p class="source" lang="en">When C++ throws an exception, the runtime has to discover which catch block should receive it and which destructors or cleanup handlers should run along the way. The compiler emits this metadata, but the actual matching happens dynamically at runtime.</p>
+</div>
+<div class="pair" id="p-72">
+<p class="target" lang="zh-CN">异常解包实际上不是由抛出函数的调用者执行的，而是由生成的编译代码调用的辅助函数执行的。这些运行时例程会检查栈，获取栈上函数的元数据，动态查找清理处理程序和捕获块，然后将控制转移至这些位置之一。控制转移包括解包所有中间的栈帧（包括辅助函数的栈帧）。</p>
+<p class="source" lang="en">Exception unwinding is not actually performed by the function that invokes throw, but by helper functions called by the resulting compiled code. Those runtime routines examine the stack, fetch metadata about the functions found on the stack, dynamically look for cleanup handlers and catch blocks, and then transfer control to one of those locations. Transferring control includes unwinding all of the intervening stack frames (including those of the helper functions).</p>
+</div>
+<div class="pair" id="p-73">
+<p class="target" lang="zh-CN">从操作层面来看，这更类似于 longjmp 或光纤交换机，而不是普通的调用与返回过程。必须恢复被调用方的保存寄存器，以及堆栈帧寄存器 %rbp 和 %rsp。</p>
+<p class="source" lang="en">Operationally, this is much closer to a longjmp or a fiber switch than to a normal call and return. Callee save registers must be restored, as well as the stack frame registers %rbp and %rsp.</p>
+</div>
+<div class="pair" id="p-74">
+<p class="target" lang="zh-CN">我们针对包含两个库进行了二进制链接测试，这两个库都实现了执行 C++ 异常卸载的函数：libgcc 和 GNU libunwind。动态链接器选择了 GNU libunwind 的定义，这让我们很惊讶；我们原本预计由于符号版本规则的原因，libgcc 的实现会占优，但实际检查运行中的二进制文件后发现并非如此。</p>
+<p class="source" lang="en">Our binary links against two libraries that contain implementations of the functions that perform C++ exception unwinding: libgcc and GNU libunwind. GNU libunwind’s definitions were the ones chosen by the dynamic linker. That surprised us; we had expected the libgcc implementation to win because of symbol versioning rules; however, inspecting running binaries showed that wasn’t the case.</p>
+</div>
+<div class="pair" id="p-75">
+<p class="target" lang="zh-CN">取消最后一个假设</p>
+<p class="source" lang="en">Undoing one last assumption</p>
+</div>
+<div class="pair" id="p-76">
+<p class="target" lang="zh-CN">此时我们的假设发生了变化，因为我们放开了之前的一个假设，之前我们认为只有一个错误。</p>
+<p class="source" lang="en">At this point our working hypothesis changed, as we relaxed another assumption that we had made when we thought there was only one bug.</p>
+</div>
+<div class="pair" id="p-77">
+<p class="target" lang="zh-CN">也许我们并没有看到一个普通的函数返回到 NULL。也许我们看到的是一种展开转移——实际上类似于 setcontext 的寄存器恢复——在控制转移之前，目标指令指针已经变成了 NULL。换句话说，这是展开库提供的错误数据，而不是栈上返回地址位置的错误。</p>
+<p class="source" lang="en">Maybe we were not seeing an ordinary function return to NULL. Maybe we were seeing an unwind transfer—effectively a setcontext-style register restore—where the destination instruction pointer had become NULL before control was transferred. In other words, incorrect data from the unwind library rather than an incorrect return address slot on the stack.</p>
+</div>
+<div class="pair" id="p-78">
+<p class="target" lang="zh-CN">这大大缩小了问题范围。要么 GNU libunwind 计算了错误的目标状态，要么它计算了正确的状态，但在应用之前被某些因素破坏了。</p>
+<p class="source" lang="en">That narrowed the problem dramatically. Either GNU libunwind was computing the wrong destination state, or it was computing the right state and something was corrupting it before it could be applied.</p>
+</div>
+<div class="pair" id="p-79">
+<p class="target" lang="zh-CN">我们阅读了 GNU libunwind 的源代码，发现它会在栈上创建一个 ucontext_t 结构，填充清理处理程序帧所需的寄存器状态，然后将该结构指针传递给内部汇编例程 _Ux86_64_setcontext。</p>
+<p class="source" lang="en">We read the GNU libunwind source and found that it synthesizes a ucontext_t on the stack, fills in the desired register state for the cleanup handler’s frame, and then hands a pointer to that struct to an internal assembly routine: _Ux86_64_setcontext.</p>
+</div>
+<div class="pair" id="p-80">
+<p class="target" lang="zh-CN">此时我们已经有了所有必要的部分。</p>
+<p class="source" lang="en">At this point we had all of the pieces.</p>
+</div>
+<div class="pair" id="p-81">
+<p class="target" lang="zh-CN">合成的 ucontext_t 存在于由 _Ux86_64_setcontext 展开的栈帧中，在该函数的执行过程中。_Ux86_64_setcontext 是在 %rsp 发生变化之后从结构体读取数据的吗？此时结构体已不再属于活动栈的一部分。这会使它容易受到信号传递的影响，比如我们常见的 SIGUSR2 信号。</p>
+<p class="source" lang="en">The synthesized ucontext_t lives in one of the stack frames that is unwound by _Ux86_64_setcontext, during that function’s execution. Was _Ux86_64_setcontext reading from the struct after it changed %rsp, at which point the struct was no longer part of the active stack? That would make it vulnerable to being clobbered by a signal delivery, such as our frequent SIGUSR2.</p>
+</div>
+<div class="pair" id="p-82">
+<p class="target" lang="zh-CN">错误 #2：libunwind 错误</p>
+<p class="source" lang="en">Bug #2: the libunwind bug</p>
+</div>
+<div class="pair" id="p-83">
+<p class="target" lang="zh-CN">答案是肯定的。</p>
+<p class="source" lang="en">The answer was yes.</p>
+</div>
+<div class="pair" id="p-84">
+<p class="target" lang="zh-CN">以下是我们使用的 GNU libunwind 版本中 _Ux86_64_setcontext 的最后六条指令，这些指令主要包含从内存加载到目标寄存器的 mov 指令：</p>
+<p class="source" lang="en">Here are the last six instructions of _Ux86_64_setcontext in the version of GNU libunwind we were using, which consist mostly of mov instructions that load from memory to a destination register:</p>
+</div>
+<div class="pair" id="p-85">
+<p class="target" lang="zh-CN">174: 将 UC_MCONTEXT_GREGS_RSP(%rdi) 移动到 %rsp275:376: /* 将返回地址压入栈中 */477: 将 UC_MCONTEXT_GREGS_RIP(%rdi) 移动到 %rcx578: 压入 %rcx679:780: 将 UC_MCONTEXT_GREGS_RCX(%rdi) 移动到 %rcx881: 将 UC_MCONTEXT_GREGS_RDI(%rdi) 移动到 %rdi982: 返回</p>
+<p class="source" lang="en">174: mov UC_MCONTEXT_GREGS_RSP(%rdi),%rsp275:376: /* push the return address on the stack */477: mov UC_MCONTEXT_GREGS_RIP(%rdi),%rcx578: push %rcx679:780: mov UC_MCONTEXT_GREGS_RCX(%rdi),%rcx881: mov UC_MCONTEXT_GREGS_RDI(%rdi),%rdi982: retq</p>
+</div>
+<div class="pair" id="p-86">
+<p class="target" lang="zh-CN">(%rdi指向栈分配的ucontext_t，而UC_MCONTEXT_*宏则展开为特定寄存器存储的固定偏移量。)</p>
+<p class="source" lang="en">(%rdi points at the stack-allocated ucontext_t, and the UC_MCONTEXT_* macros just expand to the fixed offset at which a particular register is stored.)</p>
+</div>
+<div class="pair" id="p-87">
+<p class="target" lang="zh-CN">第一条指令是比赛窗口的开始。它更新 %rsp 的值，使其指向活动栈的新底部。一旦发生这种情况，%rdi 所指向的结构体就不再属于活动栈（或红区），也不再对内核不可访问。</p>
+<p class="source" lang="en">The first instruction is the beginning of the race window. It updates %rsp to point to the new bottom of the active stack. As soon as this happens, the struct pointed to by %rdi is no longer part of the active stack (or red zone), and it’s no longer off-limits to the kernel.</p>
+</div>
+<div class="pair" id="p-88">
+<p class="target" lang="zh-CN">通常这不会造成问题，但如果信号在恰好正确的（或者错误？）时刻到达，内核会将信号帧构建在 %rsp-128 位置，这可能会覆盖 %rdi 所指向的内存。</p>
+<p class="source" lang="en">Usually this doesn’t cause problems, but if a signal arrives at exactly the right (wrong?) moment, the kernel will build the signal frame at %rsp-128. That can overwrite the memory pointed to by %rdi.</p>
+</div>
+<div class="pair" id="p-89">
+<p class="target" lang="zh-CN">如果这种情况发生在下一个指令读取 UC_MCONTEXT_GREGS_RIP(%rdi)之前，那么恢复后的指令指针可能会被破坏。在我们的崩溃案例中，它变成了 NULL。</p>
+<p class="source" lang="en">If that happens before the next instruction reads UC_MCONTEXT_GREGS_RIP(%rdi), then the restored instruction pointer can be corrupted. In our crashes, it became NULL.</p>
+</div>
+<div class="pair" id="p-90">
+<p class="target" lang="zh-CN">那就是问题所在。</p>
+<p class="source" lang="en">That’s the bug.</p>
+</div>
+<div class="pair" id="p-91">
+<p class="target" lang="zh-CN">为什么被标记为普通糟糕回报的核心项目</p>
+<p class="source" lang="en">Why the cores masked as ordinary bad returns</p>
+</div>
+<div class="pair" id="p-92">
+<p class="target" lang="zh-CN">这种组装过程也解释了让我们困惑的一个现象：为什么函数 X 在之前的栈帧的返回地址位置有 NULL。</p>
+<p class="source" lang="en">This assembly also explains one of the observations that confused us: why function X had a NULL in the return address slot of the preceding stack frame.</p>
+</div>
+<div class="pair" id="p-93">
+<p class="target" lang="zh-CN">setcontext被设计用来恢复所有寄存器，包括 %rdi，因此它无法在控制转移的最后时刻使用该寄存器来读取 UC_MCONTEXT_GREGS_RIP(%rdi)。相反，它会在更早的时候读取该值，将其保存到栈中，再恢复一些寄存器，然后使用 retq 来读取保存的值并转移控制。</p>
+<p class="source" lang="en">setcontext was written to restore all registers, including %rdi, so it can’t use that register to read UC_MCONTEXT_GREGS_RIP(%rdi) at the final moment of the control transfer. Instead, it reads the value earlier, saves it to the stack, restores a few more registers, then uses retq to read the saved value and transfer control.</p>
+</div>
+<div class="pair" id="p-94">
+<p class="target" lang="zh-CN">看起来像是“函数被返回为 NULL”的情况，实际上是因为“解缠器在栈上合成了一个目标返回地址，但该目标在转移完成之前就已经被损坏了”。我们假设返回地址槽位的损坏必须就地发生，因为我们不知道有任何地方会故意将（损坏的）数据写入返回地址槽位。</p>
+<p class="source" lang="en">What looked in the cores like “a function returned to NULL” was actually “the unwinder synthesized a target return address on the stack, but that target had been corrupted before the transfer completed.” We had assumed that corruption of the return address slot must happen in-place, because we didn’t know of any places where (corruptible) data was written to the return address slot on purpose.</p>
+</div>
+<div class="pair" id="p-95">
+<p class="target" lang="zh-CN">单条指令竞赛窗口</p>
+<p class="source" lang="en">A single-instruction race window</p>
+</div>
+<div class="pair" id="p-96">
+<p class="target" lang="zh-CN">这个错误看起来荒谬的原因在于竞争窗口的狭窄。在这种竞争条件中，外部事件（信号）需要在另一个线程执行的两个步骤之间发生。这些步骤之间的距离越近，竞争条件发生的可能性就越小。</p>
+<p class="source" lang="en">What makes this bug seem absurd is how narrow this race window is. In this kind of race condition, the external event (the signal) needs to happen in between two steps taken by another thread. The closer those steps are to each other, the less likely the race condition is to happen.</p>
+</div>
+<div class="pair" id="p-97">
+<p class="target" lang="zh-CN">在这种情况下，易受攻击的窗口实际上只有一条指令宽！信号必须在 %rsp 发生变化之后、下一个指令加载 %rip 之前传递。像这样的简单指令可以在现代超并行乱序 CPU 上每个周期执行一次，因此竞争窗口大约为一百皮秒。</p>
+<p class="source" lang="en">In this case the vulnerable window is literally one instruction wide! A signal must be delivered after %rsp has been changed, but before the next instruction loads %rip. Several simple instructions like this can be run per cycle on a modern super-scalar out-of-order CPU, so the race window is roughly a hundred picoseconds.</p>
+</div>
+<div class="pair" id="p-98">
+<p class="target" lang="zh-CN">当我们发现这种竞争情况时，我们的第一反应是它一定太罕见了，无法解释所观察到的崩溃率。我们看到整个舰队每天有超过十次回到空值的崩溃情况。难道在异常清理过程中的一次指令竞争就能解释这一切吗？</p>
+<p class="source" lang="en">When we found this race, our first reaction was that it must be too rare to explain the observed crash rate. We were seeing more than a dozen return-to-null crashes per day across the fleet. Could a one-instruction race during exception cleanup really account for that?</p>
+</div>
+<div class="pair" id="p-99">
+<p class="target" lang="zh-CN">我们采用了费米估计法。如果脆弱窗口约为10−10^10秒，而SIGUSR2在10−2秒的CPU时间间隔内出现一次，那么每个异常清理处理程序或捕获块失去竞争机会的概率大约为10−8^10秒。</p>
+<p class="source" lang="en">We turned to Fermi estimation. If the vulnerable window is on the order of 10−1010^{-10}10−10 seconds and SIGUSR2 arrives every 10−210^{-2}10−2 seconds of CPU time, then each exception cleanup handler or catch block has a roughly 10−810^{-8}10−8 probability of losing the race.</p>
+</div>
+<div class="pair" id="p-100">
+<p class="target" lang="zh-CN">Rockset 将异常作为其内部接收背压机制的一部分。一个过载的主机每秒可能会抛出 10^4^10^4 个异常。这意味着使用背压的主机故障之间的平均时间长度为 10^4^10^4 秒，即每隔几小时就会发生一次崩溃。在舰队规模下，这足以解释观察到的崩溃频率。</p>
+<p class="source" lang="en">Rockset uses exceptions as part of its internal ingest backpressure mechanism. A single overloaded host can throw on the order of 10410^{4}104 exceptions per second. That implies the mean time between failures of a host using backpressure is 10410^{4}104 seconds, or one crash every few hours. At fleet scale, that is more than enough to explain the observed crash frequency.</p>
+</div>
+<div class="pair" id="p-101">
+<p class="target" lang="zh-CN">为什么现在出现了 libunwind 错误？</p>
+<p class="source" lang="en">Why did the libunwind bug appear now?</p>
+</div>
+<div class="pair" id="p-102">
+<p class="target" lang="zh-CN">GNU libunwind 漏洞已经存在了很久——超过 18 年，它出现在第一个支持 C++ 异常卸载的 x86_64 版本中。</p>
+<p class="source" lang="en">The GNU libunwind bug is old—more than 18 years old, present in the first x86_64 version that supported C++ exception unwinding.</p>
+</div>
+<div class="pair" id="p-103">
+<p class="target" lang="zh-CN">那么，它为什么现在出现了呢？</p>
+<p class="source" lang="en">So why did it show up now?</p>
+</div>
+<div class="pair" id="p-104">
+<p class="target" lang="zh-CN">崩溃率大致与抛出的异常数量和传递的信号数量成正比，同时也取决于信号处理程序所消耗的栈空间大小。</p>
+<p class="source" lang="en">The crash rate is roughly proportional to how many exceptions are thrown and how many signals are delivered. It’s also dependent on how much stack the signal handler consumes.</p>
+</div>
+<div class="pair" id="p-105">
+<p class="target" lang="zh-CN">Rockset在三个方面都表现不同寻常。作为正常过载控制的一部分，我们频繁抛出异常；由于coarse_thread_cputime_clock的原因，我们异常频繁地发送SIGUSR2信号；今年早些时候，我们通过调用timer_getoverrun来增加栈空间，使得SIGUSR2处理程序能使用更多的栈空间，从而能够处理合并的信号。</p>
+<p class="source" lang="en">Rockset is unusual on all three axes. We throw exceptions at high rates as part of normal overload control; we deliver SIGUSR2 unusually often because of coarse_thread_cputime_clock; and earlier this year we made the SIGUSR2 handler use more stack by adding a call to timer_getoverrun, so we could account for merged signals.</p>
+</div>
+<div class="pair" id="p-106">
+<p class="target" lang="zh-CN">那个最后的修改似乎很重要。如果处理程序使用的栈足够小，它可能无法访问并覆盖过期的 ucontext_t 内存。在修改之前，我们完全没有遇到这些崩溃情况。修改之后，崩溃率一直很低，直到我们对某些用例增加了负载，从而加剧了背压机制的压力。</p>
+<p class="source" lang="en">That last change seems to have been important. If the handler uses little enough stack, it may not reach and overwrite the stale ucontext_t memory. Before that change, we do not observe these crashes at all. After the change the rate remained low until we ramped up load for some use cases that stressed the backpressure mechanism.</p>
+</div>
+<div class="pair" id="p-107">
+<p class="target" lang="zh-CN">换句话说，libunwind 错误一直都存在，但我们的异常率、信号率和处理程序栈使用量综合结果直到最近才达到可以显现出来的程度。</p>
+<p class="source" lang="en">In other words, the libunwind bug has always been there, but the product of our exception rate, signal rate, and handler stack usage had only recently crossed the threshold where it became operationally visible.</p>
+</div>
+<div class="pair" id="p-108">
+<p class="target" lang="zh-CN">这种机制也解释了为什么硬件错误和 libunwind 错误大多发生在 DocumentTree::updateDocument 函数中。来自 libunwind 的崩溃主要发生在该方法中，因为我们在抛出异常以应用数据接收压力时，该方法总是处于活跃状态。由于有问题的硬件节点属于我们用于批量数据接收的 SKU，而该方法占据了大部分 CPU 时间，因此该方法也更容易出现 %rsp-misalignment 崩溃。</p>
+<p class="source" lang="en">This mechanism also explains the coincidence that both the hardware bug and the libunwind bug crashed mostly inside DocumentTree::updateDocument. Crashes from libunwind were heavily biased toward this method, because it’s always active at the point we throw an exception to apply ingest backpressure. It was also heavily selected for the %rsp-misalignment crashes because the bad hardware node was of a SKU that we use for bulk ingest, which spends the majority of its CPU time in that method.</p>
+</div>
+<div class="pair" id="p-109">
+<p class="target" lang="zh-CN">我们立即的解决办法是将 GNU libunwind 替换为 libgcc 的 unwinder。这本身就是一个不错的替代选择：libgcc 的实现经过大量优化，减少了锁竞争，这对于扩展到大型虚拟机非常重要。</p>
+<p class="source" lang="en">Our immediate mitigation was to switch from GNU libunwind to libgcc’s unwinder. That was a good trade on its own: libgcc’s implementation has benefited from a lot of work to reduce lock contention, which matters when scaling to large VMs.</p>
+</div>
+<div class="pair" id="p-110">
+<p class="target" lang="zh-CN">我们还将一个自包含的复制器以及一个修复方案（在新窗口中打开）集成到了 GNU libunwind中，并确认其他解包器没有类似问题。</p>
+<p class="source" lang="en">We also upstreamed a self-contained reproducer and a fix⁠(opens in a new window) to GNU libunwind, and verified that the other unwinders don’t have a similar issue.</p>
+</div>
+<div class="pair" id="p-111">
+<p class="target" lang="zh-CN">人群层面诊断的力量</p>
+<p class="source" lang="en">The power of a population-level diagnosis</p>
+</div>
+<div class="pair" id="p-112">
+<p class="target" lang="zh-CN">这种调试过程让我们对动态链接的具体细节、DWARF 解包元数据、Linux 信号传递、System V ABI 以及 C++ 异常机制有了很多了解。但最重要的教训却比这些都要简单。</p>
+<p class="source" lang="en">This debugging journey taught us a lot about the specific details of dynamic linking, DWARF unwind metadata, Linux signal delivery, the System V ABI, and C++ exception machinery. But the main lesson was simpler than any of that.</p>
+</div>
+<div class="pair" id="p-113">
+<p class="target" lang="zh-CN">最重要的步骤不是巧妙的代码阅读或对细节的深入了解，而是构建高质量的数据集。如果没有这个数据集，我们就会把两种不同的现象混在一起，试图通过推理来摆脱混乱。一旦我们有了准确且完整的人口数据，问题的结构就变得清晰了：一个崩溃案例属于一个不良主机，另一个则属于 libunwind 中的一个 races 问题。数据改善后，调试工作也变得容易了。</p>
+<p class="source" lang="en">The most important step was not the clever assembly reading or deep knowledge of the details. It was building a high-quality data set. In the absence of this data set, we were mixing two distinct phenomena into one story and trying to reason our way out of the confusion. Once we had accurate and complete population data, the structure of the problem became obvious: one crash population belonged to a bad host, and the other belonged to a race in libunwind. Once the data got better, the debugging got easier.</p>
+</div>
+<div class="pair" id="p-114">
+<p class="target" lang="zh-CN">对于像 Rockset 这样的基础设施系统来说，这一点非常重要。这项调查进一步坚定了我们的决心，即进行深度工具开发、自动化调查以及持续改进运营工具。可靠性不仅仅是在错误发生之后进行修复，而是要构建数据、工作流和技能，将无法解决的问题转化为可诊断和可解决的问题。</p>
+<p class="source" lang="en">For infrastructure systems like Rockset, that matters a lot. This investigation reinforced our commitment to deep instrumentation, automated investigations, and continual improvements in our operational tooling. Reliability is not just about fixing bugs after they happen—it’s about building the data, workflows, and skills that turn impossible problems into diagnosable and solvable ones.</p>
+</div>
+<div class="pair" id="p-115">
+<p class="target" lang="zh-CN">2026</p>
+<p class="source" lang="en">2026</p>
+</div>
+<div class="pair" id="p-116">
+<p class="target" lang="zh-CN">&lt;text&gt;
+作者
+&lt;/text&gt;</p>
+<p class="source" lang="en">Authors</p>
+</div>
+<div class="pair" id="p-117">
+<p class="target" lang="zh-CN">&lt;text&gt;
+由技术员成员内森·布隆森撰写
+&lt;/text&gt;</p>
+<p class="source" lang="en">By Nathan Bronson, Member of Technical Staff</p>
+</div>
+<div class="pair" id="p-118">
+<p class="target" lang="zh-CN">继续阅读</p>
+<p class="source" lang="en">Keep reading</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6G64B5haCxDuphl2iqwZ1N/4f8d319293f5e5e98b319e01b4fbdf59/scaling-git-at-openai-art-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Scaling Git at OpenAI — art card" loading="lazy">
+<div class="pair" id="p-119">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年11月2日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringNov 2, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3a839ECHaGsidJPLJqqm5s/55968ec17735b96514d1bb4851f43bf8/scaling-storage-one-billion-users-part-two-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II) — card" loading="lazy">
+<div class="pair" id="p-120">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学2026年10月23日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 23, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3aewhPPb5NQ5IqOKEkrtzA/7209065f6e6ccf3a0476b43feb8336e1/rethinking-ads-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rethinking the ad stack around a new user journey — Art card" loading="lazy">
+<div class="pair" id="p-121">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年10月21日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 21, 2026</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://openai.com/index/core-dump-epidemiology-data-infrastructure-bug" target="_blank" rel="noopener noreferrer">https://openai.com/index/core-dump-epidemiology-data-infrastructure-bug</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html">← How GPT-5.6 fuses frontier intelligence with frontier efficiency</a><a href="../viewers/building-self-improving-tax-agents-with-codex.html">Building self-improving tax agents with Codex →</a></nav>
+  <footer class="footer">文章版权归原作者所有，译文请以英文原文为准。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

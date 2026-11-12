@@ -1,0 +1,1142 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Harness engineering: leveraging Codex in an agent-first world · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Harness engineering: leveraging Codex in an agent-first world</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item current" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html" aria-current="page"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item current" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html" aria-current="page"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Harness engineering: leveraging Codex in an agent-first world</h1>
+  <p class="subline">原文：<a href="https://openai.com/index/harness-engineering" target="_blank" rel="noopener noreferrer">https://openai.com/index/harness-engineering</a> · 2026-02-11 · OpenAI Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">过去五个月里，我们的团队开展了一项实验：开发并发布了一款软件产品的内部测试版，且没有一行是人工编写的代码。</p>
+<p class="source" lang="en">Over the past five months, our team has been running an experiment: building and shipping an internal beta of a software product with 0 lines of manually-written code.</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">该产品有内部日常用户和外部alpha测试者。它经过部署、实施、故障处理及修复。不同之处在于，每一行代码——包括应用逻辑、测试、CI配置、文档、可观测性以及内部工具——都是由Codex编写的。我们估计，我们完成这些工作所花费的时间，仅为手工编写代码时间的1/10。</p>
+<p class="source" lang="en">The product has internal daily users and external alpha testers. It ships, deploys, breaks, and gets fixed. What’s different is that every line of code—application logic, tests, CI configuration, documentation, observability, and internal tooling—has been written by Codex. We estimate that we built this in about 1/10th the time it would have taken to write the code by hand.</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">人类负责引导，智能体负责执行。</p>
+<p class="source" lang="en">Humans steer. Agents execute.</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">我们特意选择这一限制，以便构建必要的措施，使工程效率提升数个数量级。我们用了几周时间就完成了原本一百万行代码的工作。为了做到这一点，我们必须理解当软件工程团队的主要职责不再是编写代码，而是设计环境、明确意图以及构建反馈循环时，会发生哪些变化，这样 Codex 代理才能可靠地工作。</p>
+<p class="source" lang="en">We intentionally chose this constraint so we would build what was necessary to increase engineering velocity by orders of magnitude. We had weeks to ship what ended up being a million lines of code. To do that, we needed to understand what changes when a software engineering team’s primary job is no longer to write code, but to design environments, specify intent, and build feedback loops that allow Codex agents to do reliable work.</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">这篇文章讲述了我们与团队一起开发全新产品时所学到的经验——哪些环节出现了问题，哪些问题被放大了，以及如何充分利用我们唯一稀缺的资源：人的时间和注意力。</p>
+<p class="source" lang="en">This post is about what we learned by building a brand new product with a team of agents—what broke, what compounded, and how to maximize our one truly scarce resource: human time and attention.</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">我们从一个空的 git 仓库开始。</p>
+<p class="source" lang="en">We started with an empty git repository</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">2025年8月底，第一个提交到空仓库的内容被提交了。</p>
+<p class="source" lang="en">The first commit to an empty repository landed in late August 2025.</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">最初的框架——存储库结构、CI配置、格式规则、包管理器设置以及应用框架——是由 Codex CLI 使用 GPT‑5 生成的，并基于少量现有模板来构建的。甚至用于指导代理在存储库中工作的 AGENTS.md 文件也是由 Codex 编写的。</p>
+<p class="source" lang="en">The initial scaffold—repository structure, CI configuration, formatting rules, package manager setup, and application framework—was generated by Codex CLI using GPT‑5, guided by a small set of existing templates. Even the initial AGENTS.md file that directs agents how to work in the repository was itself written by Codex.</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">没有预先存在的人类编写的代码来支撑该系统。从一开始，这个仓库就由智能体来构建。</p>
+<p class="source" lang="en">There was no pre-existing human-written code to anchor the system. From the beginning, the repository was shaped by the agent.</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">五个月后，该仓库中包含了大约一百万行代码，涵盖应用程序逻辑、基础设施、工具、文档和内部开发工具。在此期间，大约有1,500个拉取请求被提交并合并，由仅三名工程师组成的团队负责Codex项目。这意味着平均每个工程师每天处理3.5个拉取请求，令人惊讶的是，随着团队扩大到七名工程师，处理效率反而提高了。重要的是，这些代码并非为了产生更多代码而生成：该产品已被数百名内部用户使用，包括日常使用的核心用户。</p>
+<p class="source" lang="en">Five months later, the repository contains on the order of a million lines of code across application logic, infrastructure, tooling, documentation, and internal developer utilities. Over that period, roughly 1,500 pull requests have been opened and merged with a small team of just three engineers driving Codex. This translates to an average throughput of 3.5 PRs per engineer per day, and surprisingly the throughput has increased as the team has grown to now seven engineers. Importantly, this wasn’t output for output’s sake: the product has been used by hundreds of users internally, including daily internal power users.</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">在整个开发过程中，人类从未直接贡献过任何代码。这成为了团队的核心理念：不编写手动编写的代码。</p>
+<p class="source" lang="en">Throughout the development process, humans never directly contributed any code. This became a core philosophy for the team: no manually-written code.</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">重新定义工程师的角色</p>
+<p class="source" lang="en">Redefining the role of the engineer</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">缺乏人工编码实践，带来了另一种类型的工程工作，重点在于系统构建、框架搭建和杠杆效应。</p>
+<p class="source" lang="en">The lack of hands-on human coding introduced a different kind of engineering work, focused on systems, scaffolding, and leverage.</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">早期的进展比我们预期的要慢，不是因为 Codex 能力不足，而是因为环境描述不够明确。代理缺乏实现高级目标所需的工具、抽象概念和内部结构。我们的工程团队的主要任务就是帮助代理完成有用的工作。</p>
+<p class="source" lang="en">Early progress was slower than we expected, not because Codex was incapable, but because the environment was underspecified. The agent lacked the tools, abstractions, and internal structure required to make progress toward high-level goals. The primary job of our engineering team became enabling the agents to do useful work.</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">实际上，这意味着采用深度优先的方式工作：将较大的目标分解为较小的模块（设计、代码、审查、测试等），然后让智能体构建这些模块，并利用它们来完成更复杂的任务。当某部分出现问题时，几乎不会采用“努力更多”的方法来解决。因为取得进展的唯一方式就是让 Codex 完成工作，因此人类工程师总是亲自介入任务，并问自己：“缺少什么能力？我们如何使智能体能够理解并遵守这些规则？”</p>
+<p class="source" lang="en">In practice, this meant working depth-first: breaking down larger goals into smaller building blocks (design, code, review, test, etc), prompting the agent to construct those blocks, and using them to unlock more complex tasks. When something failed, the fix was almost never “try harder.” Because the only way to make progress was to get Codex to do the work, human engineers always stepped into the task and asked: “what capability is missing, and how do we make it both legible and enforceable for the agent?”</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">人类几乎完全通过提示与系统互动：工程师描述任务，运行智能体，并允许其打开拉取请求。为了推动拉取请求完成，我们指示 Codex 在本地审查其自身更改，在本地和云端请求额外的智能体审查，对人类或智能体提供的反馈作出回应，并不断迭代，直到所有智能体审查者都满意为止（实际上这就是 Ralph Wiggum 循环⁠）。Codex 直接使用我们的标准开发工具（如 gh、本地脚本和仓库内嵌的技能）来收集上下文信息，而无需人类在命令行中复制和粘贴。</p>
+<p class="source" lang="en">Humans interact with the system almost entirely through prompts: an engineer describes a task, runs the agent, and allows it to open a pull request. To drive a PR to completion, we instruct Codex to review its own changes locally, request additional specific agent reviews both locally and in the cloud, respond to any human or agent given feedback, and iterate in a loop until all agent reviewers are satisfied (effectively this is a Ralph Wiggum Loop⁠(opens in a new window)). Codex uses our standard development tools directly (gh, local scripts, and repository-embedded skills) to gather context without humans copying and pasting into the CLI.</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">人类可以审查拉取请求，但并非必须如此。随着时间的推移，我们几乎把所有的审查工作都交给了智能代理来处理。</p>
+<p class="source" lang="en">Humans may review pull requests, but aren’t required to. Over time, we’ve pushed almost all review effort towards being handled agent-to-agent.</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">提高应用的可读性</p>
+<p class="source" lang="en">Increasing application legibility</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">随着代码处理速度提升，我们的瓶颈变成了人工质量检查能力。由于固定限制因素在于人工时间和注意力，我们试图通过让应用程序界面、日志和应用程序指标等直接可被 Codex 读取，来为智能体增加更多功能。</p>
+<p class="source" lang="en">As code throughput increased, our bottleneck became human QA capacity. Because the fixed constraint has been human time and attention, we’ve worked to add more capabilities to the agent by making things like the application UI, logs, and app metrics themselves directly legible to Codex.</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">例如，我们让应用程序能够在每个 git worktree 上启动，这样 Codex 就可以根据每次更改启动并运行一个实例。我们还将 Chrome DevTools 协议集成到代理运行时中，并开发了处理 DOM 快照、屏幕截图和导航的技能。这使得 Codex 能够直接重现错误、验证修复方案并分析用户界面行为。</p>
+<p class="source" lang="en">For example, we made the app bootable per git worktree, so Codex could launch and drive one instance per change. We also wired the Chrome DevTools Protocol into the agent runtime and created skills for working with DOM snapshots, screenshots, and navigation. This enabled Codex to reproduce bugs, validate fixes, and reason about UI behavior directly.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/1Gu58eNlqDEuITmbqJDmq9/1e2e62f7e15fb16d2da0da5407240564/fig_1__codex_drives_the_app_.png?w=3840&amp;q=90&amp;fm=webp" alt="Diagram titled “Codex drives the app with Chrome DevTools MCP to validate its work.” Codex selects a target, snapshots the state before and after triggering a UI path, observes runtime events via Chrome DevTools, applies fixes, restarts, and loops re-running validation until the app is clean." loading="lazy">
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">我们对可观测性工具也做了同样的处理。日志、指标和追踪数据通过本地可观测性栈暴露给 Codex，该栈对于特定的工作树来说是临时的。Codex 运行在该应用的完全隔离版本上——包括其日志和指标，这些在任务完成后会被删除。代理可以使用 LogQL 查询日志，使用 PromQL 查询指标。有了这种上下文支持，像“确保服务启动在 800 毫秒内完成”或“这四项关键用户流程中没有任何跨度超过两秒”这样的提示就变得可以处理了。</p>
+<p class="source" lang="en">We did the same for observability tooling. Logs, metrics, and traces are exposed to Codex via a local observability stack that’s ephemeral for any given worktree. Codex works on a fully isolated version of that app—including its logs and metrics, which get torn down once that task is complete. Agents can query logs with LogQL and metrics with PromQL. With this context available, prompts like “ensure service startup completes in under 800ms” or “no span in these four critical user journeys exceeds two seconds” become tractable.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/4Xr18TZ5G4Bh8zIgsTFIVK/f7ae689ddd8c31664e39d809b0973425/OAI_Harness_engineering_Giving_Codex_a_full_observability_stack_desktop-light__1_.svg?w=3840&amp;q=90" alt="Diagram titled “Giving Codex a full observability stack in local dev.” An app sends logs, metrics, and traces to Vector, which fans out data to an observability stack containing Victoria Logs, Metrics, and Traces, each queried via LogQL, PromQL, or TraceQL APIs. Codex uses these signals to query, correlate, and reason, then implements fixes in the codebase, restarts the app, re-runs workloads, tests UI journeys, and repeats in a feedback loop." loading="lazy">
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">我们经常看到单个 Codex 运行程序在一项任务上持续工作超过六小时（通常是在人类睡觉的时候）。</p>
+<p class="source" lang="en">We regularly see single Codex runs work on a single task for upwards of six hours (often while the humans are sleeping).</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">我们将仓库知识作为记录系统</p>
+<p class="source" lang="en">We made repository knowledge the system of record</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">上下文管理是让智能体在复杂任务中有效运作的最大挑战之一。我们最早学到的经验很简单：给 Codex 提供一张地图，而不是一份1000页的操作手册。</p>
+<p class="source" lang="en">Context management is one of the biggest challenges in making agents effective at large and complex tasks. One of the earliest lessons we learned was simple: give Codex a map, not a 1,000-page instruction manual.</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">我们尝试了“一个大的 AGENTS.md⁠（在新窗口中打开）”的方法。它以可预测的方式失败了：</p>
+<p class="source" lang="en">We tried the “one big AGENTS.md⁠(opens in a new window)” approach. It failed in predictable ways:</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">上下文是一种稀缺资源。庞大的指令文件会分散注意力，影响任务执行和代码编写以及相关文档的编写——因此代理要么忽略关键约束，要么开始优化错误的方面。</p>
+<p class="source" lang="en">Context is a scarce resource. A giant instruction file crowds out the task, the code, and the relevant docs—so the agent either misses key constraints or starts optimizing for the wrong ones.</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">上下文是一种稀缺资源。庞大的指令文件会占用大量资源，影响任务、代码和相关文档的编写——因此智能体要么忽略关键约束，要么开始优化错误的方面。</p>
+<p class="source" lang="en">Context is a scarce resource. A giant instruction file crowds out the task, the code, and the relevant docs—so the agent either misses key constraints or starts optimizing for the wrong ones.</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">过多的指导会变成无指导。当一切都被视为重要时，实际上却什么都不是。代理最终只能进行局部模式匹配，而不是有意图地导航。</p>
+<p class="source" lang="en">Too much guidance becomes non-guidance. When everything is “important,” nothing is. Agents end up pattern-matching locally instead of navigating intentionally.</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">过多的指导会变成没有指导。当一切都被视为重要时，实际上什么都不是。代理角色最终只能进行局部模式匹配，而不是有意图地导航。</p>
+<p class="source" lang="en">Too much guidance becomes non-guidance. When everything is “important,” nothing is. Agents end up pattern-matching locally instead of navigating intentionally.</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">它立刻腐烂。一份完整的手册变成了陈旧的规则堆。代理人员无法分辨哪些规则仍然有效，人类也不再维护它，最终这份文件就变成了一个令人讨厌的麻烦。</p>
+<p class="source" lang="en">It rots instantly. A monolithic manual turns into a graveyard of stale rules. Agents can’t tell what’s still true, humans stop maintaining it, and the file quietly becomes an attractive nuisance.</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">它立刻腐烂了。一份完整的手册变成了陈旧的规则堆。代理人无法判断哪些规则仍然有效，人类也不再维护它，最终这份文件就成了令人头疼的问题。</p>
+<p class="source" lang="en">It rots instantly. A monolithic manual turns into a graveyard of stale rules. Agents can’t tell what’s still true, humans stop maintaining it, and the file quietly becomes an attractive nuisance.</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">很难验证。单个块无法通过机械检查（覆盖度、新鲜度、所有权、交叉链接），因此变化是不可避免的。</p>
+<p class="source" lang="en">It’s hard to verify. A single blob doesn’t lend itself to mechanical checks (coverage, freshness, ownership, cross-links), so drift is inevitable.</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">很难验证。单个块无法通过机械检查（覆盖度、新鲜度、所有权、交叉链接），因此变化是不可避免的。</p>
+<p class="source" lang="en">It’s hard to verify. A single blob doesn’t lend itself to mechanical checks (coverage, freshness, ownership, cross-links), so drift is inevitable.</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">所以，我们不是把 AGENTS.md 当作百科全书，而是把它当作目录。</p>
+<p class="source" lang="en">So instead of treating AGENTS.md as the encyclopedia, we treat it as the table of contents.</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">该存储库的知识库存储在被视为记录系统的 structured docs/ 目录中。一个简短的 AGENTS.md 文件（约 100 行）被纳入上下文，主要起到映射作用，并指向其他更深层的信息来源。</p>
+<p class="source" lang="en">The repository’s knowledge base lives in a structured docs/ directory treated as the system of record. A short AGENTS.md (roughly 100 lines) is injected into context and serves primarily as a map, with pointers to deeper sources of truth elsewhere.</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">1AGENTS.md2ARCHITECTURE.md3docs/4├── design-docs/5│ ├── index.md6│ ├── core-beliefs.md7│ └── ...8├── exec-plans/9│ ├── active/10│ ├── completed/11│ └── tech-debt-tracker.md12├── generated/13│ └── db-schema.md14├── product-specs/15│ ├── index.md16│ ├── new-user-onboarding.md17│ └── ...18├── references/19│ ├── design-system-reference-llms.txt20│ ├── nixpacks-llms.txt21│ ├── uv-llms.txt22│ └── ...23├── DESIGN.md24├── FRONTEND.md25├── PLANS.md26├── PRODUCT_SENSE.md27├── QUALITY_SCORE.md28├── RELIABILITY.md29└── SECURITY.md</p>
+<p class="source" lang="en">1AGENTS.md2ARCHITECTURE.md3docs/4├── design-docs/5│ ├── index.md6│ ├── core-beliefs.md7│ └── ...8├── exec-plans/9│ ├── active/10│ ├── completed/11│ └── tech-debt-tracker.md12├── generated/13│ └── db-schema.md14├── product-specs/15│ ├── index.md16│ ├── new-user-onboarding.md17│ └── ...18├── references/19│ ├── design-system-reference-llms.txt20│ ├── nixpacks-llms.txt21│ ├── uv-llms.txt22│ └── ...23├── DESIGN.md24├── FRONTEND.md25├── PLANS.md26├── PRODUCT_SENSE.md27├── QUALITY_SCORE.md28├── RELIABILITY.md29└── SECURITY.md</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">仓库内知识存储布局。</p>
+<p class="source" lang="en">In-repository knowledge store layout.</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">设计文档被编目和索引，包括验证状态以及定义代理优先操作原则的核心信念。架构文档提供了领域和包层的结构图。质量文档对每个产品领域和架构层进行评分，并跟踪随时间变化的不足之处。</p>
+<p class="source" lang="en">Design documentation is catalogued and indexed, including verification status and a set of core beliefs that define agent-first operating principles. Architecture documentation⁠(opens in a new window) provides a top-level map of domains and package layering. A quality document grades each product domain and architectural layer, tracking gaps over time.</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">计划被视为一等品。临时性的轻量级计划用于小范围的修改，而复杂的任务则被记录为执行计划（在新窗口中打开），并包含进度和决策日志，这些都被保存到仓库中。活跃的计划、完成的计划以及已知的技术债务都会被版本化并集中存储，这样代理程序就可以无需依赖外部上下文来运行。</p>
+<p class="source" lang="en">Plans are treated as first-class artifacts. Ephemeral lightweight plans are used for small changes, while complex work is captured in execution plans⁠(opens in a new window) with progress and decision logs that are checked into the repository. Active plans, completed plans, and known technical debt are all versioned and co-located, allowing agents to operate without relying on external context.</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">这实现了逐步披露：代理系统从小的、稳定的入口点开始，然后被指导下一步该查看什么，而不是在初期就被压垮。</p>
+<p class="source" lang="en">This enables progressive disclosure: agents start with a small, stable entry point and are taught where to look next, rather than being overwhelmed up front.</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">我们通过自动化方式执行此操作。专门的代码检查工具和持续集成任务确保知识库保持最新、关联紧密且结构合理。一个定期运行的“文档维护”代理会扫描那些与真实代码行为不符的过时或废弃文档，并打开修复请求。</p>
+<p class="source" lang="en">We enforce this mechanically. Dedicated linters and CI jobs validate that the knowledge base is up to date, cross-linked, and structured correctly. A recurring “doc-gardening” agent scans for stale or obsolete documentation that does not reflect the real code behavior and opens fix-up pull requests.</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">智能体可理解性才是目标</p>
+<p class="source" lang="en">Agent legibility is the goal</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">随着代码库的发展，Codex的设计决策框架也需要随之发展。</p>
+<p class="source" lang="en">As the codebase evolved, Codex’s framework for design decisions needed to evolve, too.</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">由于仓库完全由智能体生成，因此首先针对 Codex 的可读性进行了优化。就像团队致力于提升新工程人员对代码的可访问性一样，我们的人类工程师的目标是让智能体能够直接从仓库本身理解整个业务领域。</p>
+<p class="source" lang="en">Because the repository is entirely agent-generated, it’s optimized first for Codex’s legibility. In the same way teams aim to improve navigability of their code for new engineering hires, our human engineers’ goal was making it possible for an agent to reason about the full business domain directly from the repository itself.</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">从代理的角度来看，任何在运行过程中无法在上下文中有效访问的内容都不存在。存储在 Google Docs、聊天线程或人们头脑中的知识无法被系统访问。系统只能看到本地仓库中的版本化工件，如代码、 Markdown 文件、架构图和可执行计划。</p>
+<p class="source" lang="en">From the agent’s point of view, anything it can’t access in-context while running effectively doesn’t exist. Knowledge that lives in Google Docs, chat threads, or people’s heads are not accessible to the system. Repository-local, versioned artifacts (e.g., code, markdown, schemas, executable plans) are all it can see.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/7uWHsJIC6o3uQPsnQ2Avz9/8be3e321892054bd215afb2b250a176a/OAI_Harness_engineering_The_limits_of_agent_knowledge_desktop-light.png?w=3840&amp;q=90&amp;fm=webp" alt="Diagram titled “The limits of agent knowledge: What Codex can’t see doesn’t exist.” Codex’s knowledge is shown as a bounded bubble. Below it are examples of unseen knowledge—Google Docs, Slack messages, and tacit human knowledge. Arrows indicate that to make this information visible to Codex, it must be encoded into the codebase as markdown." loading="lazy">
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">我们了解到，随着时间的推移，需要向仓库中注入更多的上下文信息。那个让团队对架构模式达成一致意见的 Slack 讨论？如果代理无法发现它，就如同新员工三个月后加入时无法理解一样，无法理解。</p>
+<p class="source" lang="en">We learned that we needed to push more and more context into the repo over time. That Slack discussion that aligned the team on an architectural pattern? If it isn’t discoverable to the agent, it’s illegible in the same way it would be unknown to a new hire joining three months later.</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">给 Codex 提供更多上下文意味着整理并展示正确的信息，让智能体能够进行推理，而不是用临时指令来压垮它。就像你让新同事了解产品原则、工程规范以及团队文化（包括表情符号偏好）一样，提供这些信息给智能体会使输出更加一致。</p>
+<p class="source" lang="en">Giving Codex more context means organizing and exposing the right information so the agent can reason over it, rather than overwhelming it with ad-hoc instructions. In the same way you would onboard a new teammate on product principles, engineering norms, and team culture (emoji preferences included), giving the agent this information leads to better-aligned output.</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">这种框架方式明确了许多权衡问题。我们更倾向于依赖和抽象层，这些可以在仓库内部完全实现并进行分析。那些常被描述为“枯燥”的技术，由于可组合性、API稳定性以及训练集中的表示方式，更容易被智能体建模。在某些情况下，让智能体重新实现部分功能比解决公共库中不透明的行为要更经济。例如，我们没有使用通用的 p-limit 风格包，而是实现了自己的并发映射辅助工具：它与我们的 OpenTelemetry 工具集成紧密，测试覆盖率达到 100%，并且完全符合运行时的预期。</p>
+<p class="source" lang="en">This framing clarified many tradeoffs. We favored dependencies and abstractions that could be fully internalized and reasoned about in-repo. Technologies often described as “boring” tend to be easier for agents to model due to composability, api stability, and representation in the training set. In some cases, it was cheaper to have the agent reimplement subsets of functionality than to work around opaque upstream behavior from public libraries. For example, rather than pulling in a generic p-limit-style package, we implemented our own map-with-concurrency helper: it’s tightly integrated with our OpenTelemetry instrumentation, has 100% test coverage, and behaves exactly the way our runtime expects.</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">将系统更多地转化为代理可以直接检查、验证和修改的形式，能够增加影响力——不仅对于 Codex 如此，对于也在处理代码库的其他代理（如 Aardvark）也是如此。</p>
+<p class="source" lang="en">Pulling more of the system into a form the agent can inspect, validate, and modify directly increases leverage—not just for Codex, but for other agents (e.g. Aardvark) that are working on the codebase as well.</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">实施架构和风格规范</p>
+<p class="source" lang="en">Enforcing architecture and taste</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">文档本身无法使完全由智能体生成的代码库保持一致性。通过强制执行不变性，而不是对实现细节进行微观管理，我们可以让智能体快速交付代码，同时不破坏基础。例如，我们要求 Codex 在边界处解析数据形状（在新窗口中打开），但并未规定具体实现方式（模型似乎喜欢 Zod，但我们没有指定具体的库）。</p>
+<p class="source" lang="en">Documentation alone doesn’t keep a fully agent-generated codebase coherent. By enforcing invariants, not micromanaging implementations, we let agents ship fast without undermining the foundation. For example, we require Codex to parse data shapes at the boundary⁠(opens in a new window), but are not prescriptive on how that happens (the model seems to like Zod, but we didn’t specify that specific library).</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">在边界明确且结构可预测的环境中，代理方式最为有效（在新窗口中打开），因此我们基于一个严格的架构模型来构建应用程序。每个业务领域被划分为固定的层结构，具有严格验证的依赖关系和有限的允许边。这些约束通过自定义代码检查器（当然是由 Codex 生成的）和结构测试来强制执行。</p>
+<p class="source" lang="en">Agents are most effective in environments with strict boundaries and predictable structure⁠(opens in a new window), so we built the application around a rigid architectural model. Each business domain is divided into a fixed set of layers, with strictly validated dependency directions and a limited set of permissible edges. These constraints are enforced mechanically via custom linters (Codex-generated, of course!) and structural tests.</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">下图展示了规则：在每个业务领域（例如应用设置）中，代码只能通过固定的层级结构“向前”依赖（类型 → 配置 → 仓库 → 服务 → 运行时 → 界面）。跨领域问题（认证、连接器、遥测、功能标志）则通过统一的接口：提供方进入。其他任何方式都是不允许的，并且会被强制执行。</p>
+<p class="source" lang="en">The diagram below shows the rule: within each business domain (e.g. App Settings), code can only depend “forward” through a fixed set of layers (Types → Config → Repo → Service → Runtime → UI). Cross-cutting concerns (auth, connectors, telemetry, feature flags) enter through a single explicit interface: Providers. Anything else is disallowed and enforced mechanically.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/4Rlip1H3T9apPlSmWs7Wr8/7708c176bfbe11951e06ad8e2b83bf01/OAI_Harness_engineering_Layered_domain_architecture_with_explicit_cross-cutting_boundries_desktop-light.png?w=3840&amp;q=90&amp;fm=webp" alt="Diagram titled “Layered domain architecture with explicit cross-cutting boundaries.” Inside the business logic domain are modules: Types → Config → Repo, and Providers → Service → Runtime → UI, with App Wiring + UI at the bottom. A Utils module sits outside the boundary and feeds into Providers." loading="lazy">
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">这种架构通常要等到有数百名工程师才能实施。使用编码代理则是一种早期前提：这些约束条件使得速度能够保持，同时不会出现性能下降或架构偏离。</p>
+<p class="source" lang="en">This is the kind of architecture you usually postpone until you have hundreds of engineers. With coding agents, it’s an early prerequisite: the constraints are what allows speed without decay or architectural drift.</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">在实际中，我们通过自定义代码检查器和结构测试，以及一组“风格不变量”来执行这些规则。例如，我们通过自定义检查器来强制实施结构化的日志记录、模式和类型的命名规范、文件大小限制以及特定平台的可靠性要求。由于这些检查器是自定义的，我们会将错误信息编写成内容，以便将修复说明注入到智能体上下文中。</p>
+<p class="source" lang="en">In practice, we enforce these rules with custom linters and structural tests, plus a small set of “taste invariants.” For example, we statically enforce structured logging, naming conventions for schemas and types, file size limits, and platform-specific reliability requirements with custom lints. Because the lints are custom, we write the error messages to inject remediation instructions into agent context.</p>
+</div>
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">在以人为核心的工作流程中，这些规则可能显得繁琐或限制性强。而在智能代理系统中，它们则成为放大器：一旦编码，就能同时适用于所有场景。</p>
+<p class="source" lang="en">In a human-first workflow, these rules might feel pedantic or constraining. With agents, they become multipliers: once encoded, they apply everywhere at once.</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">同时，我们明确说明哪些约束重要，哪些不重要。这类似于管理一个大型工程平台组织：在全局层面设定边界，在局部层面给予自主权。您非常重视边界、正确性和可复现性。在这些边界范围内，您允许团队或代理在解决方案的表达方式上拥有较大的自由度。</p>
+<p class="source" lang="en">At the same time, we’re explicit about where constraints matter and where they do not. This resembles leading a large engineering platform organization: enforce boundaries centrally, allow autonomy locally. You care deeply about boundaries, correctness, and reproducibility. Within those boundaries, you allow teams—or agents—significant freedom in how solutions are expressed.</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">生成的代码并不总是符合人类的风格偏好，这并无问题。只要输出正确、易于维护且对未来的代理运行来说易于阅读，就符合要求。</p>
+<p class="source" lang="en">The resulting code does not always match human stylistic preferences, and that’s okay. As long as the output is correct, maintainable, and legible to future agent runs, it meets the bar.</p>
+</div>
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">人类反馈会被持续反馈到系统中。评论、重构请求以及用户遇到的错误会被记录为文档更新，或者直接编码到工具中。当文档不够充分时，我们会将相关规则纳入代码中</p>
+<p class="source" lang="en">Human taste is fed back into the system continuously. Review comments, refactoring pull requests, and user-facing bugs are captured as documentation updates or encoded directly into tooling. When documentation falls short, we promote the rule into code</p>
+</div>
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">吞吐量改变了合并理念</p>
+<p class="source" lang="en">Throughput changes the merge philosophy</p>
+</div>
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">随着 Codex 的吞吐量增加，许多传统的工程规范变得适得其反。</p>
+<p class="source" lang="en">As Codex’s throughput increased, many conventional engineering norms became counterproductive.</p>
+</div>
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">该仓库采用极少的分支合并门槛。Pull请求的时间很短。测试任务通常通过后续运行来解决，而不会无限期地阻碍进度。在一个代理处理速度远远超过人类注意力的系统中，修正成本很低，而等待则成本很高。</p>
+<p class="source" lang="en">The repository operates with minimal blocking merge gates. Pull requests are short-lived. Test flakes are often addressed with follow-up runs rather than blocking progress indefinitely. In a system where agent throughput far exceeds human attention, corrections are cheap, and waiting is expensive.</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">在低吞吐量环境中，这样做是不负责任的。但在这种情况下，往往是一种合适的权衡。</p>
+<p class="source" lang="en">This would be irresponsible in a low-throughput environment. Here, it’s often the right tradeoff.</p>
+</div>
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">“代理生成”实际上意味着什么</p>
+<p class="source" lang="en">What “agent-generated” actually means</p>
+</div>
+<div class="pair" id="p-64">
+<p class="target" lang="zh-CN">当我们说代码库是由 Codex 代理生成的时，我们的意思是代码库中的所有内容。</p>
+<p class="source" lang="en">When we say the codebase is generated by Codex agents, we mean everything in the codebase.</p>
+</div>
+<div class="pair" id="p-65">
+<p class="target" lang="zh-CN">代理产生：</p>
+<p class="source" lang="en">Agents produce:</p>
+</div>
+<div class="pair" id="p-66">
+<p class="target" lang="zh-CN">产品代码和测试</p>
+<p class="source" lang="en">Product code and tests</p>
+</div>
+<div class="pair" id="p-67">
+<p class="target" lang="zh-CN">产品代码和测试</p>
+<p class="source" lang="en">Product code and tests</p>
+</div>
+<div class="pair" id="p-68">
+<p class="target" lang="zh-CN">CI配置和发布工具</p>
+<p class="source" lang="en">CI configuration and release tooling</p>
+</div>
+<div class="pair" id="p-69">
+<p class="target" lang="zh-CN">CI配置和发布工具</p>
+<p class="source" lang="en">CI configuration and release tooling</p>
+</div>
+<div class="pair" id="p-70">
+<p class="target" lang="zh-CN">内部开发工具</p>
+<p class="source" lang="en">Internal developer tools</p>
+</div>
+<div class="pair" id="p-71">
+<p class="target" lang="zh-CN">内部开发工具</p>
+<p class="source" lang="en">Internal developer tools</p>
+</div>
+<div class="pair" id="p-72">
+<p class="target" lang="zh-CN">文档和设计历史</p>
+<p class="source" lang="en">Documentation and design history</p>
+</div>
+<div class="pair" id="p-73">
+<p class="target" lang="zh-CN">文档和设计历史</p>
+<p class="source" lang="en">Documentation and design history</p>
+</div>
+<div class="pair" id="p-74">
+<p class="target" lang="zh-CN">评估框架</p>
+<p class="source" lang="en">Evaluation harnesses</p>
+</div>
+<div class="pair" id="p-75">
+<p class="target" lang="zh-CN">评估框架</p>
+<p class="source" lang="en">Evaluation harnesses</p>
+</div>
+<div class="pair" id="p-76">
+<p class="target" lang="zh-CN">审查评论和回复</p>
+<p class="source" lang="en">Review comments and responses</p>
+</div>
+<div class="pair" id="p-77">
+<p class="target" lang="zh-CN">审查评论和回复</p>
+<p class="source" lang="en">Review comments and responses</p>
+</div>
+<div class="pair" id="p-78">
+<p class="target" lang="zh-CN">管理仓库本身的脚本</p>
+<p class="source" lang="en">Scripts that manage the repository itself</p>
+</div>
+<div class="pair" id="p-79">
+<p class="target" lang="zh-CN">管理仓库本身的脚本</p>
+<p class="source" lang="en">Scripts that manage the repository itself</p>
+</div>
+<div class="pair" id="p-80">
+<p class="target" lang="zh-CN">生产仪表板定义文件</p>
+<p class="source" lang="en">Production dashboard definition files</p>
+</div>
+<div class="pair" id="p-81">
+<p class="target" lang="zh-CN">生产仪表板定义文件</p>
+<p class="source" lang="en">Production dashboard definition files</p>
+</div>
+<div class="pair" id="p-82">
+<p class="target" lang="zh-CN">人类始终处于循环中，但工作所处的抽象层次与我们过去不同。我们优先处理工作，将用户反馈转化为验收标准，并验证结果。当智能体遇到困难时，我们会将其视为一个信号：找出缺失的内容——工具、约束条件、文档等——并将这些信息反馈到仓库中，同时由 Codex 本身来修复问题。</p>
+<p class="source" lang="en">Humans always remain in the loop, but work at a different layer of abstraction than we used to. We prioritize work, translate user feedback into acceptance criteria, and validate outcomes. When the agent struggles, we treat it as a signal: identify what is missing—tools, guardrails, documentation—and feed it back into the repository, always by having Codex itself write the fix.</p>
+</div>
+<div class="pair" id="p-83">
+<p class="target" lang="zh-CN">代理人员直接使用我们的标准开发工具。他们获取审查反馈，在线回复，推送更新，并且经常合并自己的拉取请求。</p>
+<p class="source" lang="en">Agents use our standard development tools directly. They pull review feedback, respond inline, push updates, and often squash and merge their own pull requests.</p>
+</div>
+<div class="pair" id="p-84">
+<p class="target" lang="zh-CN">自主性的提升程度</p>
+<p class="source" lang="en">Increasing levels of autonomy</p>
+</div>
+<div class="pair" id="p-85">
+<p class="target" lang="zh-CN">由于开发流程的更多环节直接被编码到系统中——包括测试、验证、审查、反馈处理以及恢复——该仓库最近达到了一个重要的里程碑，Codex能够从头到尾推动新功能的开发。</p>
+<p class="source" lang="en">As more of the development loop was encoded directly into the system—testing, validation, review, feedback handling, and recovery—the repository recently crossed a meaningful threshold where Codex can end-to-end drive a new feature.</p>
+</div>
+<div class="pair" id="p-86">
+<p class="target" lang="zh-CN">给定一个单一提示，代理现在可以：</p>
+<p class="source" lang="en">Given a single prompt, the agent can now:</p>
+</div>
+<div class="pair" id="p-87">
+<p class="target" lang="zh-CN">验证代码库当前的状态</p>
+<p class="source" lang="en">Validate the current state of the codebase</p>
+</div>
+<div class="pair" id="p-88">
+<p class="target" lang="zh-CN">验证代码库当前的状态</p>
+<p class="source" lang="en">Validate the current state of the codebase</p>
+</div>
+<div class="pair" id="p-89">
+<p class="target" lang="zh-CN">重现已报告的漏洞</p>
+<p class="source" lang="en">Reproduce a reported bug</p>
+</div>
+<div class="pair" id="p-90">
+<p class="target" lang="zh-CN">重现已报告的漏洞</p>
+<p class="source" lang="en">Reproduce a reported bug</p>
+</div>
+<div class="pair" id="p-91">
+<p class="target" lang="zh-CN">录制一个展示故障的视频</p>
+<p class="source" lang="en">Record a video demonstrating the failure</p>
+</div>
+<div class="pair" id="p-92">
+<p class="target" lang="zh-CN">录制一个展示故障情况的视频</p>
+<p class="source" lang="en">Record a video demonstrating the failure</p>
+</div>
+<div class="pair" id="p-93">
+<p class="target" lang="zh-CN">实施修复方案</p>
+<p class="source" lang="en">Implement a fix</p>
+</div>
+<div class="pair" id="p-94">
+<p class="target" lang="zh-CN">实施修复方案</p>
+<p class="source" lang="en">Implement a fix</p>
+</div>
+<div class="pair" id="p-95">
+<p class="target" lang="zh-CN">通过运行应用程序来验证修复效果</p>
+<p class="source" lang="en">Validate the fix by driving the application</p>
+</div>
+<div class="pair" id="p-96">
+<p class="target" lang="zh-CN">通过运行应用程序来验证修复效果</p>
+<p class="source" lang="en">Validate the fix by driving the application</p>
+</div>
+<div class="pair" id="p-97">
+<p class="target" lang="zh-CN">录制第二个视频来展示分辨率</p>
+<p class="source" lang="en">Record a second video demonstrating the resolution</p>
+</div>
+<div class="pair" id="p-98">
+<p class="target" lang="zh-CN">录制第二个视频来展示分辨率</p>
+<p class="source" lang="en">Record a second video demonstrating the resolution</p>
+</div>
+<div class="pair" id="p-99">
+<p class="target" lang="zh-CN">打开拉取请求</p>
+<p class="source" lang="en">Open a pull request</p>
+</div>
+<div class="pair" id="p-100">
+<p class="target" lang="zh-CN">打开拉取请求</p>
+<p class="source" lang="en">Open a pull request</p>
+</div>
+<div class="pair" id="p-101">
+<p class="target" lang="zh-CN">响应代理和用户的反馈</p>
+<p class="source" lang="en">Respond to agent and human feedback</p>
+</div>
+<div class="pair" id="p-102">
+<p class="target" lang="zh-CN">响应代理和用户的反馈</p>
+<p class="source" lang="en">Respond to agent and human feedback</p>
+</div>
+<div class="pair" id="p-103">
+<p class="target" lang="zh-CN">检测并修复构建失败问题</p>
+<p class="source" lang="en">Detect and remediate build failures</p>
+</div>
+<div class="pair" id="p-104">
+<p class="target" lang="zh-CN">检测并修复构建失败问题</p>
+<p class="source" lang="en">Detect and remediate build failures</p>
+</div>
+<div class="pair" id="p-105">
+<p class="target" lang="zh-CN">只有在需要判断时，才升级为人工处理。</p>
+<p class="source" lang="en">Escalate to a human only when judgment is required</p>
+</div>
+<div class="pair" id="p-106">
+<p class="target" lang="zh-CN">只有在需要判断时，才升级为人工处理。</p>
+<p class="source" lang="en">Escalate to a human only when judgment is required</p>
+</div>
+<div class="pair" id="p-107">
+<p class="target" lang="zh-CN">合并更改</p>
+<p class="source" lang="en">Merge the change</p>
+</div>
+<div class="pair" id="p-108">
+<p class="target" lang="zh-CN">合并更改</p>
+<p class="source" lang="en">Merge the change</p>
+</div>
+<div class="pair" id="p-109">
+<p class="target" lang="zh-CN">这种行为很大程度上取决于该存储库的具体结构和工具，不应假设可以推广到所有情况，除非进行类似的投资——至少目前还不行。</p>
+<p class="source" lang="en">This behavior depends heavily on the specific structure and tooling of this repository and should not be assumed to generalize without similar investment—at least, not yet.</p>
+</div>
+<div class="pair" id="p-110">
+<p class="target" lang="zh-CN">熵和垃圾收集</p>
+<p class="source" lang="en">Entropy and garbage collection</p>
+</div>
+<div class="pair" id="p-111">
+<p class="target" lang="zh-CN">完整的代理自主性也会带来新的问题。Codex会复制仓库中已存在的模式——甚至是那些不整齐或不够理想的模式。随着时间的推移，这必然会导致变化。</p>
+<p class="source" lang="en">Full agent autonomy also introduces novel problems. Codex replicates patterns that already exist in the repository—even uneven or suboptimal ones. Over time, this inevitably leads to drift.</p>
+</div>
+<div class="pair" id="p-112">
+<p class="target" lang="zh-CN">最初，人们是手动处理这些工作的。我们的团队通常每周有 20% 的时间在清理“人工智能产生的垃圾”。不出所料，这种方式无法扩大规模。</p>
+<p class="source" lang="en">Initially, humans addressed this manually. Our team used to spend every Friday (20% of the week) cleaning up “AI slop.” Unsurprisingly, that didn’t scale.</p>
+</div>
+<div class="pair" id="p-113">
+<p class="target" lang="zh-CN">相反，我们直接将我们所谓的“黄金原则”编码到代码库中，并建立了定期清理流程。这些原则是具有指导性的机械规则，能够保持代码库的可读性和一致性，便于后续代理运行。例如：(1) 我们更倾向于使用共享的实用程序包而非手工编写的辅助工具，以将不变量集中管理；(2) 我们不会以“YOLO”方式处理数据——我们验证边界或依赖有类型的 SDK，这样代理就不会意外地基于猜测的结构进行构建。定期地，我们有一些后台 Codex 任务负责扫描异常、更新质量评分，并提出有针对性的重构请求。其中大部分任务可以在一分钟内完成审查并自动合并。</p>
+<p class="source" lang="en">Instead, we started encoding what we call “golden principles” directly into the repository and built a recurring cleanup process. These principles are opinionated, mechanical rules that keep the codebase legible and consistent for future agent runs. For example: (1) we prefer shared utility packages over hand-rolled helpers to keep invariants centralized, and (2) we don’t probe data “YOLO-style”—we validate boundaries or rely on typed SDKs so the agent can’t accidentally build on guessed shapes. On a regular cadence, we have a set of background Codex tasks that scan for deviations, update quality grades, and open targeted refactoring pull requests. Most of these can be reviewed in under a minute and automerged.</p>
+</div>
+<div class="pair" id="p-114">
+<p class="target" lang="zh-CN">这种机制类似于垃圾回收。技术债务就像高息贷款：持续少量偿还总是比让它不断累积后再大规模处理要好，后者会带来麻烦。人类的品味一旦被捕捉到，就会在每一行代码上持续执行。这还能让我们每天发现并解决不良模式，而不是让它们在代码库中持续存在数天或数周。</p>
+<p class="source" lang="en">This functions like garbage collection. Technical debt is like a high-interest loan: it’s almost always better to pay it down continuously in small increments than to let it compound and tackle it in painful bursts. Human taste is captured once, then enforced continuously on every line of code. This also lets us catch and resolve bad patterns on a daily basis, rather than letting them spread in the code base for days or weeks.</p>
+</div>
+<div class="pair" id="p-115">
+<p class="target" lang="zh-CN">我们仍在学习的内容</p>
+<p class="source" lang="en">What we’re still learning</p>
+</div>
+<div class="pair" id="p-116">
+<p class="target" lang="zh-CN">这种策略在 OpenAI 内部推出和采用过程中至今效果良好。为真实用户打造真正的产品，有助于巩固我们的投资成果，并引导我们走向长期的稳定性。</p>
+<p class="source" lang="en">This strategy has so far worked well up through internal launch and adoption at OpenAI. Building a real product for real users helped anchor our investments in reality and guide us towards long-term maintainability.</p>
+</div>
+<div class="pair" id="p-117">
+<p class="target" lang="zh-CN">我们目前还不知道在完全由智能体生成的系统中，建筑性连贯性如何在多年间逐渐发展。我们仍在探索人类的判断对系统有何最大的影响，以及如何将这种判断编码进去以产生叠加效果。此外，我们也不清楚随着模型能力的不断提升，这个系统将如何继续发展。</p>
+<p class="source" lang="en">What we don’t yet know is how architectural coherence evolves over years in a fully agent-generated system. We’re still learning where human judgment adds the most leverage and how to encode that judgment so it compounds. We also don’t know how this system will evolve as models continue to become more capable over time.</p>
+</div>
+<div class="pair" id="p-118">
+<p class="target" lang="zh-CN">已经明确的是：开发软件仍然需要自律，但这种自律更多地体现在架构设计上，而非代码本身。能够保持代码库连贯性的工具、抽象化和反馈循环变得越来越重要。</p>
+<p class="source" lang="en">What’s become clear: building software still demands discipline, but the discipline shows up more in the scaffolding rather than the code. The tooling, abstractions, and feedback loops that keep the codebase coherent are increasingly important.</p>
+</div>
+<div class="pair" id="p-119">
+<p class="target" lang="zh-CN">目前我们面临的最艰巨挑战在于设计环境、反馈循环和控制系统，以帮助智能体实现我们的目标：构建并维护大规模、可靠的复杂软件。</p>
+<p class="source" lang="en">Our most difficult challenges now center on designing environments, feedback loops, and control systems that help agents accomplish our goal: build and maintain complex, reliable software at scale.</p>
+</div>
+<div class="pair" id="p-120">
+<p class="target" lang="zh-CN">随着像 Codex 这样的智能代理承担更多的软件生命周期任务，这些问题将变得更加重要。我们希望分享一些早期经验能帮助你判断如何投入精力，从而专注于构建功能。</p>
+<p class="source" lang="en">As agents like Codex take on larger portions of the software lifecycle, these questions will matter even more. We hope that sharing some early lessons helps you reason about where to invest your effort so you can just build things.</p>
+</div>
+<div class="pair" id="p-121">
+<p class="target" lang="zh-CN">法典</p>
+<p class="source" lang="en">Codex</p>
+</div>
+<div class="pair" id="p-122">
+<p class="target" lang="zh-CN">2026</p>
+<p class="source" lang="en">2026</p>
+</div>
+<div class="pair" id="p-123">
+<p class="target" lang="zh-CN">作者</p>
+<p class="source" lang="en">Author</p>
+</div>
+<div class="pair" id="p-124">
+<p class="target" lang="zh-CN">致谢</p>
+<p class="source" lang="en">Acknowledgements</p>
+</div>
+<div class="pair" id="p-125">
+<p class="target" lang="zh-CN">特别感谢 Victor Zhu 和 Zach Brock 为这篇帖子做出贡献，也感谢构建这一新产品的整个团队。</p>
+<p class="source" lang="en">Special thanks to Victor Zhu and Zach Brock who contributed to the post, as well as to the entire team that built this new product.</p>
+</div>
+<div class="pair" id="p-126">
+<p class="target" lang="zh-CN">继续阅读</p>
+<p class="source" lang="en">Keep reading</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6G64B5haCxDuphl2iqwZ1N/4f8d319293f5e5e98b319e01b4fbdf59/scaling-git-at-openai-art-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Scaling Git at OpenAI — art card" loading="lazy">
+<div class="pair" id="p-127">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年11月2日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringNov 2, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3a839ECHaGsidJPLJqqm5s/55968ec17735b96514d1bb4851f43bf8/scaling-storage-one-billion-users-part-two-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II) — card" loading="lazy">
+<div class="pair" id="p-128">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学2026年10月23日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 23, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3aewhPPb5NQ5IqOKEkrtzA/7209065f6e6ccf3a0476b43feb8336e1/rethinking-ads-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rethinking the ad stack around a new user journey — Art card" loading="lazy">
+<div class="pair" id="p-129">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年10月21日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 21, 2026</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://openai.com/index/harness-engineering" target="_blank" rel="noopener noreferrer">https://openai.com/index/harness-engineering</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html">← Beyond rate limits: scaling access to Codex and Sora</a><a href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html">Building a C compiler with a team of parallel Claudes →</a></nav>
+  <footer class="footer">文章版权归原作者所有，译文请以英文原文为准。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

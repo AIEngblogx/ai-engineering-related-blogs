@@ -1,0 +1,1206 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>How OpenAI delivers low-latency voice AI at scale · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ How OpenAI delivers low-latency voice AI at scale</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item current" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html" aria-current="page"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item current" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html" aria-current="page"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></details>
+<main class="main"><article class="page">
+  <h1>How OpenAI delivers low-latency voice AI at scale</h1>
+  <p class="subline">原文：<a href="https://openai.com/index/delivering-low-latency-voice-ai-at-scale" target="_blank" rel="noopener noreferrer">https://openai.com/index/delivering-low-latency-voice-ai-at-scale</a> · 2026-05-04 · OpenAI Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">核心部署问题：WebRTC与KubernetesPort的耗尽状态、粘性特性以及WebRTC媒体架构的对比</p>
+<p class="source" lang="en">The core deployment problem: WebRTC meets KubernetesPort exhaustionState stickinessComparison of WebRTC media architectures</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">端口耗尽</p>
+<p class="source" lang="en">Port exhaustion</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">状态粘性</p>
+<p class="source" lang="en">State stickiness</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">WebRTC 媒体架构的比较</p>
+<p class="source" lang="en">Comparison of WebRTC media architectures</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">架构概述：中继器 + 收发器</p>
+<p class="source" lang="en">Architecture overview: relay + transceiver</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">ICE凭证上的路由设置</p>
+<p class="source" lang="en">Routing on ICE credentials</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">全球中继和地理控制信号传输</p>
+<p class="source" lang="en">Global Relay and geo-steered signaling</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">中继实现与性能</p>
+<p class="source" lang="en">Relay implementation and performance</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">结果与经验</p>
+<p class="source" lang="en">Results and learnings</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">WebRTC让我们能够开发实时人工智能产品</p>
+<p class="source" lang="en">WebRTC lets us make real-time AI products</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">选择媒体架构</p>
+<p class="source" lang="en">Choosing a media architecture</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">核心部署问题：WebRTC与KubernetesPort的耗尽状态与粘性特性比较，WebRTC媒体架构分析</p>
+<p class="source" lang="en">The core deployment problem: WebRTC meets KubernetesPort exhaustionState stickinessComparison of WebRTC media architectures</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">端口耗尽</p>
+<p class="source" lang="en">Port exhaustion</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">状态粘性</p>
+<p class="source" lang="en">State stickiness</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">WebRTC 媒体架构的比较</p>
+<p class="source" lang="en">Comparison of WebRTC media architectures</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">架构概述：中继器 + 收发器</p>
+<p class="source" lang="en">Architecture overview: relay + transceiver</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">ICE凭证上的路由设置</p>
+<p class="source" lang="en">Routing on ICE credentials</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">全球中继和地理控制信号传输</p>
+<p class="source" lang="en">Global Relay and geo-steered signaling</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">中继实现与性能</p>
+<p class="source" lang="en">Relay implementation and performance</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">结果与经验</p>
+<p class="source" lang="en">Results and learnings</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">语音 AI 只有在对话以说话速度进行时才会显得自然。当网络干扰时，人们会立刻听到尴尬的停顿、被截断的打断或延迟的插入。这对 ChatGPT 的语音、使用实时 API 开发的开发者、在交互工作流中运行的智能体，以及需要在用户说话时处理音频的模型都非常重要。</p>
+<p class="source" lang="en">Voice AI only feels natural if conversation moves at the speed of speech. When the network gets in the way, people hear it immediately as awkward pauses, clipped interruptions, or delayed barge-in. That matters for ChatGPT voice, for developers building with the Realtime API, for agents working in interactive workflows, and for models that need to process audio while a user is still talking.</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">在 OpenAI 的规模下，这意味着三个具体的要求：</p>
+<p class="source" lang="en">At OpenAI’s scale, that translates into three concrete requirements:</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">超过9亿每周活跃用户，具有全球影响力</p>
+<p class="source" lang="en">Global reach for more than 900 million weekly active users</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">超过9亿每周活跃用户，具有全球影响力</p>
+<p class="source" lang="en">Global reach for more than 900 million weekly active users</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">快速连接设置，让用户在会话开始就能立即开始说话</p>
+<p class="source" lang="en">Fast connection setup so a user can start speaking as soon as a session begins</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">快速连接设置，让用户在会话开始就能立即开始说话</p>
+<p class="source" lang="en">Fast connection setup so a user can start speaking as soon as a session begins</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">低且稳定的媒体往返时间，具有低抖动和低丢包率，因此轮流传输的感觉非常流畅</p>
+<p class="source" lang="en">Low and stable media round-trip time, with low jitter and packet loss, so turn-taking feels crisp</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">低且稳定的媒体往返时间，具有低抖动和低丢包率，因此轮流传输的感觉非常清晰</p>
+<p class="source" lang="en">Low and stable media round-trip time, with low jitter and packet loss, so turn-taking feels crisp</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">OpenAI负责实时AI交互的团队最近重新设计了我们的WebRTC架构，以应对在大规模应用中出现的问题：每个会话一个端口的媒体终止方式不适合OpenAI的基础设施；状态化的ICE和DTLS会话需要稳定的所有权管理；而全球路由则必须保持首跳延迟较低。在本文中，我们将介绍我们构建的分割中继加收发器架构，该架构能够保留客户端的标准WebRTC行为，同时改变数据包在OpenAI基础设施中的路由方式。</p>
+<p class="source" lang="en">The team at OpenAI responsible for real-time AI interactions recently rearchitected our WebRTC stack to address three constraints that started to collide at scale: one-port-per-session media termination does not fit OpenAI infrastructure well, stateful ICE (Interactive Connectivity Establishment) and DTLS (Datagram Transport Layer Security) sessions need stable ownership, and global routing has to keep first-hop latency low. In this post, we walk through the split relay plus transceiver architecture we built to preserve standard WebRTC behavior for clients while changing how packets are routed inside OpenAI’s infrastructure.</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">WebRTC让我们能够开发实时人工智能产品</p>
+<p class="source" lang="en">WebRTC lets us make real-time AI products</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">WebRTC是一种开放标准，用于在浏览器、移动应用和服务器之间传输低延迟的音频、视频和数据。它通常与点对点通话相关，但也是客户端到服务器实时系统的基础，因为它规范了互动媒体的关键部分：用于建立连接的ICE和NAT（网络地址转换）遍历，用于加密传输的DTLS和SRTP，用于压缩和解码音频的编解码器协商，用于质量控制的RTCP，以及诸如回声消除和抖动缓冲等客户端功能。</p>
+<p class="source" lang="en">WebRTC is an open standard for sending low-latency audio, video, and data between browsers, mobile apps, and servers. It’s often associated with peer-to-peer calling, but it’s also a practical foundation for client-to-server real-time systems because it standardizes the hard parts of interactive media: ICE for connectivity establishment and NAT (Network Address Translation) traversal, DTLS and SRTP (Secure Real-time Transport Protocol) for encrypted transport, codec negotiation for compressing and decoding audio, RTCP (Real-time Transport Control Protocol) for quality control, and client-side features such as echo cancellation and jitter buffering.</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">这种标准化对人工智能产品非常重要。如果没有 WebRTC，每个客户端都需要不同的方案来建立连接、加密媒体、协商编解码器（用于传输和解压缩的编码器与解码器），以及适应不断变化的网络状况。有了 WebRTC，我们可以利用已经在浏览器和移动平台中实现的协议栈，将我们的工作重点放在连接实时媒体与模型的基础设施上。</p>
+<p class="source" lang="en">That standardization matters for AI products. Without WebRTC, every client would need a different answer for how to establish connectivity across NATs, encrypt media, negotiate codecs (the coder-decoders selected for transmission and decompression) and adapt to changing network conditions. With WebRTC, we can build on a protocol stack that’s already implemented across browsers and mobile platforms, focusing our own work on the infrastructure that connects real-time media to models.</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">我们还利用了 WebRTC 生态系统本身，包括成熟的开源实现以及使浏览器、移动应用和服务器能够互操作的标准规范。Justin Uberti（WebRTC 的创始架构师之一）和 Sean DuBois（Pion 的创建者及维护者）的基础性工作，使得我们的团队能够利用经过验证的媒体基础设施，而不是重新发明低级别传输、加密和拥塞控制机制。我们很幸运，Justin 和 Sean 现在都是 OpenAI 的同事，他们帮助我们引导如何将 WebRTC 和实时 AI 更好地结合在一起。</p>
+<p class="source" lang="en">We also build on the WebRTC ecosystem itself, including mature open-source implementations and the standard work that keeps browsers, mobile apps, and servers interoperable. Foundational work by Justin Uberti (one of WebRTC’s original architects) and Sean DuBois (creator and maintainer of Pion) made it possible for teams like ours to build on battle-tested media infrastructure rather than reinvent low-level transport, encryption, and congestion-control behavior. We’re fortunate that both Justin and Sean are now colleagues here at OpenAI, helping guide how we bring WebRTC and real-time AI closer together.</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">对于人工智能而言，最重要的特性是音频以连续流的形式传输。当用户还在说话时，语音助手就可以开始转录、推理、调用工具或生成语音内容，而无需等待完整上传。这就是对话式系统与按指令发送式系统的区别。</p>
+<p class="source" lang="en">For AI, the most important property is that audio arrives as a continuous stream. A spoken agent can begin transcribing, reasoning, calling tools, or generating speech while the user is still talking, instead of waiting for a full upload. That’s the difference between a system that feels conversational and one that feels like push-to-talk.</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">选择媒体架构</p>
+<p class="source" lang="en">Choosing a media architecture</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">一旦选择了 WebRTC，下一个问题就是在哪里终止它（例如，在边缘处接受并管理 WebRTC 连接），以及如何将这些会话连接到推理后端。终止点非常重要，因为它决定了我们如何处理实时会话状态、媒体传输、路由、延迟和故障隔离。</p>
+<p class="source" lang="en">Once we chose WebRTC, the next question was where to terminate it (where we’d accept and own the WebRTC connection—for example, at the edge) and how to connect those sessions to the inference backend. Termination matters because it determines how we handle real-time session state, media transport, routing, latency, and failure isolation.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/1YavI8rcFACX5rgbkKTtL1/636e2361e27b8d2bf82ca872dd151529/Option_1_web_light__3_.svg?w=3840&amp;q=90" alt="Option 1: The SFU approach includes AI as a WebRTC participant" loading="lazy">
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">SFU，即选择性转发单元，是一种媒体服务器，它从每个参与者那里接收一个 WebRTC 流，并选择性地将这些流转发给其他参与者。在这种模式下，SFU 为每个参与者建立独立的 WebRTC 连接，而 AI 则作为另一个参与者参与会话。这非常适合那些本质上是多方参与的场景，如群组通话、课堂或协作会议。它可以将音频编解码器、RTCP 消息、数据通道、录制功能以及每流策略都集中在一个地方。1</p>
+<p class="source" lang="en">An SFU, or selective forwarding unit, is a media server that receives one WebRTC stream from each participant and selectively forwards streams to the others. In this model, the SFU terminates a separate WebRTC connection for every participant, and the AI joins as another participant in the session. That can be a good fit for products that are inherently multiparty, such as group calls, classrooms, or collaborative meetings. It keeps audio codecs, RTCP messages, data channels, recording, and per-stream policy in one place.1</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">即使在客户与 AI 的产品中，SFU 通常也是默认的起点，因为它允许团队重复使用一个经过验证的系统，用于信号传输、媒体路由、录制、可观测性，以及未来的扩展功能，如人员交接或添加更多参与者。</p>
+<p class="source" lang="en">Even in client-to-AI products, an SFU is often the default starting point because it lets teams reuse one proven system for signaling, media routing, recording, observability, and future extensions such as human handoff or adding more participants.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/4Iy7m6jjeVJ8IJGYePERO4/56639dac038a9f8d31e7dca61a970269/Option_2_web_light__2_.svg?w=3840&amp;q=90" alt="Option 2: The transceiver approach terminates WebRTC at the edge and converts to a backend protocol" loading="lazy">
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">我们的工作负载有所不同。大多数会话都是一对一的——一个用户与一个模型对话，或者一个应用程序与一个实时代理对话——并且对延迟非常敏感。针对这种流量模式，我们选择了一种收发器模型：WebRTC边缘服务会终止客户端连接，然后将媒体和事件转换为更简单的内部协议，以便进行模型推理、转录、语音生成、工具使用和调度。</p>
+<p class="source" lang="en">Our workload is different. Most sessions are 1:1—one user talking to one model, or one application talking to one real-time agent—with latency sensitivity on every turn. For that shape of traffic, we chose a transceiver model: a WebRTC edge service terminates the client connection and then converts media and events into simpler internal protocols for model inference, transcription, speech generation, tool use, and orchestration.</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">在这种设计中，收发器是唯一拥有 WebRTC 会话状态的服务，包括 ICE 连接检查、DTLS 握手、SRTP 加密密钥以及会话生命周期。“终止”指的是收发器作为端点完成这些握手，并对媒体进行加密或解密。将状态集中存储在一个地方，使得会话的归属更容易理解，并且让后端服务能够像普通服务一样扩展，而不是作为 WebRTC 对等体本身运行。</p>
+<p class="source" lang="en">In this design, the transceiver is the only service that owns the WebRTC session state, including ICE connectivity checks, the DTLS handshake, SRTP encryption keys, and session lifecycle. “Termination” here means the transceiver is the endpoint that completes those handshakes and encrypts or decrypts the media. Keeping that state in one place made session ownership easier to reason about, and it let backend services scale like ordinary services instead of acting as WebRTC peers themselves.</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">核心部署问题：WebRTC与Kubernetes的结合</p>
+<p class="source" lang="en">The core deployment problem: WebRTC meets Kubernetes</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">选择发射机模型后，我们的第一个实现是一个基于 Pion 的单个 Go 服务，该服务同时负责信号传输和媒体处理。它用于支持 ChatGPT 语音功能、Realtime API 的 WebRTC 端点以及多个研究项目。</p>
+<p class="source" lang="en">After choosing the transceiver model, our first implementation was a single Go service built on Pion that handled both signaling and media termination. It powers ChatGPT voice, the Realtime API’s WebRTC endpoint, and a number of research projects.</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">在运营方面，收发器服务承担两项任务：</p>
+<p class="source" lang="en">Operationally, the transceiver service does two jobs:</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">信号传递：SDP协商、编解码器选择、ICE凭证和会话建立</p>
+<p class="source" lang="en">Signaling: SDP negotiation, codec selection, ICE credentials, and session setup</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">信号传输：SDP协商、编解码器选择、ICE凭证和会话建立</p>
+<p class="source" lang="en">Signaling: SDP negotiation, codec selection, ICE credentials, and session setup</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">媒体：终止下游 WebRTC连接，并维持与后端服务的上游连接以进行推理和调度。</p>
+<p class="source" lang="en">Media: Terminating downstream WebRTC connections and maintaining upstream connections to backend services for inference and orchestration</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">媒体：终止下游 WebRTC连接，并维持与后端服务的上游连接以进行推理和调度。</p>
+<p class="source" lang="en">Media: Terminating downstream WebRTC connections and maintaining upstream connections to backend services for inference and orchestration</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">我们希望该服务能像我们的其他基础设施一样运行：在 Kubernetes 上，这样工作负载可以根据需求变化进行扩展或缩减，并可以在不同主机之间迁移。但传统的单会话一个端口的 WebRTC 模型不太适合这种环境，因为它依赖于大的公共 UDP 端口范围，而这些端口难以暴露、保护，且在容器添加、移除或重新调度时也难以保持。2</p>
+<p class="source" lang="en">We wanted the service to run like the rest of our infrastructure: on Kubernetes, where workloads can scale up and down, and move across hosts as demand changes. But the conventional one-port-per-session WebRTC model fits that environment poorly, because it depends on large public UDP port ranges that are difficult to expose, secure, and preserve as pods are added, removed, or rescheduled.2</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">端口耗尽</p>
+<p class="source" lang="en">Port exhaustion</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">第一个问题就是“每次会话一个端口”的模式本身。在高并发情况下，这意味着需要暴露和管理非常大的 UDP 端口范围。</p>
+<p class="source" lang="en">The first problem was the one-port-per-session model itself. At high concurrency, that means exposing and managing very large UDP port ranges.</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">云负载均衡器和 Kubernetes 服务并非针对每个服务数十个公共 UDP 端口而设计的。每增加一个端口范围，都会增加负载均衡器的配置、健康检查、防火墙策略以及部署安全性方面的操作复杂性。3</p>
+<p class="source" lang="en">Cloud load balancers and Kubernetes services are not designed around tens of thousands of public UDP ports per service. Each additional range adds operational complexity in load balancer config, health checking, firewall policy, and rollout safety.3</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">云负载均衡器和 Kubernetes 服务并非针对每个服务数十个公共 UDP 端口而设计的。每增加一个端口范围，就会增加负载均衡器的配置、健康检查、防火墙策略以及部署安全方面的操作复杂性。3</p>
+<p class="source" lang="en">Cloud load balancers and Kubernetes services are not designed around tens of thousands of public UDP ports per service. Each additional range adds operational complexity in load balancer config, health checking, firewall policy, and rollout safety.3</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">大的 UDP 端口范围很难保护，因为它们扩大了外部可访问的范围，使得网络策略更难以审查。</p>
+<p class="source" lang="en">Large UDP port ranges are hard to secure because they expand the externally reachable surface area and make network policy harder to audit.</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">大的 UDP 端口范围难以保护，因为它们扩大了外部可访问的范围，使得网络策略更难以审查。</p>
+<p class="source" lang="en">Large UDP port ranges are hard to secure because they expand the externally reachable surface area and make network policy harder to audit.</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">它们也不适合自动缩放。在 Kubernetes 中，容器会不断被添加、移除和重新安排。要求每个容器预留并公开一个大的稳定端口范围，使得这种弹性特性变得脆弱。4</p>
+<p class="source" lang="en">They’re also a poor fit for autoscaling. Pods are constantly added, removed, and rescheduled in Kubernetes. Requiring each pod to reserve and advertise a large stable port range makes that elasticity brittle.4</p>
+</div>
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">它们也不适合自动缩放。在 Kubernetes 中，Pod 会不断被添加、移除和重新安排。要求每个 Pod 预留并公开一个大的稳定端口范围，这使得弹性特性变得脆弱。4</p>
+<p class="source" lang="en">They’re also a poor fit for autoscaling. Pods are constantly added, removed, and rescheduled in Kubernetes. Requiring each pod to reserve and advertise a large stable port range makes that elasticity brittle.4</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">这就是为什么许多 WebRTC 系统倾向于每个服务器使用一个单一的 UDP 端口，并在该端口之后进行应用级解复用。5</p>
+<p class="source" lang="en">This is why many WebRTC systems move toward a single UDP port per server, with application-level demultiplexing behind that port.5</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">状态粘性</p>
+<p class="source" lang="en">State stickiness</p>
+</div>
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">单服务器单端口设计解决了端口数量的问题，但带来了另一个问题：如何保持整个集群中每个会话的归属权。</p>
+<p class="source" lang="en">Single-port-per-server designs solve port count, but they introduce a second problem: preserving ownership of each session across a fleet.</p>
+</div>
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">ICE和DTLS是状态式协议。创建会话的过程需要持续接收该会话的数据包，以便进行连接性验证、完成DTLS握手、解密SRTP，并处理后续的会话变化，如ICE重启。如果同一会话的数据包被不同的进程接收，设置可能会失败，或者媒体传输也会中断。</p>
+<p class="source" lang="en">ICE and DTLS are stateful protocols. The process that created a session needs to keep receiving that session’s packets so it can validate connectivity checks, complete the DTLS handshake, decrypt SRTP, and process later session changes such as ICE restarts. If packets for the same session land on a different process, setup can fail or media can break.</p>
+</div>
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">这给我们了一个具体的目标：将一个小的、固定的 UDP 接口暴露给公共互联网，同时仍然将每个数据包路由到负责相应 WebRTC 会话的收发器。</p>
+<p class="source" lang="en">That gave us a specific target: expose a small, fixed UDP surface to the public internet, while still routing every packet to the transceiver that owns the corresponding WebRTC session.</p>
+</div>
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">WebRTC 媒体架构比较</p>
+<p class="source" lang="en">Comparison of WebRTC media architectures</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">我们评估了多种实现方法，包括 TURN（使用代理服务器绕过 NAT 的传输方式），在这种方式中，边缘代理服务器负责处理客户端分配并代表它们转发流量。2</p>
+<p class="source" lang="en">We evaluated several ways to get there, including TURN (Traversal Using Relays around NAT), where an edge relay terminates client allocations and forwards traffic on their behalf.2</p>
+</div>
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">方法</p>
+<p class="source" lang="en">Approach</p>
+</div>
+<div class="pair" id="p-64">
+<p class="target" lang="zh-CN">&lt;text&gt;
+优点
+&lt;/text&gt;</p>
+<p class="source" lang="en">Pros</p>
+</div>
+<div class="pair" id="p-65">
+<p class="target" lang="zh-CN">缺点</p>
+<p class="source" lang="en">Cons</p>
+</div>
+<div class="pair" id="p-66">
+<p class="target" lang="zh-CN">会话中的每个唯一 IP:端口（也称为原生直接 UDP）</p>
+<p class="source" lang="en">Unique IP:port per session (also known as native direct UDP)</p>
+</div>
+<div class="pair" id="p-67">
+<p class="target" lang="zh-CN">直接客户端到服务器媒体路径</p>
+<p class="source" lang="en">Direct client-to-server media path</p>
+</div>
+<div class="pair" id="p-68">
+<p class="target" lang="zh-CN">数据路径中没有转发层</p>
+<p class="source" lang="en">No forwarding layer in the data path</p>
+</div>
+<div class="pair" id="p-69">
+<p class="target" lang="zh-CN">每个会话需要一个公共 UDP 端口</p>
+<p class="source" lang="en">Requires one public UDP port per session</p>
+</div>
+<div class="pair" id="p-70">
+<p class="target" lang="zh-CN">大的端口范围难以暴露和保护</p>
+<p class="source" lang="en">Large port ranges are difficult to expose and secure</p>
+</div>
+<div class="pair" id="p-71">
+<p class="target" lang="zh-CN">与 Kubernetes 和云负载均衡器不兼容</p>
+<p class="source" lang="en">Poor fit for Kubernetes and cloud load balancers</p>
+</div>
+<div class="pair" id="p-72">
+<p class="target" lang="zh-CN">每个服务器的唯一 IP:端口</p>
+<p class="source" lang="en">Unique IP:port per server</p>
+</div>
+<div class="pair" id="p-73">
+<p class="target" lang="zh-CN">与每次会话的暴露量相比，公共 UDP 占用空间要小得多</p>
+<p class="source" lang="en">Much smaller public UDP footprint than per-session exposure</p>
+</div>
+<div class="pair" id="p-74">
+<p class="target" lang="zh-CN">每个服务器上的一个共享套接字可以拆分多个会话</p>
+<p class="source" lang="en">One shared socket per server can demultiplex many sessions</p>
+</div>
+<div class="pair" id="p-75">
+<p class="target" lang="zh-CN">在单个主机上可以正常运行，但单独使用无法在共享的负载均衡环境中发挥作用</p>
+<p class="source" lang="en">Works cleanly on a single host, but not across a shared load-balanced fleet by itself</p>
+</div>
+<div class="pair" id="p-76">
+<p class="target" lang="zh-CN">在单个主机上进行的会话解复用只有在数据包到达该主机后才有帮助；在负载均衡的集群中，第一个数据包仍可能落在错误的实例上，因此你仍然需要一种确定性的方法来将每个会话引导到其所属进程</p>
+<p class="source" lang="en">Session demultiplexing on a single host only helps after a packet reaches that host; across a load-balanced fleet, the first packet can still land on the wrong instance, so you still need a deterministic way to steer each session to the process that owns it</p>
+</div>
+<div class="pair" id="p-77">
+<p class="target" lang="zh-CN">TURN 中继（协议终止）</p>
+<p class="source" lang="en">TURN relay (protocol-terminating)</p>
+</div>
+<div class="pair" id="p-78">
+<p class="target" lang="zh-CN">客户只需访问 TURN 中继地址和端口即可</p>
+<p class="source" lang="en">Clients only need to reach the TURN relay address and port</p>
+</div>
+<div class="pair" id="p-79">
+<p class="target" lang="zh-CN">能否在边缘节点集中管理策略</p>
+<p class="source" lang="en">Can centralize policy at the edge</p>
+</div>
+<div class="pair" id="p-80">
+<p class="target" lang="zh-CN">TURN 分配会增加设置过程中的往返操作</p>
+<p class="source" lang="en">TURN allocations add setup round trips</p>
+</div>
+<div class="pair" id="p-81">
+<p class="target" lang="zh-CN">在 TURN 服务器之间移动或恢复分配资源仍然很困难</p>
+<p class="source" lang="en">Moving or recovering allocations across TURN servers is still difficult</p>
+</div>
+<div class="pair" id="p-82">
+<p class="target" lang="zh-CN">无状态转发器 + 有状态终止器（OpenAI 的中继器 + 收发器）</p>
+<p class="source" lang="en">Stateless forwarder + stateful terminator (OpenAI’s relay + transceiver)</p>
+</div>
+<div class="pair" id="p-83">
+<p class="target" lang="zh-CN">小的公共 UDP 占用量</p>
+<p class="source" lang="en">Small public UDP footprint</p>
+</div>
+<div class="pair" id="p-84">
+<p class="target" lang="zh-CN">收发器仍然拥有完整的 WebRTC 会话</p>
+<p class="source" lang="en">Transceiver still owns the full WebRTC session</p>
+</div>
+<div class="pair" id="p-85">
+<p class="target" lang="zh-CN">在媒体到达所属收发器之前增加一个转发跳数</p>
+<p class="source" lang="en">Adds one forwarding hop before media reaches the owning transceiver</p>
+</div>
+<div class="pair" id="p-86">
+<p class="target" lang="zh-CN">需要中继器和收发器之间的自定义协调</p>
+<p class="source" lang="en">Requires custom coordination between relay and transceiver</p>
+</div>
+<div class="pair" id="p-87">
+<p class="target" lang="zh-CN">架构概述：中继器 + 收发器</p>
+<p class="source" lang="en">Architecture overview: relay + transceiver</p>
+</div>
+<div class="pair" id="p-88">
+<p class="target" lang="zh-CN">我们发布的架构将数据包路由与协议终止分开处理。信号传输仍然通过收发器进行会话设置，而媒体则首先通过中继器进入。中继器是一个轻量级的 UDP 转发层，对外部影响很小，而收发器则是其背后的有状态 WebRTC 端点。</p>
+<p class="source" lang="en">The architecture we shipped splits packet routing from protocol termination. Signaling still reaches the transceiver for session setup, while media enters through the relay first. The relay is a lightweight UDP forwarding layer with a small public footprint, and the transceiver is the stateful WebRTC endpoint behind it.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/UHoRVMlIWTpRbLNV8GkuF/61f6ed1fa4b5eb8449615e2019945119/Relay_web_light.svg?w=3840&amp;q=90" alt="Relay statelessly forwards packets to transceiver" loading="lazy">
+<div class="pair" id="p-89">
+<p class="target" lang="zh-CN">该中继器不解密媒体数据、运行 ICE状态机或参与编解码器协商。它读取足够的数据包元数据以选择目标，然后将数据包转发给拥有该会话的收发器。收发器仍然看到正常的 WebRTC 流程，并仍拥有所有协议状态。从客户端的视角来看，WebRTC 会话没有任何变化。</p>
+<p class="source" lang="en">The relay does not decrypt media, run ICE state machines, or participate in codec negotiation. It reads enough packet metadata to choose a destination, then forwards the packet to the transceiver that owns the session. The transceiver still sees a normal WebRTC flow and still owns all protocol state. From the client’s perspective, nothing about the WebRTC session changes.</p>
+</div>
+<div class="pair" id="p-90">
+<p class="target" lang="zh-CN">ICE凭证上的路由设置</p>
+<p class="source" lang="en">Routing on ICE credentials</p>
+</div>
+<div class="pair" id="p-91">
+<p class="target" lang="zh-CN">首先的包路由是这种设置中的关键步骤。中继器必须在任何会话在数据包路径上建立之前，先路由出客户端的第一个数据包，而不是通过外部查找服务来暂停操作。</p>
+<p class="source" lang="en">First-packet routing is the key step in this setup. A relay has to route the first packet from a client before any session exists on the packet path itself rather than by pausing on an external lookup service.</p>
+</div>
+<div class="pair" id="p-92">
+<p class="target" lang="zh-CN">每个 WebRTC 会话都包含一种协议原生路由机制：ICE 用户名片段，即 ufrag，这是一种在会话建立过程中交换的简短标识符，会在 STUN 连接检查中回传。我们生成服务器端的 ufrag，使其仅包含足够的路由元数据，以便中继服务器能够推断出目标集群和所属收发器。</p>
+<p class="source" lang="en">Every WebRTC session already carries a protocol-native routing hook: the ICE username fragment, or ufrag, a short identifier exchanged during session setup and echoed in STUN connectivity checks. We generate the server-side ufrag so it contains just enough routing metadata for relay to infer the destination cluster and owning transceiver.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6QbrGtts7rPFQmclyxDr27/7a753393455e13ef4eacca80efa96792/Sequence_web_light__1_.svg?w=3840&amp;q=90" alt="The sequence diagram shows how the connection is established" loading="lazy">
+<div class="pair" id="p-93">
+<p class="target" lang="zh-CN">在信号传输过程中，收发器会在 SDP 回答中分配会话状态，并返回共享中继 VIP 和 UDP 端口。VIP 是中继群组的虚拟 IP 地址，与端口结合后，为客户端提供了一个稳定的目标地址，例如 `203.0.113.10:3478`，即使有许多中继实例隐藏在其背后。客户端的第一个媒体路径数据包通常是一个 STUN（NAT 会话穿越工具）绑定请求，ICE 使用该请求来验证数据包能否到达所 advertised 的地址。</p>
+<p class="source" lang="en">During signaling, the transceiver allocates session state and returns a shared relay VIP and UDP port in the SDP answer. A VIP is a virtual IP address fronting the relay fleet; combined with the port, it gives the client a single stable destination, such as `203.0.113.10:3478`, even though many relay instances sit behind it. The client’s first media-path packet is usually a STUN (Session Traversal Utilities for NAT) binding request, which ICE uses to verify that packets can reach the advertised address.</p>
+</div>
+<div class="pair" id="p-94">
+<p class="target" lang="zh-CN">中继仅解析第一个 STUN 数据包中的内容，以读取服务器标识信息、解码路由提示，并将数据包转发给相应的收发器。每个收发器都监听一个共享的 UDP 套接字，即一个绑定在内部 IP:port 上的操作系统端点，而不是每个会话一个套接字。当中继从客户端的源 IP:port 创建到该收发器目的地的会话后，后续的 DTLS、RTP 和 RTCP 数据包将在会话中传输，无需重新解码标识信息。</p>
+<p class="source" lang="en">Relay parses just enough of that first STUN packet to read the server ufrag, decode the routing hint, and forward the packet to the owning transceiver. Each transceiver listens on a shared UDP socket, meaning one operating system endpoint bound to an internal IP:port, not one socket per session. After the relay creates a session from the client’s source IP:port to that transceiver destination, subsequent DTLS, RTP, and RTCP packets flow within the session without re-decoding the ufrag.</p>
+</div>
+<div class="pair" id="p-95">
+<p class="target" lang="zh-CN">中继的会话设计非常精简，仅包含内存中的会话以指示数据包转发，以及用于监控的计数器和用于会话终止与清理的计时器。这种设计方式使得数据包路由直接在数据包路径上完成。如果中继重启并丢失了会话，下一个 STUN 数据包会根据 ufrag 路由提示重新建立会话。为了进一步提高可靠性，还使用了 Redis 缓存来保存 &lt;客户端 IP + 端口，收发器 IP + 端口&gt; 的映射关系，这样在下次 STUN 数据包到达之前就能更快地恢复会话。</p>
+<p class="source" lang="en">The relay’s session is purposefully minimal, consisting only of an in-memory session to inform packet forwarding, along with necessary counters for monitoring and timers for session expiration and cleanup. This design choice maintains packet routing directly on the packet path. If a relay restarts and loses the session, the next STUN packet rebuilds the session from the ufrag routing hint. To make it even more reliable, a Redis cache is employed to hold the mapping of &lt;client IP + Port, transceiver IP + Port&gt; once the route is established so that it can be recovered much earlier, before the next STUN packet arrives.</p>
+</div>
+<div class="pair" id="p-96">
+<p class="target" lang="zh-CN">全球中继和地理控制信号传输</p>
+<p class="source" lang="en">Global Relay and geo-steered signaling</p>
+</div>
+<div class="pair" id="p-97">
+<p class="target" lang="zh-CN">一旦我们将公共 UDP 表面简化为少数几个稳定的地址和端口，我们就可以在全球范围内部署相同的中继模式。全球中继就是我们分布在各地的中继入口点，这些点都采用相同的数据包转发行为。</p>
+<p class="source" lang="en">Once we reduced the public UDP surface to a small number of stable addresses and ports, we could deploy the same relay pattern globally. Global Relay is our fleet of geographically distributed relay ingress points that all implement the same packet-forwarding behavior.</p>
+</div>
+<div class="pair" id="p-98">
+<p class="target" lang="zh-CN">广泛的地理接入缩短了从客户端到 OpenAI 的首次传输距离，因为数据包可以在靠近用户的中继节点处进入我们的网络，既考虑了地理位置也考虑了网络拓扑结构，而不需要先通过公共互联网传输到远处地区。实际上，这意味着延迟更低、抖动更小，在流量到达我们的骨干网络之前可避免的丢包也更少。6</p>
+<p class="source" lang="en">Broad geographic ingress shortens the first client-to-OpenAI hop because a packet can enter our network at a relay close to the user, in both geography and network topology, instead of crossing the public internet to a distant region first. In practical terms, that means lower latency, less jitter, and fewer avoidable loss bursts before traffic reaches our backbone.6</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/31KPdS0P8lqyX2BJHsnJ7F/0878e620f311fbfbbebbd4d1166cd31e/Global_web_light.svg?w=3840&amp;q=90" alt="The Global Relay layer receives packets from client and forwards to transceiver cluster" loading="lazy">
+<div class="pair" id="p-99">
+<p class="target" lang="zh-CN">我们使用 Cloudflare 的地理位置和邻近性引导机制来传递信号，使初始的 HTTP 或 WebSocket 请求能够到达附近的传输集群。请求上下文决定了会话的位置以及哪个 Global Relay 入口点会被告知给客户端。SDP 响应提供了 Global Relay 的地址，而 ufrag 则包含足够的信息，使 Global Relay 能够将媒体路由到指定的集群，并进一步路由到目标传输器。</p>
+<p class="source" lang="en">We use Cloudflare geo and proximity steering for signaling so the initial HTTP or WebSocket request reaches a nearby transceiver cluster. The request context dictates the session’s location and which Global Relay ingress point is advertised to the client. The SDP answer provides the Global Relay address, while the ufrag contains sufficient information for Global Relay to route media to the designated cluster and relay to route to the destination transceiver.</p>
+</div>
+<div class="pair" id="p-100">
+<p class="target" lang="zh-CN">通过地理引导信号与全球中继的结合，既实现了设备的设置与媒体传输，又将会话绑定在一个发射器上。这减少了信号传输和首次 ICE连接检查的时间，从而直接缩短了用户等待语音开始的时间。</p>
+<p class="source" lang="en">Together, geo-steered signaling and Global Relay put both setup and media on a nearby entry path while keeping the session anchored to one transceiver. That reduces the round-trip time for signaling and for the first ICE connectivity check, which directly shortens how long a user waits before speech can start.</p>
+</div>
+<div class="pair" id="p-101">
+<p class="target" lang="zh-CN">中继实现与性能</p>
+<p class="source" lang="en">Relay implementation and performance</p>
+</div>
+<div class="pair" id="p-102">
+<p class="target" lang="zh-CN">我们用 Go 语言编写了中继服务，并特意保持实现代码简洁。在 Linux 上，内核的网络栈会从机器网络接口接收 UDP 数据包，并将其传递给套接字——这是操作系统端点，进程在绑定 IP:Port 后通过它读取数据。中继服务在用户空间运行，因此普通的 Go 进程会从该套接字读取数据包头部，更新少量流状态，然后转发数据包，而不终止 WebRTC 进程。我们不需要任何内核绕过框架，因为这样的框架可以让用户空间进程直接轮询网络队列以提升数据包传输速率，但也会增加操作复杂性。</p>
+<p class="source" lang="en">We wrote the relay service in Go and kept the implementation narrow on purpose. On Linux, the kernel’s networking stack receives UDP packets from the machine’s network interface and delivers them to a socket, the operating system endpoint that a process reads after binding an IP:Port. Relay runs in userspace, so a regular Go process reads packet headers from that socket, updates a small amount of flow state, and forwards packets without terminating WebRTC. We did not need any kernel-bypass framework, which would let a userspace process poll network queues directly for higher packet rates but also add operational complexity.</p>
+</div>
+<div class="pair" id="p-103">
+<p class="target" lang="zh-CN">关键设计选择：</p>
+<p class="source" lang="en">Key design choices:</p>
+</div>
+<div class="pair" id="p-104">
+<p class="target" lang="zh-CN">没有协议终止：Relay 仅解析 STUN 头部/ufrag；对于后续的 DTLS、RTP 和 RTCP，它使用缓存状态，使数据包保持不可见。</p>
+<p class="source" lang="en">No protocol termination: Relay parses only STUN headers/ufrag; it uses cached state for subsequent DTLS, RTP, and RTCP, keeping packets opaque.</p>
+</div>
+<div class="pair" id="p-105">
+<p class="target" lang="zh-CN">没有协议终止：Relay 仅解析 STUN 头部/ufrag；它使用缓存的状态来处理后续的 DTLS、RTP 和 RTCP，使数据包保持不可见。</p>
+<p class="source" lang="en">No protocol termination: Relay parses only STUN headers/ufrag; it uses cached state for subsequent DTLS, RTP, and RTCP, keeping packets opaque.</p>
+</div>
+<div class="pair" id="p-106">
+<p class="target" lang="zh-CN">短暂状态：它维护一个小型、短超时、内存中的映射表，将客户端地址映射到收发器目的地，用于流量状态和可观测性。</p>
+<p class="source" lang="en">Ephemeral state: It maintains a small, short-timeout, in-memory map of client address to transceiver destination for flow state and observability.</p>
+</div>
+<div class="pair" id="p-107">
+<p class="target" lang="zh-CN">短暂状态：它维护一个小型、短超时、内存中的映射表，将客户端地址映射到收发器目的地，用于流量状态和可观测性。</p>
+<p class="source" lang="en">Ephemeral state: It maintains a small, short-timeout, in-memory map of client address to transceiver destination for flow state and observability.</p>
+</div>
+<div class="pair" id="p-108">
+<p class="target" lang="zh-CN">水平扩展能力：多个中继实例在负载均衡器后并行运行。由于不是 WebRTC 状态，重启带来的流量中断很小，流量恢复也很迅速。</p>
+<p class="source" lang="en">Horizontal scalability: Multiple relay instances run in parallel behind a load balancer. State is not hard WebRTC state, so restarts cause minimal traffic drops and quick flow recovery.</p>
+</div>
+<div class="pair" id="p-109">
+<p class="target" lang="zh-CN">水平扩展能力：多个中继实例在负载均衡器后并行运行。状态不是 WebRTC 的固有状态，因此重启只会造成极少的流量中断，并且流量能迅速恢复。</p>
+<p class="source" lang="en">Horizontal scalability: Multiple relay instances run in parallel behind a load balancer. State is not hard WebRTC state, so restarts cause minimal traffic drops and quick flow recovery.</p>
+</div>
+<div class="pair" id="p-110">
+<p class="target" lang="zh-CN">效率措施：</p>
+<p class="source" lang="en">Efficiency measures:</p>
+</div>
+<div class="pair" id="p-111">
+<p class="target" lang="zh-CN">SO_REUSEPORT是Linux套接字选项，允许同一台机器上的多个中继工作进程绑定同一个UDP端口。随后内核会将传入的数据包分配给这些工作进程，从而避免单一读取循环带来的瓶颈问题。</p>
+<p class="source" lang="en">SO_REUSEPORT is a Linux socket option that allows multiple relay workers on the same machine to bind the same UDP port. The kernel then distributes incoming packets across those workers, which avoids a single read-loop bottleneck.</p>
+</div>
+<div class="pair" id="p-112">
+<p class="target" lang="zh-CN">SO_REUSEPORT是Linux套接字选项，允许同一台机器上的多个中继工作进程绑定同一个UDP端口。随后内核会将传入的数据包分配给这些工作进程，从而避免单一读取循环带来的瓶颈问题。</p>
+<p class="source" lang="en">SO_REUSEPORT is a Linux socket option that allows multiple relay workers on the same machine to bind the same UDP port. The kernel then distributes incoming packets across those workers, which avoids a single read-loop bottleneck.</p>
+</div>
+<div class="pair" id="p-113">
+<p class="target" lang="zh-CN">runtime.LockOSThread 将每个 UDP 读取 goroutine 绑定到特定的 OS 线程。结合使用 SO_REUSEPORT 后，同一流中的数据包（源和目的 IP:Port 以及协议）通常会被绑定到同一 CPU 核心，从而提升缓存局部性并减少上下文切换。</p>
+<p class="source" lang="en">runtime.LockOSThread pins each UDP-reading goroutine to a specific OS thread. Combined with SO_REUSEPORT, that tends to keep packets from the same flow (the source and destination IP:Port plus protocol) on the same CPU core, improving cache locality and reducing context switching.</p>
+</div>
+<div class="pair" id="p-114">
+<p class="target" lang="zh-CN">runtime.LockOSThread 将每个 UDP 读取 goroutine 绑定到特定的 OS 线程。结合使用 SO_REUSEPORT 后，同一流中的数据包（源和目的 IP:Port 以及协议）通常会被绑定到同一 CPU 核心，从而提升缓存局部性并减少上下文切换。</p>
+<p class="source" lang="en">runtime.LockOSThread pins each UDP-reading goroutine to a specific OS thread. Combined with SO_REUSEPORT, that tends to keep packets from the same flow (the source and destination IP:Port plus protocol) on the same CPU core, improving cache locality and reducing context switching.</p>
+</div>
+<div class="pair" id="p-115">
+<p class="target" lang="zh-CN">预先分配好的缓冲区和最小的复制操作能够降低解析和分配开销，从而避免在 Go 中触发垃圾收集。</p>
+<p class="source" lang="en">Pre-allocated buffers and minimal copying keep parsing and allocation overhead low to avoid garbage collection in Go.</p>
+</div>
+<div class="pair" id="p-116">
+<p class="target" lang="zh-CN">预先分配好的缓冲区和最小的复制操作能够降低解析和分配开销，从而避免在 Go 语言中触发垃圾收集。</p>
+<p class="source" lang="en">Pre-allocated buffers and minimal copying keep parsing and allocation overhead low to avoid garbage collection in Go.</p>
+</div>
+<div class="pair" id="p-117">
+<p class="target" lang="zh-CN">这种实现方式在相对较小的中继设备数量下处理了我们的全球实时媒体流量，因此我们选择了更简单的设计，而不是采用内核绕过方案。</p>
+<p class="source" lang="en">This implementation handled our global real-time media traffic with a relatively small relay footprint, so we kept the simpler design instead of taking on a kernel bypass route.</p>
+</div>
+<div class="pair" id="p-118">
+<p class="target" lang="zh-CN">结果与经验</p>
+<p class="source" lang="en">Results and learnings</p>
+</div>
+<div class="pair" id="p-119">
+<p class="target" lang="zh-CN">这种架构允许我们在 Kubernetes 中运行 WebRTC 媒体，而不需要暴露数千个 UDP 端口。这非常重要，因为较小的固定 UDP 接口更容易进行安全保护和负载均衡，同时还能让基础设施扩展，无需占用大的公共端口范围。由于 Kubernetes 提供了更好的基础设施支持，且由于接口较小从而具有更高的安全性，这种设计还能保持客户端的标准 WebRTC 行为，并证明没有 SFU 的设计方式更适合我们的工作负载。我们的大多数会话都是点对点式、对延迟敏感，当推理服务不需要像 WebRTC 对等体那样运行时，也更容易扩展。</p>
+<p class="source" lang="en">This architecture lets us run WebRTC media in Kubernetes without exposing thousands of UDP ports. That matters because a smaller and fixed UDP surface is easier to secure and load balance, and it lets the infrastructure scale without reserving large public port ranges. With better infra support from Kubernetes and more security due to smaller surface area, this design also preserves standard WebRTC behavior for clients and confirms that an SFU-less design was the right default for our workload. Most of our sessions are point-to-point, latency-sensitive, and easier to scale when inference services don’t need to behave like WebRTC peers.</p>
+</div>
+<div class="pair" id="p-120">
+<p class="target" lang="zh-CN">更重要的教训是，增加复杂性的最佳位置是在精简的路由层，而不是每个后端服务或自定义客户端行为中。将路由元数据编码到协议原生字段中，使我们能够实现确定性的首包路由，减少公共 UDP 占用，并具备足够的灵活性，将入口点置于全球用户附近。</p>
+<p class="source" lang="en">The broader lesson is that the best place to add complexity is in a thin routing layer, not in every backend service, and not in custom client behavior. Encoding routing metadata into a protocol-native field gave us deterministic first-packet routing, a small public UDP footprint, and enough flexibility to place ingress close to users around the world.</p>
+</div>
+<div class="pair" id="p-121">
+<p class="target" lang="zh-CN">有些选择特别重要：</p>
+<p class="source" lang="en">A few choices were especially important:</p>
+</div>
+<div class="pair" id="p-122">
+<p class="target" lang="zh-CN">在边缘端保留协议语义。客户端仍使用标准的 WebRTC 协议，从而保持浏览器和移动设备的互操作性。</p>
+<p class="source" lang="en">Preserve protocol semantics at the edge. Clients still speak standard WebRTC, which keeps browser and mobile interoperability intact.</p>
+</div>
+<div class="pair" id="p-123">
+<p class="target" lang="zh-CN">在边缘端保留协议语义。客户端仍使用标准 WebRTC 协议，从而保持浏览器和移动设备之间的互操作性。</p>
+<p class="source" lang="en">Preserve protocol semantics at the edge. Clients still speak standard WebRTC, which keeps browser and mobile interoperability intact.</p>
+</div>
+<div class="pair" id="p-124">
+<p class="target" lang="zh-CN">将强会话状态集中在一个地方。传输器负责管理 ICE、DTLS、SRTP和会话生命周期；中继器仅转发数据包。</p>
+<p class="source" lang="en">Keep hard session states in one place. Transceiver owns ICE, DTLS, SRTP, and session lifecycle; relay only forwards packets.</p>
+</div>
+<div class="pair" id="p-125">
+<p class="target" lang="zh-CN">将强会话状态集中管理。传输器负责处理 ICE、DTLS、SRTP和会话生命周期；中继器仅负责转发数据包。</p>
+<p class="source" lang="en">Keep hard session states in one place. Transceiver owns ICE, DTLS, SRTP, and session lifecycle; relay only forwards packets.</p>
+</div>
+<div class="pair" id="p-126">
+<p class="target" lang="zh-CN">在设置中已存在信息的情况下进行路由。ICE UFRAG 提供了首包路由机制，无需添加热路径查找依赖。</p>
+<p class="source" lang="en">Route on information already present in setup. The ICE ufrag gave us a first-packet routing hook without adding a hot-path lookup dependency.</p>
+</div>
+<div class="pair" id="p-127">
+<p class="target" lang="zh-CN">在设置中已存在信息的路由方面，ICE UFRAG 提供了第一包路由机制，无需添加热路径查找依赖。</p>
+<p class="source" lang="en">Route on information already present in setup. The ICE ufrag gave us a first-packet routing hook without adding a hot-path lookup dependency.</p>
+</div>
+<div class="pair" id="p-128">
+<p class="target" lang="zh-CN">在尝试绕过内核之前，先针对常见情况进行优化。对于我们的工作负载来说，一个精简的 Go 实现，通过仔细使用 SO_REUSEPORT、线程固定以及低分配解析，就足够了。</p>
+<p class="source" lang="en">Optimize for the common case before reaching for kernel bypass. A narrow Go implementation with careful use of SO_REUSEPORT, thread pinning, and low-allocation parsing was enough for our workload.</p>
+</div>
+<div class="pair" id="p-129">
+<p class="target" lang="zh-CN">在尝试绕过内核之前，先针对常见情况进行优化。对于我们的工作负载来说，一个精简的 Go 实现，通过仔细使用 SO_REUSEPORT、线程固定和低分配解析，就足够了。</p>
+<p class="source" lang="en">Optimize for the common case before reaching for kernel bypass. A narrow Go implementation with careful use of SO_REUSEPORT, thread pinning, and low-allocation parsing was enough for our workload.</p>
+</div>
+<div class="pair" id="p-130">
+<p class="target" lang="zh-CN">实时语音 AI只有在基础设施能够让延迟变得难以察觉时才能发挥作用。对我们来说，这意味着改变 WebRTC 部署的方式，而不改变客户端对 WebRTC 本身的期望。</p>
+<p class="source" lang="en">Real-time voice AI only works when infrastructure makes latency feel invisible. For us, that meant changing the shape of our WebRTC deployment without changing what clients expect from WebRTC itself.</p>
+</div>
+<div class="pair" id="p-131">
+<p class="target" lang="zh-CN">2026</p>
+<p class="source" lang="en">2026</p>
+</div>
+<div class="pair" id="p-132">
+<p class="target" lang="zh-CN">&lt;text&gt;
+作者
+&lt;/text&gt;</p>
+<p class="source" lang="en">Authors</p>
+</div>
+<div class="pair" id="p-133">
+<p class="target" lang="zh-CN">&lt;text&gt;
+参考文献
+&lt;/text&gt;</p>
+<p class="source" lang="en">References</p>
+</div>
+<div class="pair" id="p-134">
+<p class="target" lang="zh-CN">1. Discord 如何使用 WebRTC 处理两百万五千名同时在线语音用户⁠（在新窗口中打开）</p>
+<p class="source" lang="en">1. How Discord Handles Two and Half Million Concurrent Voice Users using WebRTC⁠(opens in a new window)</p>
+</div>
+<div class="pair" id="p-135">
+<p class="target" lang="zh-CN">2. GitHub - l7mp/stunner：一个用于 WebRTC 的 Kubernetes 媒体网关（在新窗口中打开）</p>
+<p class="source" lang="en">2. GitHub - l7mp/stunner: A Kubernetes media gateway for WebRTC⁠(opens in a new window)</p>
+</div>
+<div class="pair" id="p-136">
+<p class="target" lang="zh-CN">3. WebRTC 端口简介 [示例] - BlogGeek.me⁠（在新窗口中打开）</p>
+<p class="source" lang="en">3. WebRTC Ports in a nutshell [Examples] - BlogGeek.me⁠(opens in a new window)</p>
+</div>
+<div class="pair" id="p-137">
+<p class="target" lang="zh-CN">4. 部署到 Kubernetes - LiveKit 文档（在新窗口中打开）</p>
+<p class="source" lang="en">4. Deploy to Kubernetes - LiveKit docs⁠(opens in a new window)</p>
+</div>
+<div class="pair" id="p-138">
+<p class="target" lang="zh-CN">5. 使用唯一的 UDP 端口，而不是较大的端口范围，以进行媒体连接 - mediasoup</p>
+<p class="source" lang="en">5. Use only a single UDP port instead a big port range for media connection - mediasoup⁠(opens in a new window)</p>
+</div>
+<div class="pair" id="p-139">
+<p class="target" lang="zh-CN">6. Cloudflare 调用：数百万棵层层递进的树，一直延伸到底部⁠（在新窗口中打开）</p>
+<p class="source" lang="en">6. Cloudflare Calls: millions of cascading trees all the way down⁠(opens in a new window)</p>
+</div>
+<div class="pair" id="p-140">
+<p class="target" lang="zh-CN">继续阅读</p>
+<p class="source" lang="en">Keep reading</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6G64B5haCxDuphl2iqwZ1N/4f8d319293f5e5e98b319e01b4fbdf59/scaling-git-at-openai-art-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Scaling Git at OpenAI — art card" loading="lazy">
+<div class="pair" id="p-141">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年11月2日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringNov 2, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3a839ECHaGsidJPLJqqm5s/55968ec17735b96514d1bb4851f43bf8/scaling-storage-one-billion-users-part-two-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II) — card" loading="lazy">
+<div class="pair" id="p-142">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年10月23日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 23, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3aewhPPb5NQ5IqOKEkrtzA/7209065f6e6ccf3a0476b43feb8336e1/rethinking-ads-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rethinking the ad stack around a new user journey — Art card" loading="lazy">
+<div class="pair" id="p-143">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年10月21日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 21, 2026</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://openai.com/index/delivering-low-latency-voice-ai-at-scale" target="_blank" rel="noopener noreferrer">https://openai.com/index/delivering-low-latency-voice-ai-at-scale</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html">← Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a><a href="../viewers/an-open-source-spec-for-orchestration-symphony.html">An open-source spec for orchestration: Symphony →</a></nav>
+  <footer class="footer">文章版权归原作者所有，译文请以英文原文为准。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

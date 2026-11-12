@@ -1,32 +1,25 @@
 # AIEngblogx
 
-公开 AI 工程博客的中英对照阅读站，目前收录 28 篇，持续补充。页面由工具仓库生成，可直接用 GitHub Pages 托管。
+把 Anthropic Engineering、Google DeepMind、OpenAI Engineering 的公开工程文章按段落排成中英对照，方便对着原文读术语。现在收了 70 篇。
 
-## 部署
+站点在 https://aiengblogx.github.io/ai-engineering-related-blogs/，Pages 从 `main` 根目录发布。左边按来源分目录，顶部搜索中文英文都能搜；文章页中文在上、对应英文在下，点「隐藏英文原文」可以只留中文。每篇开头都有原文链接和日期。
 
-1. 仓库 Settings → Pages → Deploy from a branch → `main` / `(root)`。
-2. 站点地址：`https://aiengblogx.github.io/ai-engineering-related-blogs/`。
-3. 若实际地址不同，重新导出时把它作为第二个参数传入，以修正 RSS 链接。
+译文只是帮着读，拿不准的地方以英文为准。译错了开个 issue，说哪篇哪段就行。
 
-## 内容
+## 怎么生成的
 
-| 路径 | 内容 |
-|---|---|
-| `index.html` | 书目录（按来源分组的左侧目录、顶部全文搜索、篇末翻页） |
-| `viewers/*.html` | 文章页，逐段中英对照（可切换隐藏英文原文）、原文配图、原文链接与日期 |
-| `about.html` | 声明、搜索、主题与版权说明 |
-| `search-index.json` | 全文搜索用的倒排索引，首次搜索时加载 |
-| `rss.xml` | 订阅 |
+这些 HTML 由 [AIEngblogx/AIEngblogx](https://github.com/AIEngblogx/AIEngblogx) 导出，别直接改生成物。抓取和翻译都在本机跑，文章数据不入库，换台机器得自己抓一遍：
 
-## 站点生成
+```bash
+npm ci
+npm run build
+node dist/main.js crawl --json
+node dist/main.js translate --model <model> --lang zh-CN --json
+node scripts/export-site.mjs ../ai-engineering-related-blogs https://aiengblogx.github.io/ai-engineering-related-blogs
+```
 
-页面由 [AIEngblogx/AIEngblogx](https://github.com/AIEngblogx/AIEngblogx) 的
-`scripts/export-site.mjs` 从抓取数据生成，请勿手工编辑 HTML。工具仓库只包含代码；
-文章数据留在本机，不入库。复现步骤见工具仓库 README 与 CONTRIBUTING。
-只有已完成译文的文章会被导出。
+第二个参数写进 RSS 链接，换域名时改这里重跑一次。只有有译文的文章会被导出。
 
-## 版权与内容
+## 版权
 
-文章正文、译文与配图的权利归原作者所有，本仓库 `LICENSE` 只覆盖页面模板、样式与脚本。
-本站为非官方归档，每篇保留原文链接与发布日期；中文译文仅作辅助阅读，请以英文原文为准。
-如需下架某篇或修正译文，请在本仓库提交 Issue，注明文章链接与原因。
+文章、译文和配图的权利归原作者，仓库里的 `LICENSE` 只管模板和脚本。哪家不希望自己的文章被收，开 issue，我会撤掉。

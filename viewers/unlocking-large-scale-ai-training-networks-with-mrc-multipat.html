@@ -1,0 +1,859 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection) · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item current" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html" aria-current="page"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item current" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html" aria-current="page"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</h1>
+  <p class="subline">原文：<a href="https://openai.com/index/mrc-supercomputer-networking" target="_blank" rel="noopener noreferrer">https://openai.com/index/mrc-supercomputer-networking</a> · 2026-05-05 · OpenAI Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">前沿模型训练依赖于能够快速在GPU之间传输数据的可靠超级计算机网络。为了加快进程并提高效率，OpenAI与AMD、Broadcom、Intel、Microsoft和NVIDIA合作开发了MRC（多路径可靠连接）协议，该协议能提升GPU网络性能及大型训练集群的韧性。我们今天通过Open Compute Project (OCP)发布了MRC，以便整个行业能够使用它。</p>
+<p class="source" lang="en">Frontier model training depends on reliable supercomputer networks that can quickly move data between GPUs. To make this faster and more efficient, OpenAI has partnered with AMD, Broadcom, Intel, Microsoft, and NVIDIA to develop MRC (Multipath Reliable Connection): a novel protocol that improves GPU networking performance and resilience in large training clusters. We released MRC today⁠(opens in a new window) through the Open Compute Project (OCP) to enable the broader industry to use it.</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">每周有超过9亿人使用ChatGPT，我们的系统正成为人工智能的核心基础设施，帮助全球各地的人们和企业使用更强大的模型进行开发。在Stargate诞生之前，我们与合作伙伴紧密合作，经过数年的努力，共同开发、推出并维护了我们前三代超级计算机。这一宝贵的经验让我们坚信，为了高效利用Stargate规模的算力并实现我们的目标，我们需要重新思考并大幅降低整个系统各层的复杂性，包括网络设计。</p>
+<p class="source" lang="en">With more than 900M people using ChatGPT every week, our systems are becoming core infrastructure for AI, helping people and businesses around the world build with increasingly capable models. Prior to the inception of Stargate⁠, we co-developed, brought up, and maintained our first three generations of supercomputers with great care and close collaboration with our partners over the span of a few years. This invaluable experience informed our strong belief that, to efficiently use compute at the scale of Stargate and succeed in our mission, we need to rethink and drastically reduce complexity in every layer of the stack – including network design.</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">发布 MRC 规范是 OpenAI 整体计算策略的一部分：在关键基础设施层采用统一标准，可以帮助更高效地、更可靠地扩展 AI 系统，并覆盖更广泛的合作伙伴生态。在本文中，我们将介绍 MRC 的设计，包括：i) 它如何帮助我们构建多平面高速网络，以建立冗余机制来应对网络故障，同时减少组件数量和能耗；ii) MRC 的自适应数据包喷射技术如何几乎消除核心拥塞；iii) 我们的部署如何利用静态源路由来绕过故障，从而消除各种路由故障。这些优势共同作用，使我们能够更快地向所有人提供更好的模型。</p>
+<p class="source" lang="en">Publishing the MRC specification is part of OpenAI’s overall compute strategy: shared standards in key infrastructure layers can help scale AI systems more efficiently, reliably, and across a broader partner ecosystem. In this post, we’ll cover the design of MRC, including: i) how it enables us to build multi-plane high-speed networks to create redundancy to ride out network failures, while using fewer components and less power ii) how MRC’s adaptive packet spraying virtually eliminates core congestion and iii) how our deployments use static source routing to bypass failures and eliminate whole classes of routing failure. In concert, these benefits allow us to deliver better models to everyone faster.</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">为什么网络需要新的设计</p>
+<p class="source" lang="en">Why networks needed a new design</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">在训练大型人工智能模型时，一个步骤可能涉及数百万次数据传输。如果一次传输延迟，就会影响整个任务，可能导致 GPU 处于闲置状态。网络拥塞、连接问题以及设备故障是传输中延迟和抖动最常见的原因。</p>
+<p class="source" lang="en">When training large AI models, a single step can involve many millions of data transfers. One transfer arriving late can ripple through the entire job, potentially causing GPUs to sit idle. Network congestion, link, and device failures are the most common sources of delay and jitter in transfers.</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">随着集群规模的增加，这些问题变得更加频繁且难以解决。这使得网络技术成为 Stargate 设计中的关键部分。</p>
+<p class="source" lang="en">These problems get more frequent, and harder to solve, as the size of the cluster increases. This makes networking technology a key part of the design of Stargate.</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">为了支持 Stargate 超级计算机当前的规模，我们面临两个关键的网络挑战。首先，应尽可能减少网络拥塞的可能性。有些瓶颈是不可避免的，比如两个 GPU 同时发送到同一个目标。但在这些情况之外，应通过设计来避免拥塞。</p>
+<p class="source" lang="en">To enable the current scale of Stargate supercomputers, we faced two key networking challenges. First, whenever possible, we should minimize the possibility of network congestion. There are unavoidable bottlenecks, such as two GPUs sending to the same destination at the same time. But outside of these cases, we should avoid congestion through design.</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">其次，我们需要将网络故障对训练过程的影响降到最低。在足够大的规模下，即使是最优秀的网络也会存在持续的链接和交换机故障情况。以前，一次故障往往会导致训练任务崩溃，不得不从保存的 checkpoint 重新开始，或者在网络重新计算路径过程中导致进程停滞数秒。这种中断在 GPU 使用时间和成本上都非常高。在同步预训练中，许多计算机上的许多 GPU 同步合作来训练一个人工智能模型，这种情况尤为明显。任务规模越大，单个链接中断或故障的影响就越大。这些工作负载就像一种“故障放大器”，因此防止这种情况变得至关重要。</p>
+<p class="source" lang="en">Second, we need to minimize the effect of network failures on the training job itself. At large enough scale, even the best network will have a constant background level of link and switch failures. Previously, a single failure would often cause a training job to crash, forcing a restart from a saved checkpoint, or stall progress for many seconds while the network recomputed routes. Such interruptions are costly in both GPU cycles and time. With synchronous pretraining – where many GPUs across many computers cooperate in lockstep to train one AI model – this is especially true. The larger the job we run, the greater the impact of any single link flap or failure. These workloads act as a form of “failure amplifier,” so preventing this has become critical.</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">我们的答案：MRC</p>
+<p class="source" lang="en">Our answer: MRC</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">我们的目标不仅仅是构建一个快速的网络，还要构建一个即使在出现故障的情况下也能提供稳定性能的网络，从而确保训练任务能够继续进行。</p>
+<p class="source" lang="en">Our goal was not just to build a fast network, but also to build one that delivers very predictable performance, even in the presence of failures, to keep training jobs moving.</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">为了实现这种可靠性，我们的 Scaling 团队在过去两年里与 AMD、Broadcom、Intel、Microsoft 和 NVIDIA 合作，开发了一种构建和运营网络的新方法。这一努力的成果是一种我们称为 Multipath Reliable Connection 或 MRC 的技术。这是一种内置在最新 800Gb/s 网络接口中的新网络协议，它允许我们将单次传输分散到数百条路径上，在微秒级时间内绕过故障，并运行更简单的网络控制平面。</p>
+<p class="source" lang="en">To achieve this reliability, our Scaling team worked with AMD⁠(opens in a new window), Broadcom⁠(opens in a new window), Intel, Microsoft⁠(opens in a new window), and NVIDIA⁠(opens in a new window) over the past two years to develop a new way to build and operate our networks. The result of this effort is a technique we call Multipath Reliable Connection, or MRC⁠(opens in a new window). It’s a new network protocol built into the latest 800Gb/s network interfaces that lets us spread a single transfer across hundreds of paths, route around failures in microseconds, and run simpler network control planes.</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">MRC扩展了基于融合以太网（RoCE）的 RDMA——这是 InfiniBand 贸易协会（IBTA）的标准，能够实现 GPU 和 CPU 之间的硬件加速远程直接内存访问。它利用了 Ultra Ethernet 联盟（UEC）开发的技术，并通过基于 SRv6 的源路由功能进行扩展，以支持大规模人工智能网络架构。</p>
+<p class="source" lang="en">MRC extends RDMA over Converged Ethernet (RoCE) – an InfiniBand Trade Association (IBTA) standard that enables hardware-accelerated remote direct memory access among GPUs and CPUs. It draws on techniques developed by the Ultra Ethernet Consortium (UEC) and extends them with SRv6-based source routing to support large-scale AI networking fabrics.</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">MRC已经部署在 OpenAI 所有最大的 NVIDIA GB200 超级计算机上，这些计算机用于训练前沿模型，包括位于德克萨斯州阿比伦的 Oracle Cloud Infrastructure (OCI) 站点以及微软的 Fairwater 超级计算机。MRC被用于训练多个 OpenAI 模型，利用了 NVIDIA 和 Broadcom 的硬件资源。如今，MRC规范作为 Open Compute Project (OCP) 的贡献，可供社区使用和开发。我们共同撰写了一篇详细说明我们经验的论文，题为“使用 MRC 和 SRv6 的弹性 AI 超级计算机网络”⁠（在新窗口中打开）。</p>
+<p class="source" lang="en">MRC is already deployed across all of OpenAI’s largest NVIDIA GB200 supercomputers that we use to train frontier models, including our site with Oracle Cloud Infrastructure (OCI) in Abilene, Texas, and in Microsoft’s Fairwater supercomputers. MRC has been used to train multiple OpenAI models, leveraging hardware from NVIDIA and Broadcom. Today, the MRC specification is available as an Open Compute Project (OCP) contribution for the community to use and build on. We co-authored a paper detailing our experiences, “Resilient AI Supercomputer Networking using MRC and SRv6”⁠(opens in a new window).</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">基础：多平面网络</p>
+<p class="source" lang="en">The foundation: Multi-plane networks</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">构建高弹性网络需要从具有足够自然冗余性的网络拓扑开始，这样即使网络中的链接或交换机出现故障，所有流量仍能获得良好的性能。</p>
+<p class="source" lang="en">Building highly resilient networks requires that we start with a network topology that has enough natural redundancy that all flows can get good performance, even when links or switches in the network have failed.</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">与其将每个网络接口视为一个 800Gb/s 链路，我们将其拆分为多个较小的链路。例如，一个接口可以连接八个不同的交换机。这样就可以构建八个独立的并行网络或平面，每个网络以 100Gb/s 的速度运行，而不是一个单一的 800Gb/s 网络。</p>
+<p class="source" lang="en">Instead of treating each network interface as one 800Gb/s link, we split it into multiple smaller links. For example, one interface can connect to eight different switches. You can then build eight separate parallel networks, or planes, each operating at 100Gb/s, rather than a single 800Gb/s network.</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">这种改变对集群的形状有很大影响。一个能够以 800Gb/s 速度连接 64 个端口的交换机，可以改为以 100Gb/s 速度连接 512 个端口。这样只需两层交换机，就能构建出一个能够连接约 131,000 个 GPU 的网络。而传统的 800Gb/s 网络则需要三到四层交换机。</p>
+<p class="source" lang="en">That change has a large effect on the shape of the cluster. A switch that can connect 64 ports at 800Gb/s can instead connect 512 ports at 100Gb/s. This lets you build a network fully connecting about 131,000 GPUs with only two tiers of switches. A conventional 800Gb/s network would require three or four tiers.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/hMXzAlcJ2ZoyVk4XhCqZc/f0f074764da3f50d60f8a9e030bf0c29/Diagram_1_-_desktop_-_light.svg?w=3840&amp;q=90" alt="&quot;&quot;" loading="lazy">
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">MRC对多平面网络的支持意味着我们只需使用两层交换机，就能连接超过十万个 GPU。与传统方法相比，这减少了所需的电力、可能出问题的组件数量以及网络的总成本。</p>
+<p class="source" lang="en">MRC’s support for multi-plane networks means we can connect over a hundred thousand GPUs with only two tiers of switches. This reduces the power required, the number of components that can fail, and the total cost of the network compared to conventional approaches.</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">结果是一个成本更低、功耗更低的网络，并且比传统网络设计具有更多的路径多样性。它还能让更多的流量留在 Tier 0 交换机本地，从而提升性能。</p>
+<p class="source" lang="en">The result is a network that is lower cost, has lower power consumption, and gives us more path-diversity than a conventional network design. It also allows more traffic to stay local to Tier 0 switches, which can improve performance.</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">然而，这种路径多样性很难得到充分利用。用于人工智能训练的传统网络协议通常要求每次传输都遵循单一路径，以确保数据包按序到达。在大型多平面网络中，这会产生两个问题：不同的流量可能在同一链路上发生冲突导致拥塞，而且每个流量只能使用其中一个可用平面。如果其他条件不变，多平面网络会导致严重的拥塞和整体性能下降。</p>
+<p class="source" lang="en">However, all that path diversity can be difficult to fully utilize. Traditional network protocols used for AI training typically require each transfer to follow a single path so packets arrive in order. In a large multi-plane network, that creates two problems: different flows can collide on the same link and create congestion, and each flow can use only one of the available planes. If we changed nothing else, a multi-plane network would result in significant congestion and poor overall performance.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/2Amv4FWRbv6EAI4PqTtUd6/ea33aef009c0b317bf8cd9eeebb3622a/Diagram_2_-_desktop_-_light.svg?w=3840&amp;q=90" alt="&quot;&quot;" loading="lazy">
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">在单路径流量情况下，如经典的 RoCE 部署中，各个链接经常会出现拥堵。由于集体通信对最坏情况的延迟非常敏感，这尤其会对 AI 训练工作负载造成干扰。</p>
+<p class="source" lang="en">With single-path flows, like in a classic RoCE deployment, individual links frequently become congested. Because collective communications are sensitive to the worst-case latency, this is especially disruptive to AI training workloads.</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">数据包流发生冲突导致拥塞。动画由 Mark Handley 制作。</p>
+<p class="source" lang="en">Flows of packets collide causing congestion. Animation by Mark Handley.</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">MRC的转变：在数百条路径上喷洒包装物</p>
+<p class="source" lang="en">MRC’s shift: Spraying packets across hundreds of paths</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">MRC从根本上改变了这一模型。与将数据包分配到单一路径不同，MRC从单一传输路径获取数据包，并将其分散到网络中的数百条路径上，覆盖所有不同的通道。数据包可能会以乱序的方式到达，但所有MRC数据包都包含其最终内存地址，因此目标设备可以在数据包到达时将其存入内存。</p>
+<p class="source" lang="en">MRC fundamentally changes this model. Instead of assigning a transfer to one path, MRC takes the packets from a single transfer and sprays them across hundreds of paths through our network, across all of the distinct planes. Packets can arrive out of order, but all MRC packets include their final memory address so the destination can deliver them to memory as they arrive.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6o8SiUEq5zJnWw7qDwJ5ur/e92de63c6f6fa65555275b6ef48997b9/Diagram_3_-_desktop_-_light.svg?w=3840&amp;q=90" alt="&quot;&quot;" loading="lazy">
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">MRC 同时将数据包分发到多条路径上，从而减少可能阻碍同步 AI 训练的拥塞情况。</p>
+<p class="source" lang="en">MRC spreads packets across many paths at once, reducing congestion that can slow synchronous AI training.</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">通过将流量分散到多条路径上，MRC能够避免网络中的热点区域，从而防止某些交易比其他交易花费更长时间。这能够避免延迟，避免对同步人工智能训练造成影响。</p>
+<p class="source" lang="en">By spreading traffic across many paths, MRC avoids hot-spots in the network, preventing some transactions from taking much longer than others. This prevents slowdowns that would impact synchronous AI training.</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">多条路径上的数据包传播。动画由 Mark Handley 制作。</p>
+<p class="source" lang="en">Packet spraying across multiple paths. Animation by Mark Handley.</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">每个MRC连接会保存少量状态信息，用于它所使用的多条路径。如果检测到某条路径变得拥塞，它会将这条路径替换为另一条路径，从而平衡整个网络的负载。如果丢失了数据包，它会选择最安全的方案：假设该路径可能存在问题，立即停止使用该路径，并重新传输可能丢失的数据包。MRC在撤除某条路径后，会发送探测包来确认是否真的发生了故障，以及是否已经恢复。</p>
+<p class="source" lang="en">Each MRC connection keeps a small amount of state for the many paths it uses. If it detects that a path is becoming congested, it swaps that path for another one, evening out load across the network. If it loses a packet, it takes the safe option: it assumes something on that path may have failed and immediately stops using it, retransmitting any packets that may have been lost. After MRC retires a path, it sends probe packets to check whether there really was a failure, and if so, whether it has recovered.</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">虽然故障不是数据包丢失的唯一原因，另一个常见的丢失原因是在目的地出现拥塞。MRC通过数据包修剪来处理这种情况。如果交换机因拥塞而丢弃数据包，它会删除有效载荷，只将头部转发到目的地，从而触发明确的重传请求。数据包修剪可以减少误报，避免我们错误地认为丢失意味着路径失败。</p>
+<p class="source" lang="en">Failures aren’t the only cause of packet loss though; another common source of loss is congestion at the destination. MRC handles this through packet trimming. If a switch would otherwise drop a packet due to congestion, it trims off the payload and forwards only the header to the destination, triggering an explicit retransmission request. Packet trimming reduces false positives where we incorrectly assume a loss means a path has failed.</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">这种多平面拓扑、喷射、负载均衡和修剪的组合使得MRC连接能够在微秒级时间尺度上检测网络故障并绕开这些故障，从而最小化对同步训练任务的影响。相比之下，传统网络架构可能需要几秒甚至几十秒才能稳定并绕开故障。</p>
+<p class="source" lang="en">This combination of multi-plane topology, spraying, load-balancing, and trimming means that an MRC connection can detect network failures and route around them on a microsecond timescale, minimizing the impact on synchronous training jobs. In contrast, a conventional network fabric could take seconds or even tens of seconds to stabilize and route around failures.</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">用源路由替代动态路由</p>
+<p class="source" lang="en">Replacing dynamic routing with source routing</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">MRC让我们在简化网络方面又迈进了一步。</p>
+<p class="source" lang="en">MRC allows us to go one step further in simplifying our networks.</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">传统上，交换机通过动态路由协议如 BGP（边界网关协议）来计算可用路径并绕过故障。但交换机是运行复杂软件的复杂设备。当它们以微妙的方式出现故障时，这些问题可能难以诊断，并可能导致连接失败，直到修复为止。</p>
+<p class="source" lang="en">Traditionally, switches run a dynamic routing protocol such as BGP (Border Gateway Protocol) to compute available paths and route around failures. But switches are complex devices running complex software. When they fail in subtle ways, those problems can be hard to diagnose and can cause connection failures until fixed.</p>
+</div>
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">使用 MRC 后，动态路由变得不再必要。如果数据包在路径上丢失，MRC 会停止使用该路径。我们采取了更激进的方法，禁用动态路由，转而使用 IPv6 段路由（或 SRv6）。SRv6 允许发送者直接指定每个数据包在网络中的传输路径，其方法是将交换标识符序列嵌入到每个数据包的目标地址中。</p>
+<p class="source" lang="en">With MRC, dynamic routing became less necessary. If packets are lost on a path, MRC stops using that path. We took the more radical approach of disabling dynamic routing and using IPv6 Segment Routing (or SRv6), instead. SRv6 lets the sender directly specify the path each packet should take through the network. It does this by embedding the sequence of switch identifiers into each packet’s destination address.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/1f8McRrpdgN3uVXEYpGDiM/561c3b78269c13e27b7812c5ccf34922/Diagram_4_-_desktop_-_light.svg?w=3840&amp;q=90" alt="&quot;&quot;" loading="lazy">
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">SRv6允许发送者对每个数据包在网络中应该走的完整路径进行编码。由于这种机制具有确定性，发送者可以独立应对特定路径上的拥塞或丢失情况。</p>
+<p class="source" lang="en">SRv6 allows the sender to encode the full path each packet should take to the network. Because this is deterministic, the sender can independently react to congestion or loss on a given path.</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">分解来说：在转发过程中，交换机会检查自身标识符是否存在。如果存在，它通过移动目标地址来移除该标识符，从而使下一个交换机的标识符显现出来。然后，交换机会在静态路由表中查找这个标识符，从而决定下一个将数据包发送到哪里。与动态路由不同，这个静态路由表在交换机首次配置时就会设置，之后不会更改。</p>
+<p class="source" lang="en">Breaking this down: When forwarding, a switch checks if its own identifier is present. If it is, it removes the identifier by shifting the destination address so that the next switch’s identifier is revealed. The switch then looks this identifier up in a static routing table, which determines where to send the packet next. Unlike with dynamic routing, this static routing table is configured when the switch is first configured and never changed thereafter.</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">MRC使用SRv6在所有网络平面以及每个平面上的多个路径上同时发送数据包。如果某个路径失败，MRC就会停止使用该路径。交换机无需重新计算路由，只需盲目遵循其配置的静态路由即可。</p>
+<p class="source" lang="en">MRC uses SRv6 to spray packets across all network planes, as well as many paths on each plane simultaneously. If a path fails, MRC simply stops using it. The switches don’t need to recompute routes or do anything other than blindly follow the static routes they were configured with.</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">由 Oracle 云基础设施公司在德克萨斯州阿比伦建造的星门超级计算机</p>
+<p class="source" lang="en">Stargate supercomputer built by Oracle Cloud Infrastructure (OCI) in Abilene, Texas</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/1Egn0XEq01L17iRIbOqvdN/99dc37042872ee901a16ce7efa89a07c/abilene-still4.jpg?w=3840&amp;q=90&amp;fm=webp" alt="image 1" loading="lazy">
+<img src="https://images.ctfassets.net/kftzwdyauwt9/7f8j7OenslmBCghDTDx0rw/4598ac4afb283b8bd1f98ed9431a2af6/Screenshot_2026-05-01_at_11.52.52%C3%A2__AM.png?w=3840&amp;q=90&amp;fm=webp" alt="image 2" loading="lazy">
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6yyCVGyZv4CGmncIOCKLbH/55c52b090e56339b064b2061d9f73be9/ChatGPT_Image_May_1__2026__11_59_29_AM.png?w=3840&amp;q=90&amp;fm=webp" alt="image 3" loading="lazy">
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6HAYJT90POXcXzScFcGTZQ/cf81bd18417262756fa2b089ec8bca71/Screenshot_2026-05-01_at_12.02.44%C3%A2__PM.png?w=3840&amp;q=90&amp;fm=webp" alt="image 4" loading="lazy">
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">生产环境中的实际样子</p>
+<p class="source" lang="en">What this looks like in production</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">我们的训练网络包含数百万条连接。虽然这些网络质量很高，但在足够大的规模下，某些连接故障是不可避免的。在训练过程中，我们观察到每分钟在层级0和层级1交换机之间都会出现多次连接故障的情况，但MRC确保这些故障对我们的同步预训练任务没有可测量的影响。实际上，其影响非常小，以至于我们甚至不需要优先修复这些连接。</p>
+<p class="source" lang="en">Our training networks have millions of links. While these networks are of high quality, at sufficient scale some link flaps are inevitable. During training, we have observed cases of multiple link flaps each minute between tier-0 and tier-1 switches, but MRC ensured that they had no measurable impact on our synchronous pretraining jobs. In fact, their impact was small enough that we did not even need to prioritize the immediate repair of those links.</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">不仅仅是链接会出现问题。在训练最近为 ChatGPT 和 Codex 设计的前沿模型时，我们不得不重启四台一级交换机。以前，重启交换机需要运营团队非常小心，以免干扰训练过程。使用 MRC 后，甚至不需要与集群中运行训练任务的团队协调。许多链接修复工作也是如此。过去，我们需要与运营团队协调，在维护工作需要进行时关闭链接。现在，我们可以在链接仍然处于使用状态时进行修复。如果链接运行得足够好，MRC 会继续使用它；如果不好，MRC 会避免使用它，直到其修复完成。</p>
+<p class="source" lang="en">It’s not just links that can fail. During training of a recent frontier model for ChatGPT and Codex, we had to reboot four tier-1 switches. Previously, rebooting a switch would have required the operations team to be very careful not to disrupt training. With MRC, we didn’t even need to coordinate with the teams running training jobs in the cluster. The same is true for many link repairs. We used to coordinate with operations teams to disable a link when maintenance work needed to happen. Now we can repair links while they are still in service. If a link is working well enough, MRC will use it. If not, MRC avoids it until it is fixed.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/rXJCOvyQlsY8yFyXdl9Li/6353f2f9a9d41bbbac7d965f49d42db3/Diagram_5_-_desktop_-_light.svg?w=3840&amp;q=90" alt="&quot;&quot;" loading="lazy">
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">在训练过程中捕获到的真实数据表明，MRC对T1开关的完全丢失做出了反应。训练过程出现了短暂的减速，但很快恢复了。</p>
+<p class="source" lang="en">Real data captured during a training run showing MRC reacting to the complete loss of a T1 switch. The training job experienced a temporary slowdown, but recovered quickly.</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">在 MRC 之前，如果 GPU 网络接口与 Tier-0 交换机之间的连接中断，训练任务就会失败。使用 MRC 后，任务能够在合理的性能下继续运行。如果 8 端口网络接口失去一个端口，最大传输速率会降低八分之一。MRC 能够检测到这种情况，重新计算路径以避开故障的端口，并立即通知其他设备不要使用该端口进行入站流量。大多数故障链路在一分钟内就能恢复，此时 MRC 会让该端口重新投入使用。</p>
+<p class="source" lang="en">Before MRC, if a link between a GPU’s network interface and a tier-0 switch failed, the training job would fail. With MRC, the job survives with reasonable performance. If an 8-port network interface loses one port, the maximum rate is reduced by one eighth. MRC detects this, recalculates paths to avoid the failed plane, and immediately tells peers not to use that plane for inbound traffic. Most failed links recover within a minute, at which point MRC brings the plane back into use.</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">由于失去了 GPU 接口连接导致的减速，在不同的训练任务中表现不同，但实际上，其程度通常远小于物理计算能力的损失。</p>
+<p class="source" lang="en">The slowdown, caused by losing a GPU interface link, has differed across training jobs, but in practice, tends to be significantly less than the amount of physical capacity lost.</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">主要改进</p>
+<p class="source" lang="en">Key improvements</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">MRC在扩展我们的超级计算机时，最终为我们带来了三个重要的优势。</p>
+<p class="source" lang="en">MRC ultimately delivers us three critical advantages when scaling our supercomputers.</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">首先，它允许我们仅使用两层以太网交换机，就为拥有超过100,000个GPU的超级计算机构建多平面高速网络。这提供了足够的冗余以应对网络故障，同时比同等的三层或四层单平面网络消耗更少的电力。</p>
+<p class="source" lang="en">First, it lets us build multi-plane high-speed networks for supercomputers with over 100,000 GPUs using only two tiers of Ethernet switches. This gives us enough redundancy to ride out network failures, while using less power than equivalent three- or four-tier single-plane networks.</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">其次，MRC的自适应数据包分发技术能够很好地平衡负载，使得网络核心部分几乎没有拥塞现象。这大大减少了同步训练期间不同流量之间的吞吐量差异，而消除异常值对性能至关重要。此外，当多个任务共享集群时，它们也不会相互影响性能。</p>
+<p class="source" lang="en">Second, MRC’s adaptive packet spraying load-balances well enough that we see essentially no congestion in the core of the network. This greatly reduces variation in throughput between flows during synchronous training, where eliminating outliers is central to performance. It also means that when multiple jobs share the cluster, they do not impact one another’s performance.</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">最后，MRC使用SRv6源路由来快速绕过故障，并仅通过正常路径发送数据包。这使我们能够运行简单的静态网络控制平面，从而消除各种动态路由故障行为。</p>
+<p class="source" lang="en">Last, MRC uses SRv6 source routing to bypass failures quickly and send packets only over working paths. This lets us run a simple static network control plane and eliminate whole classes of dynamic routing failure behavior.</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">打开协议</p>
+<p class="source" lang="en">Opening the protocol</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">MRC显著提升了我们训练新型前沿模型的能力，使我们的系统能够跟上研究人员宏伟的AI发展计划。相比以往的方法，它带来了显著的改进，有助于加速我们实现让每个人都能可靠地享受AGI优势的目标。我们为促成这种跨行业合作感到自豪。</p>
+<p class="source" lang="en">MRC has markedly advanced our ability to train new frontier models and ensure our networks keep pace with our researchers’ ambitious AI roadmap. It delivers a significant improvement over previous approaches and helps accelerate our goal of bringing the benefits of AGI to everyone, reliably. We’re proud of the cross-industry collaboration that made it possible.</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">随着训练集群不断扩大，网络设计越来越决定有多少可用的计算资源能够真正被利用。MRC帮助我们让GPU在拥堵、连接故障和维护事件中仍能协同工作，而这些情况以前会干扰训练。在足够大的规模下，这种可靠性和效率并非锦上添花，而是实现同步前沿模型训练的关键之一。</p>
+<p class="source" lang="en">As training clusters continue to grow, network design increasingly determines how much of the available compute can actually be used. MRC helps us keep GPUs moving together through congestion, link failures, and maintenance events that would previously have disrupted training. At meaningful scale, that reliability and efficiency is not a nice-to-have; it is part of what makes synchronous frontier model training possible.</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">致谢</p>
+<p class="source" lang="en">Acknowledgements</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">跨行业合作对于解决人工智能面临的许多难题仍然至关重要。我们感谢 AMD、Broadcom、Intel、Microsoft 和 NVIDIA 与我们合作开发 MRC，也感谢 Microsoft Azure、OCI、NVIDIA 和 Arista 与我们合作大规模部署 MRC。我们共同致力于推动生态系统的发展，对未来该领域在 MRC 方面的发展充满期待。</p>
+<p class="source" lang="en">Cross-industry collaboration will continue to be essential to solving many of AI’s hardest problems. We’re grateful for our partnership with AMD, Broadcom, Intel, Microsoft, and NVIDIA to develop MRC, and to Microsoft Azure, OCI, NVIDIA, and Arista in working with us to deploy it at scale. We all share a common commitment to advancing the ecosystem and are excited to see where the industry takes MRC in the future.</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">继续阅读</p>
+<p class="source" lang="en">Keep reading</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/6G64B5haCxDuphl2iqwZ1N/4f8d319293f5e5e98b319e01b4fbdf59/scaling-git-at-openai-art-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Scaling Git at OpenAI — art card" loading="lazy">
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学 2026年11月2日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringNov 2, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3a839ECHaGsidJPLJqqm5s/55968ec17735b96514d1bb4851f43bf8/scaling-storage-one-billion-users-part-two-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II) — card" loading="lazy">
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年10月23日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 23, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3aewhPPb5NQ5IqOKEkrtzA/7209065f6e6ccf3a0476b43feb8336e1/rethinking-ads-card.png?w=3840&amp;q=90&amp;fm=webp" alt="Rethinking the ad stack around a new user journey — Art card" loading="lazy">
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">&lt;text&gt;
+工程学
+2026年10月21日
+&lt;/text&gt;</p>
+<p class="source" lang="en">EngineeringOct 21, 2026</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://openai.com/index/mrc-supercomputer-networking" target="_blank" rel="noopener noreferrer">https://openai.com/index/mrc-supercomputer-networking</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html">← Building a safe, effective sandbox to enable Codex on Windows</a><a href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html">How OpenAI delivers low-latency voice AI at scale →</a></nav>
+  <footer class="footer">文章版权归原作者所有，译文请以英文原文为准。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1465 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Building a safe, effective sandbox to enable Codex on Windows · AIEngblogx</title>
+<meta name="description" content="Side-by-side translations of public engineering articles">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Building a safe, effective sandbox to enable Codex on Windows</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item current" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html" aria-current="page"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></aside>
+<details class="mobile-nav"><summary>Contents</summary><nav aria-label="Contents"><a href="../index.html">Contents</a>
+<a href="../about.html">About</a>
+<a href="../rss.xml">RSS</a>
+<div class="group">Google Deepmind</div>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon is now available</a>
+<a class="nav-item" href="../viewers/introducing-alphaproof-code-a-breakthrough-in-verifying-comp.html"><span class="num">03</span>Introducing AlphaProof Code: a breakthrough in verifying complex software at depth</a>
+<a class="nav-item" href="../viewers/gemini-robotics-2-5-accelerates-real-world-general-dexterity.html"><span class="num">04</span>Gemini Robotics 2.5 accelerates real-world general dexterity</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">05</span>Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips</a>
+<a class="nav-item" href="../viewers/agentic-cheminformatics-with-google-antigravity.html"><span class="num">06</span>Agentic cheminformatics with Google Antigravity</a>
+<a class="nav-item" href="../viewers/speeding-up-planning-decisions-with-ai.html"><span class="num">07</span>Speeding up planning decisions with AI</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">08</span>Gemini 4 Carbon: Our next frontier model</a>
+<a class="nav-item" href="../viewers/genie-4-a-new-generation-of-world-simulation.html"><span class="num">09</span>Genie 4: A new generation of world simulation</a>
+<a class="nav-item" href="../viewers/beyond-tree-cover-mapping-the-world-s-forest-types.html"><span class="num">10</span>Beyond tree cover: mapping the world’s forest types</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">11</span>Accelerating the search for antimicrobial peptides with Google Antigravity</a>
+<a class="nav-item" href="../viewers/google-deepmind-and-singapore-government-collaborate-to-buil.html"><span class="num">12</span>Google DeepMind and Singapore Government collaborate to build fine-tuned AI model for scam detection</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">13</span>Developing Gemini 4 Argon responsibly and safely</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">14</span>Gemini 4 Argon: Built to solve your hardest problems</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">15</span>EmbeddingGemma 2: an open, lightweight multimodal embedding model</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">16</span>Gemini 4 Argon: our next era of frontier intelligence</a>
+<a class="nav-item" href="../viewers/introducing-synthid-bio.html"><span class="num">17</span>Introducing SynthID Bio</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">18</span>Introducing Gemini 3.8 Live with Live Avatar</a>
+<a class="nav-item" href="../viewers/advancing-private-ai-compute-with-secure-server-side-memory.html"><span class="num">19</span>Advancing Private AI Compute with secure, server-side memory</a>
+<div class="group">Anthropic Engineering</div>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">20</span>The components of agent memory</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">21</span>Redesigning source control at Anthropic</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">22</span>How we contain Claude across products</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">23</span>An update on recent Claude Code quality reports</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">24</span>Scaling Managed Agents: Decoupling the brain from the hands</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">25</span>How we built Claude Code auto mode: a safer way to skip permissions</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">26</span>Harness design for long-running application development</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">27</span>Eval awareness in Claude Opus 4.6’s BrowseComp performance</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">28</span>Building a C compiler with a team of parallel Claudes</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">29</span>Quantifying infrastructure noise in agentic coding evals</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">30</span>Designing AI-resistant technical evaluations</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">31</span>Demystifying evals for AI agents</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">32</span>Effective harnesses for long-running agents</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">33</span>Introducing advanced tool use on the Claude Developer Platform</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">34</span>Code execution with MCP: Building more efficient agents</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">35</span>Beyond permission prompts: making Claude Code more secure and autonomous</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">36</span>Equipping agents for the real world with Agent Skills</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">37</span>Effective context engineering for AI agents</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">38</span>A postmortem of three recent issues</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">39</span>Writing effective tools for agents — with agents</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">40</span>Desktop Extensions: One-click MCP server installation for Claude Desktop</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">41</span>Confidential Inference via Trusted Virtual Machines</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">42</span>How we built our multi-agent research system</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">43</span>Claude Code: Best practices for agentic coding</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">44</span>The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">45</span>Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">46</span>Building effective agents</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">47</span>Introducing Contextual Retrieval</a>
+<div class="group">Openai Engineering</div>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">48</span>Scaling Git at OpenAI</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">49</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">50</span>How we built ChatGPT’s novel ad stack for user trust and relevance</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">51</span>Rapidly scaling online storage to serve over 1 billion ChatGPT users</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">52</span>Jalapeño’s first results show industry-leading speed and efficiency in AI inference</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">53</span>How we built a realtime system for responsive voice AI in six months</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">54</span>How GPT-5.6 fuses frontier intelligence with frontier efficiency</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">55</span>Core dump epidemiology: fixing an 18-year-old bug</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">56</span>Building self-improving tax agents with Codex</a>
+<a class="nav-item current" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html" aria-current="page"><span class="num">57</span>Building a safe, effective sandbox to enable Codex on Windows</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">58</span>Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">59</span>How OpenAI delivers low-latency voice AI at scale</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">60</span>An open-source spec for orchestration: Symphony</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">61</span>Speeding up agentic workflows with WebSockets in the Responses API</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">62</span>From model to agent: Equipping the Responses API with a computer environment</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">63</span>Beyond rate limits: scaling access to Codex and Sora</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">64</span>Harness engineering: leveraging Codex in an agent-first world</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">65</span>Unlocking the Codex harness: how we built the App Server</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">66</span>Inside OpenAI’s in-house data agent</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">67</span>Unrolling the Codex agent loop</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">68</span>Scaling PostgreSQL to power 800 million ChatGPT users</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">69</span>How We Used Codex to Ship Sora for Android in 28 Days</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">70</span>How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas</a></nav></details>
+<main class="main"><article class="page">
+  <h1>Building a safe, effective sandbox to enable Codex on Windows</h1>
+  <p class="subline">原文：<a href="https://openai.com/index/building-codex-windows-sandbox" target="_blank" rel="noopener noreferrer">https://openai.com/index/building-codex-windows-sandbox</a> · 2026-05-13 · OpenAI Engineering · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+.reader-tools .hint { color: var(--muted); }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+<span class="hint">中文译文在上，英文原文在下</span>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">第一个原型：所谓的“非提升式沙箱”限制文件写入SIDs让我们为沙箱赋予一个身份Write-restricted tokens限制，这样Codex就可以修改文件限制网络访问这种非提升式方法带有一定的代价网络抑制非常重要</p>
+<p class="source" lang="en">The first prototype: the &quot;unelevated sandbox&quot;Limiting file writesSIDs let us give the sandbox an identityWrite-restricted tokens limit where Codex can modify filesLimiting network accessThe unelevated approach came with tradeoffsNetwork suppression is too important</p>
+</div>
+<div class="pair" id="p-1">
+<p class="target" lang="zh-CN">限制文件写入 SIDs 让我们为沙箱提供身份标识，Write-restricted tokens 限制了 Codex 修改文件的范围</p>
+<p class="source" lang="en">Limiting file writesSIDs let us give the sandbox an identityWrite-restricted tokens limit where Codex can modify files</p>
+</div>
+<div class="pair" id="p-2">
+<p class="target" lang="zh-CN">SIDs让我们为沙箱赋予一个身份</p>
+<p class="source" lang="en">SIDs let us give the sandbox an identity</p>
+</div>
+<div class="pair" id="p-3">
+<p class="target" lang="zh-CN">限制写入的标记限制了法典修改文件的范围</p>
+<p class="source" lang="en">Write-restricted tokens limit where Codex can modify files</p>
+</div>
+<div class="pair" id="p-4">
+<p class="target" lang="zh-CN">限制网络访问</p>
+<p class="source" lang="en">Limiting network access</p>
+</div>
+<div class="pair" id="p-5">
+<p class="target" lang="zh-CN">这种不高级的方法带有一些代价</p>
+<p class="source" lang="en">The unelevated approach came with tradeoffs</p>
+</div>
+<div class="pair" id="p-6">
+<p class="target" lang="zh-CN">网络抑制非常重要</p>
+<p class="source" lang="en">Network suppression is too important</p>
+</div>
+<div class="pair" id="p-7">
+<p class="target" lang="zh-CN">重新设计：所谓的“提升版沙箱”我们现在需要一个一流的设置步骤命令执行器是一个新的二进制文件，实际执行用户命令整体情况</p>
+<p class="source" lang="en">The redesign: the &quot;elevated sandbox&quot;We now need a first-class setup stepThe command runner is a new binary that actually runs user commandsThe full picture</p>
+</div>
+<div class="pair" id="p-8">
+<p class="target" lang="zh-CN">我们现在需要一个一流的设置步骤</p>
+<p class="source" lang="en">We now need a first-class setup step</p>
+</div>
+<div class="pair" id="p-9">
+<p class="target" lang="zh-CN">命令执行器是一个新的二进制文件，用于实际执行用户命令</p>
+<p class="source" lang="en">The command runner is a new binary that actually runs user commands</p>
+</div>
+<div class="pair" id="p-10">
+<p class="target" lang="zh-CN">完整的画面</p>
+<p class="source" lang="en">The full picture</p>
+</div>
+<div class="pair" id="p-11">
+<p class="target" lang="zh-CN">将安全性与实际实用性平衡起来</p>
+<p class="source" lang="en">Balancing safety with actual usefulness</p>
+</div>
+<div class="pair" id="p-12">
+<p class="target" lang="zh-CN">现有 Windows 工具存在不足的地方</p>
+<p class="source" lang="en">Where existing Windows tools fell short</p>
+</div>
+<div class="pair" id="p-13">
+<p class="target" lang="zh-CN">第一个原型：所谓的“非提升式沙箱”限制文件写入SIDs让我们为沙箱赋予一个身份Write-restricted tokens限制，这样Codex就可以修改文件限制网络访问这种非提升式方法带来了一些代价网络抑制非常重要</p>
+<p class="source" lang="en">The first prototype: the &quot;unelevated sandbox&quot;Limiting file writesSIDs let us give the sandbox an identityWrite-restricted tokens limit where Codex can modify filesLimiting network accessThe unelevated approach came with tradeoffsNetwork suppression is too important</p>
+</div>
+<div class="pair" id="p-14">
+<p class="target" lang="zh-CN">限制文件写入 SIDs 让我们为沙箱提供身份标识，Write-restricted tokens 限制了 Codex 修改文件的能力</p>
+<p class="source" lang="en">Limiting file writesSIDs let us give the sandbox an identityWrite-restricted tokens limit where Codex can modify files</p>
+</div>
+<div class="pair" id="p-15">
+<p class="target" lang="zh-CN">SIDs让我们为沙箱赋予一个身份</p>
+<p class="source" lang="en">SIDs let us give the sandbox an identity</p>
+</div>
+<div class="pair" id="p-16">
+<p class="target" lang="zh-CN">限制写入的令牌限制了法典修改文件的范围</p>
+<p class="source" lang="en">Write-restricted tokens limit where Codex can modify files</p>
+</div>
+<div class="pair" id="p-17">
+<p class="target" lang="zh-CN">限制网络访问</p>
+<p class="source" lang="en">Limiting network access</p>
+</div>
+<div class="pair" id="p-18">
+<p class="target" lang="zh-CN">这种不高的方法带有一些代价</p>
+<p class="source" lang="en">The unelevated approach came with tradeoffs</p>
+</div>
+<div class="pair" id="p-19">
+<p class="target" lang="zh-CN">网络抑制非常重要</p>
+<p class="source" lang="en">Network suppression is too important</p>
+</div>
+<div class="pair" id="p-20">
+<p class="target" lang="zh-CN">重新设计： “提升版的沙箱” 我们现在需要一个一流的设置步骤 命令执行器是一个新的二进制文件，可以实际运行用户命令 整体情况</p>
+<p class="source" lang="en">The redesign: the &quot;elevated sandbox&quot;We now need a first-class setup stepThe command runner is a new binary that actually runs user commandsThe full picture</p>
+</div>
+<div class="pair" id="p-21">
+<p class="target" lang="zh-CN">我们现在需要一个一流的设置步骤</p>
+<p class="source" lang="en">We now need a first-class setup step</p>
+</div>
+<div class="pair" id="p-22">
+<p class="target" lang="zh-CN">命令执行器是一个新的二进制文件，用于实际执行用户命令</p>
+<p class="source" lang="en">The command runner is a new binary that actually runs user commands</p>
+</div>
+<div class="pair" id="p-23">
+<p class="target" lang="zh-CN">完整的画面</p>
+<p class="source" lang="en">The full picture</p>
+</div>
+<div class="pair" id="p-24">
+<p class="target" lang="zh-CN">将安全性与实际实用性平衡起来</p>
+<p class="source" lang="en">Balancing safety with actual usefulness</p>
+</div>
+<div class="pair" id="p-25">
+<p class="target" lang="zh-CN">2025年9月我加入Codex工程团队时，Windows版本的Codex没有沙箱功能，这意味着Windows用户在使用OpenAI的编码代理时，不得不在两个质量不佳的选项之间做出选择。</p>
+<p class="source" lang="en">When I joined the Codex engineering team in September 2025, Codex for Windows didn’t have a sandbox implementation meaning that Windows users were forced to choose between two subpar options when using OpenAI&#39;s coding agents:</p>
+</div>
+<div class="pair" id="p-26">
+<p class="target" lang="zh-CN">批准编程智能体想要执行的几乎每个命令（包括读取操作），这既效率低下又麻烦。使用 Codex 的一个主要优势是，你无需自己完成所有繁琐的工作。</p>
+<p class="source" lang="en">Approving nearly every command (even reads) that a coding agent wanted to run, which is inefficient and pesky. A major benefit of using Codex is that you don’t have to do all the tedious work yourself.</p>
+</div>
+<div class="pair" id="p-27">
+<p class="target" lang="zh-CN">批准编码代理想要执行的几乎每个命令（包括读取操作），这既效率低下又麻烦。使用 Codex 的一个主要优势是，你不必自己承担所有繁琐的工作。</p>
+<p class="source" lang="en">Approving nearly every command (even reads) that a coding agent wanted to run, which is inefficient and pesky. A major benefit of using Codex is that you don’t have to do all the tedious work yourself.</p>
+</div>
+<div class="pair" id="p-28">
+<p class="target" lang="zh-CN">启用完全访问模式：允许 Codex 执行所有命令而无需审批或限制，这消除了阻碍，但缺乏监督。</p>
+<p class="source" lang="en">Enabling Full Access mode: letting Codex run all commands without approval or restrictions, which removes friction at the expense of oversight.</p>
+</div>
+<div class="pair" id="p-29">
+<p class="target" lang="zh-CN">启用完全访问模式：允许 Codex 执行所有命令而无需批准或限制，这虽然消除了阻碍，但失去了监控。</p>
+<p class="source" lang="en">Enabling Full Access mode: letting Codex run all commands without approval or restrictions, which removes friction at the expense of oversight.</p>
+</div>
+<div class="pair" id="p-30">
+<p class="target" lang="zh-CN">Codex，我们的编码代理，可以在开发者的笔记本电脑上运行——无论是通过命令行界面、IDE扩展还是桌面应用。它负责协调键盘操作的人类用户与在云端运行的模型之间的对话，以处理推理任务。</p>
+<p class="source" lang="en">Codex⁠, our coding agent, runs on developer laptops—whether that’s through the CLI, the IDE extension, or the desktop app. It manages a conversation between a human at a keyboard and a model running in the cloud to handle inference.</p>
+</div>
+<div class="pair" id="p-31">
+<p class="target" lang="zh-CN">Codex默认以真实用户的权限运行，这意味着它可以执行用户能够执行的所有操作。这非常强大，但也可能带来风险。编码模型可能会指示harness在本地运行命令，从运行测试到读取或编辑文件，再到创建Git分支，因此Codex的默认模式试图在有效性和安全性之间找到合适的平衡。这种默认模式允许Codex几乎在任何地方读取文件，并在你的工作区（即运行Codex的目录）内写入文件，除非你明确指定需要网络访问，否则无需互联网连接。为了实现这种自动限制文件写入和网络访问在安全范围内的功能，Codex需要一个真正能执行这些限制的沙箱环境。</p>
+<p class="source" lang="en">Codex runs with the permissions of a real user by default, meaning it can do everything the user can do. This is powerful and potentially dangerous. The coding model may tell the harness to run commands locally, from running tests to reading or editing a file to creating a Git branch, so Codex&#39;s default mode attempts to find the right balance between effectiveness and safety. This default mode allows Codex to read files almost anywhere and write files within your workspace (i.e., the directory where you’re running Codex), with no internet access unless you specify you want it. To achieve this automatic constraint of writing files and accessing the network within safe bounds, Codex needs a sandbox environment that actually enforces these constraints.</p>
+</div>
+<div class="pair" id="p-32">
+<p class="target" lang="zh-CN">沙箱是一种受限执行环境。当开发者使用 Codex 时，计算机操作系统会以较低的权限执行命令，这些限制会贯穿整个进程树。每个 Codex 命令从开始就被置于沙箱环境中，每个子进程也处于相同的边界内。</p>
+<p class="source" lang="en">A sandbox is a constrained execution environment. When a developer uses Codex, their computer&#39;s operating system launches a command with reduced permissions, and those constraints propagate down the process tree. Every Codex command is sandboxed from the start, and every descendant process stays inside the same boundary.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/56B8qHwAm6RxoAfKTqdadL/d81df6031422dd5495e9a50d8dce8616/Diagram1-10column-desktop-light.svg?w=3840&amp;q=90" alt="Diagram showing Codex sandbox operating-system isolation boundaries." loading="lazy">
+<div class="pair" id="p-33">
+<p class="target" lang="zh-CN">Codex需要由计算机操作系统实现的隔离功能来实施有效的沙箱环境。一些操作系统提供了良好的工具来实现这一点（例如，MacOS 中的 Seatbelt，Linux 中的 seccomp 或 bubblewrap）；然而，Windows 目前没有这种内置功能。</p>
+<p class="source" lang="en">Codex needs isolation features enforced by the computer&#39;s operating system to implement an effective sandbox. Some operating systems provide utilities that do this well (e.g., Seatbelt on MacOs, seccomp or bubblewrap on Linux); however, Windows doesn’t currently provide this type of capability out of the box.</p>
+</div>
+<div class="pair" id="p-34">
+<p class="target" lang="zh-CN">为了让 Codex 在 Windows 上像在其他平台一样安全且易于使用，我们需要实现自己的沙箱机制。</p>
+<p class="source" lang="en">To make Codex just as safe and delightful to use on Windows as it already is everywhere else, we needed to implement our own sandbox.</p>
+</div>
+<div class="pair" id="p-35">
+<p class="target" lang="zh-CN">现有 Windows 工具存在不足的地方</p>
+<p class="source" lang="en">Where existing Windows tools fell short</p>
+</div>
+<div class="pair" id="p-36">
+<p class="target" lang="zh-CN">Windows提供了一些用于隔离的工具和基础功能。虽然这些工具都无法完全满足我们的需求，但我们考虑了多种可能的解决方案，包括 AppContainer、Windows Sandbox 和 Mandatory Integrity Control 标签机制。</p>
+<p class="source" lang="en">Windows offers some tools and primitives for isolation. While none of them quite met our requirements, we looked at a number of potential solutions—namely, AppContainer, Windows Sandbox, and Mandatory Integrity Control labeling.</p>
+</div>
+<div class="pair" id="p-37">
+<p class="target" lang="zh-CN">AppContainer</p>
+<p class="source" lang="en">AppContainer</p>
+</div>
+<div class="pair" id="p-38">
+<p class="target" lang="zh-CN">什么：AppContainer 是原生 Windows 沙箱，一种基于功能隔离的模型，专为那些提前明确知道需要访问哪些内容的应用程序而设计。</p>
+<p class="source" lang="en">What: AppContainer is the native Windows sandbox, a capability-based isolation model built for apps that know, up front, exactly what they need to access.</p>
+</div>
+<div class="pair" id="p-39">
+<p class="target" lang="zh-CN">什么：AppContainer 是原生 Windows 沙箱，一种基于能力隔离模型，专为那些提前明确知道需要访问哪些内容的应用程序而设计。</p>
+<p class="source" lang="en">What: AppContainer is the native Windows sandbox, a capability-based isolation model built for apps that know, up front, exactly what they need to access.</p>
+</div>
+<div class="pair" id="p-40">
+<p class="target" lang="zh-CN">为什么：因为它提供了真正的操作系统边界，而不是尽力而为的限制，所以具有吸引力。</p>
+<p class="source" lang="en">Why: Appealing because it offers a real OS boundary instead of best-effort restrictions.</p>
+</div>
+<div class="pair" id="p-41">
+<p class="target" lang="zh-CN">为什么：因为它提供了真正的操作系统边界，而不是尽力而为的限制，所以具有吸引力。</p>
+<p class="source" lang="en">Why: Appealing because it offers a real OS boundary instead of best-effort restrictions.</p>
+</div>
+<div class="pair" id="p-42">
+<p class="target" lang="zh-CN">为什么不行：Codex 并不是一个范围明确的应用。它支持开放的开发者工作流程：外壳、Git、Python、包管理器、构建工具，以及代理认为需要的其他二进制文件。实际上，这使得 AppContainer 不适合这个问题。它具有强大的隔离性，但适用于的工作负载范围比“让代理像开发者一样操作”要狭窄得多。</p>
+<p class="source" lang="en">Why not: Codex is not one tightly scoped app. It drives open-ended developer workflows: shells, Git, Python, package managers, build tools, and whatever other binaries the agent decides it needs. In practice, that made AppContainer the wrong shape for the problem. It was strong isolation, but for a much narrower class of workloads than “let an agent operate like a developer.”</p>
+</div>
+<div class="pair" id="p-43">
+<p class="target" lang="zh-CN">为什么不行：Codex 并不是一个范围明确的应用。它支持开放的开发者工作流：外壳、Git、Python、包管理器、构建工具，以及代理认为需要的其他二进制文件。实际上，这使得 AppContainer 不适合这个问题。它具有强大的隔离性，但适用于的工作负载范围比“让代理像开发者一样操作”要狭窄得多。</p>
+<p class="source" lang="en">Why not: Codex is not one tightly scoped app. It drives open-ended developer workflows: shells, Git, Python, package managers, build tools, and whatever other binaries the agent decides it needs. In practice, that made AppContainer the wrong shape for the problem. It was strong isolation, but for a much narrower class of workloads than “let an agent operate like a developer.”</p>
+</div>
+<div class="pair" id="p-44">
+<p class="target" lang="zh-CN">Windows Sandbox</p>
+<p class="source" lang="en">Windows Sandbox</p>
+</div>
+<div class="pair" id="p-45">
+<p class="target" lang="zh-CN">什么：Windows Sandbox 是微软的一种一次性、轻量级的虚拟机。你将获得一个具有强隔离边界的全新 Windows 桌面，你在其中进行的所有操作在会话结束时都会消失。</p>
+<p class="source" lang="en">What: Windows Sandbox is Microsoft’s disposable lightweight VM. You get a fresh Windows desktop with a strong isolation boundary, and whatever you do inside it disappears when the session ends.</p>
+</div>
+<div class="pair" id="p-46">
+<p class="target" lang="zh-CN">什么：Windows Sandbox 是微软的一种一次性轻量级虚拟机。你会获得一个具有强隔离边界的全新 Windows 桌面，在会话结束时，你在其中进行的所有操作都会消失。</p>
+<p class="source" lang="en">What: Windows Sandbox is Microsoft’s disposable lightweight VM. You get a fresh Windows desktop with a strong isolation boundary, and whatever you do inside it disappears when the session ends.</p>
+</div>
+<div class="pair" id="p-47">
+<p class="target" lang="zh-CN">为什么：原因显而易见——与任意软件兼容性更好，且从安全角度讲，其安全性也更强。</p>
+<p class="source" lang="en">Why: Interesting for obvious reasons—far more compatible with arbitrary software than AppContainer, and from a security perspective it’s a much stronger box.</p>
+</div>
+<div class="pair" id="p-48">
+<p class="target" lang="zh-CN">为什么：原因很简单——与任意软件更兼容，比 AppContainer 更兼容；从安全角度来看，它也是一个更强大的解决方案。</p>
+<p class="source" lang="en">Why: Interesting for obvious reasons—far more compatible with arbitrary software than AppContainer, and from a security perspective it’s a much stronger box.</p>
+</div>
+<div class="pair" id="p-49">
+<p class="target" lang="zh-CN">为什么不行：Codex需要直接作用于用户的实际结账、工具和环境，而不是在一个需要设置且需要主机/访客桥接的独立临时桌面中。此外，还有一个根本性的产品问题：Windows Home版本甚至没有Windows Sandbox功能。</p>
+<p class="source" lang="en">Why not: Codex needs to act directly on the user’s actual checkout, tools, and environment, not inside a separate throwaway desktop that would need setup and host/guest bridging. It also had a fundamental product problem: Windows Sandbox isn’t even available on Windows Home SKUs.</p>
+</div>
+<div class="pair" id="p-50">
+<p class="target" lang="zh-CN">为什么不行：Codex需要直接作用于用户的实际结账、工具和环境，而不是在一个需要设置且需要主机/访客桥接的独立临时桌面中。此外，还存在一个根本的产品问题：Windows Home版本甚至没有Windows Sandbox功能。</p>
+<p class="source" lang="en">Why not: Codex needs to act directly on the user’s actual checkout, tools, and environment, not inside a separate throwaway desktop that would need setup and host/guest bridging. It also had a fundamental product problem: Windows Sandbox isn’t even available on Windows Home SKUs.</p>
+</div>
+<div class="pair" id="p-51">
+<p class="target" lang="zh-CN">强制完整性控制 (MIC) 完整性标签</p>
+<p class="source" lang="en">Mandatory Integrity Control (MIC) integrity labeling</p>
+</div>
+<div class="pair" id="p-52">
+<p class="target" lang="zh-CN">什么：Windows 有一个称为“完整性级别”的概念，包括低、中、高三个等级，用于确定系统对对象和进程的信任程度。基本规则是，低完整性进程不能向高完整性级别的对象写入数据，即使常规访问控制列表允许这样做。例如，低完整性进程被视为不可信，因此 Windows 会阻止其向普通中完整性级别的对象写入数据，除非这些对象被明确重新标记以允许其写入。</p>
+<p class="source" lang="en">What: Windows has a concept called “integrity levels,” such as low, medium, and high, that determine how much the system trusts objects and processes. The basic rule is that a lower-integrity process cannot write to an object with a higher integrity level, even if the normal ACL would otherwise allow it. For example, a low-integrity process is treated as less trusted, so Windows blocks it from writing to normal medium-integrity objects, unless those objects are explicitly relabeled to allow it.</p>
+</div>
+<div class="pair" id="p-53">
+<p class="target" lang="zh-CN">什么：Windows 有一个称为“完整性级别”的概念，包括低、中、高三个等级，用于确定系统对对象和进程的信任程度。基本规则是，低完整性进程无法向高完整性级别的对象写入数据，即使常规访问控制列表允许这样做。例如，低完整性进程被视为不太可信，因此 Windows 会阻止其向普通中完整性级别的对象写入数据，除非这些对象被明确重新标记以允许其写入。</p>
+<p class="source" lang="en">What: Windows has a concept called “integrity levels,” such as low, medium, and high, that determine how much the system trusts objects and processes. The basic rule is that a lower-integrity process cannot write to an object with a higher integrity level, even if the normal ACL would otherwise allow it. For example, a low-integrity process is treated as less trusted, so Windows blocks it from writing to normal medium-integrity objects, unless those objects are explicitly relabeled to allow it.</p>
+</div>
+<div class="pair" id="p-54">
+<p class="target" lang="zh-CN">为什么：MIC在文档上看起来很优雅——以低完整性运行Codex，将可写入的根节点重新标记为低完整性，而在其他地方让Windows禁止写入操作。这样就能提供一种非管理员路径，并拥有真正的操作系统机制作为支持。</p>
+<p class="source" lang="en">Why: MIC looked elegant on paper—run Codex at low integrity, relabel the writable roots as low integrity, and let Windows enforce no-writes everywhere else. That would&#39;ve given us a non-admin path with a real OS mechanism behind it.</p>
+</div>
+<div class="pair" id="p-55">
+<p class="target" lang="zh-CN">为什么：MIC在纸上看起来很优雅——以低完整性运行Codex，将可写入的根节点重新标记为低完整性，并在其他所有地方让Windows禁止写入操作。这样就能提供一个非管理员路径，并拥有真正的操作系统机制作为支持。</p>
+<p class="source" lang="en">Why: MIC looked elegant on paper—run Codex at low integrity, relabel the writable roots as low integrity, and let Windows enforce no-writes everywhere else. That would&#39;ve given us a non-admin path with a real OS mechanism behind it.</p>
+</div>
+<div class="pair" id="p-56">
+<p class="target" lang="zh-CN">为什么不行：就像 ACL 一样，完整性标签会修改真实的主机文件系统，在这种情况下，语义变化范围更广。将工作区标记为低完整性状态不仅仅意味着 “Codex 可以在此写入”，还意味着一般低完整性进程也可以在此写入。在真实的开发者机器上，这会使用户的实际提交变成对主机的低完整性源头，这比给某个沙箱设计授予有针对性的 ACL 要危险得多。即使中等完整性开发者工具仍然可以正常使用，工作区的底层信任模型也发生了难以控制且难以证明合理的变化。</p>
+<p class="source" lang="en">Why not: Like ACLs, integrity labels modify the real host filesystem, and in this case the semantic change is especially broad. Marking a workspace as low integrity does not just mean “Codex can write here.” It means low-integrity processes in general can write there. On a real developer machine, that turns the user’s actual checkout into a low-integrity sink for the host, which is much riskier than granting carefully targeted ACLs to one sandbox design. Even if medium-integrity developer tools continue to work, the underlying trust model of the workspace has changed in a way that’s hard to contain and harder to justify.</p>
+</div>
+<div class="pair" id="p-57">
+<p class="target" lang="zh-CN">为什么不行：与ACL一样，完整性标签会修改真实的主机文件系统，在这种情况下，语义变化更为广泛。将工作区标记为低完整性级别不仅仅意味着“Codex可以在此写入”，还意味着一般低完整性进程也可以在此写入。在真实的开发者机器上，这会使用户的实际提交变成对主机的低完整性源头，这比给某个沙箱设计授予有针对性的ACL要危险得多。即使中等完整性级别的开发工具仍然可以正常工作，但工作区的底层信任模型已经发生了难以控制且难以解释的变化。</p>
+<p class="source" lang="en">Why not: Like ACLs, integrity labels modify the real host filesystem, and in this case the semantic change is especially broad. Marking a workspace as low integrity does not just mean “Codex can write here.” It means low-integrity processes in general can write there. On a real developer machine, that turns the user’s actual checkout into a low-integrity sink for the host, which is much riskier than granting carefully targeted ACLs to one sandbox design. Even if medium-integrity developer tools continue to work, the underlying trust model of the workspace has changed in a way that’s hard to contain and harder to justify.</p>
+</div>
+<div class="pair" id="p-58">
+<p class="target" lang="zh-CN">经过评估所有方案都不合适后，我们开始设计自己的解决方案，以便为 Windows 用户提供良好的 Codex 体验。</p>
+<p class="source" lang="en">Having evaluated all of the options as non-starters, we started designing our own solution to bring a good Codex experience to Windows users.</p>
+</div>
+<div class="pair" id="p-59">
+<p class="target" lang="zh-CN">第一个原型：名为“未提升沙箱”的产品</p>
+<p class="source" lang="en">The first prototype: the &quot;unelevated sandbox&quot;</p>
+</div>
+<div class="pair" id="p-60">
+<p class="target" lang="zh-CN">我们的第一个可运行原型结合了 Windows 概念和工具，以实现所需的隔离功能。从一开始，一个目标就是无需提升权限即可完成操作，这意味着 Codex 在设置或运行沙箱时无需提示用户使用管理员权限。这就意味着需要找到一种方法来对两项内容设定合理的限制：文件写入和网络访问。</p>
+<p class="source" lang="en">Our first working prototype used a combination of Windows concepts and tools to implement the isolation we needed. From the beginning, one goal was to make this work without requiring elevation, meaning that Codex would not need to prompt the user for administrator privileges just to set up or run the sandbox. That meant figuring out how to put reasonable limits on two things: file writes and network access.</p>
+</div>
+<div class="pair" id="p-61">
+<p class="target" lang="zh-CN">限制文件写入</p>
+<p class="source" lang="en">Limiting file writes</p>
+</div>
+<div class="pair" id="p-62">
+<p class="target" lang="zh-CN">如果我们完全不限制文件写入，就会出现安全问题。如果限制文件写入过多，沙箱环境会降低用户的生产力，导致需要不断获得批准。为了解决这一问题，我们依赖了 Windows 的两个重要机制：SIDs 和写入受限令牌。</p>
+<p class="source" lang="en">If we didn’t limit file writes at all, we’d have a safety issue. If we limited file writes too much, the sandbox would hurt user productivity, needing to ask for constant approval. To solve this problem, we relied on two important Windows building blocks: SIDs and write-restricted tokens.</p>
+</div>
+<div class="pair" id="p-63">
+<p class="target" lang="zh-CN">SID，即安全标识符，是Windows与权限相关的身份标识。每个用户都有一个SID，组也有SID，甚至单个登录会话也有自己的SID。例如，当前登录的会话可能具有类似S-1-5-5-X-Y的SID。分配给本地管理员组的SID可能是S-1-5-32-544。</p>
+<p class="source" lang="en">A SID, or security identifier, is the identity Windows ties to permissions. Each user has a SID, groups have SIDs, and even a single login session gets its own SID. For example, a current logged-in session might have a SID like S-1-5-5-X-Y. The SID assigned to the local administrators group might be S-1-5-32-544.</p>
+</div>
+<div class="pair" id="p-64">
+<p class="target" lang="zh-CN">Windows还允许你创建不对应真实用户但可以在ACL（访问控制列表）中出现的合成SID，这些ACL用于定义谁可以读取、写入或执行特定文件或目录。因此，SID成为我们的沙箱环境中的一个有用工具：我们可以为Codex沙箱专门创建SID，而不影响机器上的其他任何内容。</p>
+<p class="source" lang="en">Windows also lets you create synthetic SIDs that don’t correspond to a real user but can still appear in ACLs (access control lists), which define who can read/write/execute specific files or directories. That makes SIDs a useful primitive for our sandbox: we can create SIDs exclusively for the Codex sandbox to use, without interfering with anything else on the machine.</p>
+</div>
+<div class="pair" id="p-65">
+<p class="target" lang="zh-CN">在 Windows 中，进程令牌是安全对象，用于定义正在运行的进程的身份和权限。它们决定了进程能够执行的操作。写入受限令牌是一种特定类型的进程令牌，它使 Windows 在写入操作上进行额外的访问检查。</p>
+<p class="source" lang="en">Process tokens are security objects in Windows that define identity and privileges for a running process. They determine what actions a process can perform. A write-restricted token is a particular type of process token that makes Windows perform an additional access check on write operations.</p>
+</div>
+<div class="pair" id="p-66">
+<p class="target" lang="zh-CN">为了写入成功，必须通过两个检查：</p>
+<p class="source" lang="en">In order for a write to succeed, two checks must pass:</p>
+</div>
+<div class="pair" id="p-67">
+<p class="target" lang="zh-CN">普通用户身份（令牌“所有者”）必须被允许执行此操作</p>
+<p class="source" lang="en">The normal user identity (the token “owner”) must be allowed to do it</p>
+</div>
+<div class="pair" id="p-68">
+<p class="target" lang="zh-CN">普通用户身份（令牌“所有者”）必须被允许执行此操作</p>
+<p class="source" lang="en">The normal user identity (the token “owner”) must be allowed to do it</p>
+</div>
+<div class="pair" id="p-69">
+<p class="target" lang="zh-CN">至少 token 的受限 SID 列表中有一个 SID 也必须被授予访问权限</p>
+<p class="source" lang="en">At least one SID in the token’s restricted SID list must also be granted access</p>
+</div>
+<div class="pair" id="p-70">
+<p class="target" lang="zh-CN">至少 token 的受限 SID 列表中有一个 SID 也必须被授予访问权限</p>
+<p class="source" lang="en">At least one SID in the token’s restricted SID list must also be granted access</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/2KlFO4wcJ2hJICaARcf7ty/62ea40d3f87215fce5f9668dd0abbfaf/Diagram2-10column-desktop-light.svg?w=3840&amp;q=90" alt="Diagram titled Sandbox write requires both regular user access and sandbox-write SID access." loading="lazy">
+<div class="pair" id="p-71">
+<p class="target" lang="zh-CN">实际上，这些检查让我们能够使用 ACL 来明确定义沙箱可以修改文件系统的位置，从而提供了我们所需的对写入操作的控制精度。</p>
+<p class="source" lang="en">In practice, these checks let us use ACLs to define exactly where the sandbox could modify the filesystem, which offered the granularity we needed around write operations.</p>
+</div>
+<div class="pair" id="p-72">
+<p class="target" lang="zh-CN">使用 SIDs 和写限制令牌后，我们的低等级沙箱运作方式如下：</p>
+<p class="source" lang="en">With SIDs and write-restricted tokens, our unelevated sandbox worked like this:</p>
+</div>
+<div class="pair" id="p-73">
+<p class="target" lang="zh-CN">沙箱环境设置创建了一个名为 sandbox-write 的合成 SID。</p>
+<p class="source" lang="en">The sandbox setup created a synthetic SID called sandbox-write.</p>
+</div>
+<div class="pair" id="p-74">
+<p class="target" lang="zh-CN">沙箱环境设置创建了一个名为 sandbox-write 的合成 SID。</p>
+<p class="source" lang="en">The sandbox setup created a synthetic SID called sandbox-write.</p>
+</div>
+<div class="pair" id="p-75">
+<p class="target" lang="zh-CN">沙箱写入 SID 获得了对当前工作目录以及 config.toml 中配置的任何额外可写根目录的写入、执行和删除权限。</p>
+<p class="source" lang="en">The sandbox-write SID was granted write, execute, and delete access toThe current working directoryAny additional writable_roots configured in config.toml.</p>
+</div>
+<div class="pair" id="p-76">
+<p class="target" lang="zh-CN">沙箱写入 SID 获得了写入、执行和删除权限</p>
+<p class="source" lang="en">The sandbox-write SID was granted write, execute, and delete access to</p>
+</div>
+<div class="pair" id="p-77">
+<p class="target" lang="zh-CN">当前工作目录</p>
+<p class="source" lang="en">The current working directory</p>
+</div>
+<div class="pair" id="p-78">
+<p class="target" lang="zh-CN">当前工作目录</p>
+<p class="source" lang="en">The current working directory</p>
+</div>
+<div class="pair" id="p-79">
+<p class="target" lang="zh-CN">在 config.toml 中配置的任何额外的 writable_roots。</p>
+<p class="source" lang="en">Any additional writable_roots configured in config.toml.</p>
+</div>
+<div class="pair" id="p-80">
+<p class="target" lang="zh-CN">在 config.toml 中配置的任何额外的 writable_roots。</p>
+<p class="source" lang="en">Any additional writable_roots configured in config.toml.</p>
+</div>
+<div class="pair" id="p-81">
+<p class="target" lang="zh-CN">沙箱设置明确拒绝了相同的 SID 写入权限，用于“可写入中的只读”位置，例如：&lt;cwd&gt;/.git&lt;cwd&gt;/.codex&lt;cwd&gt;/.agents</p>
+<p class="source" lang="en">The sandbox setup explicitly denied that same SID write access to “read-only within writable” locations such as:&lt;cwd&gt;/.git&lt;cwd&gt;/.codex&lt;cwd&gt;/.agents</p>
+</div>
+<div class="pair" id="p-82">
+<p class="target" lang="zh-CN">沙箱设置明确拒绝了相同的 SID 写入权限，使其无法访问“可写入中的只读”位置，例如：</p>
+<p class="source" lang="en">The sandbox setup explicitly denied that same SID write access to “read-only within writable” locations such as:</p>
+</div>
+<div class="pair" id="p-83">
+<p class="target" lang="zh-CN">&lt;text&gt;
+&lt;cwd&gt;/.git
+&lt;/text&gt;</p>
+<p class="source" lang="en">&lt;cwd&gt;/.git</p>
+</div>
+<div class="pair" id="p-84">
+<p class="target" lang="zh-CN">&lt;text&gt;
+&lt;cwd&gt;/.git
+&lt;/text&gt;</p>
+<p class="source" lang="en">&lt;cwd&gt;/.git</p>
+</div>
+<div class="pair" id="p-85">
+<p class="target" lang="zh-CN">&lt;text&gt;
+&lt;cwd&gt;/.codex
+&lt;/text&gt;</p>
+<p class="source" lang="en">&lt;cwd&gt;/.codex</p>
+</div>
+<div class="pair" id="p-86">
+<p class="target" lang="zh-CN">&lt;text&gt;
+&lt;cwd&gt;/.codex
+&lt;/text&gt;</p>
+<p class="source" lang="en">&lt;cwd&gt;/.codex</p>
+</div>
+<div class="pair" id="p-87">
+<p class="target" lang="zh-CN">&lt;cwd&gt;/.agents</p>
+<p class="source" lang="en">&lt;cwd&gt;/.agents</p>
+</div>
+<div class="pair" id="p-88">
+<p class="target" lang="zh-CN">&lt;cwd&gt;/.agents</p>
+<p class="source" lang="en">&lt;cwd&gt;/.agents</p>
+</div>
+<div class="pair" id="p-89">
+<p class="target" lang="zh-CN">Codex在一个写限定的令牌下启动命令，该令牌的限定的SID列表包括Everyone、当前登录会话的SID以及沙箱写合成SID。</p>
+<p class="source" lang="en">Codex launched commands under a write-restricted token whose restricted SID list includes Everyone, the current logged in session SID, and the sandbox-write synthetic SID.</p>
+</div>
+<div class="pair" id="p-90">
+<p class="target" lang="zh-CN">Codex在一个写受限令牌下启动命令，该令牌的受限SID列表包括Everyone、当前登录会话的SID以及沙箱写合成SID。</p>
+<p class="source" lang="en">Codex launched commands under a write-restricted token whose restricted SID list includes Everyone, the current logged in session SID, and the sandbox-write synthetic SID.</p>
+</div>
+<div class="pair" id="p-91">
+<p class="target" lang="zh-CN">这种流程有效地解决了文件写入限制问题，看起来很有希望。现在我们需要一个方法来限制沙箱系统的网络访问。</p>
+<p class="source" lang="en">This flow effectively solved limiting file writes and seemed promising. Now we needed a solution for limiting the sandbox&#39;s network access.</p>
+</div>
+<div class="pair" id="p-92">
+<p class="target" lang="zh-CN">限制网络访问</p>
+<p class="source" lang="en">Limiting network access</p>
+</div>
+<div class="pair" id="p-93">
+<p class="target" lang="zh-CN">限制网络访问是沙箱环境的重要组成部分；没有这一措施，恶意代码可能会将数据从机器传输到互联网上。由于我们希望避免需要管理员权限，因此无法采用强力的网络流量拦截措施。我们想使用的工具，比如 Windows 防火墙，通常无法在没有管理员权限的情况下安装。</p>
+<p class="source" lang="en">Limiting network access is an important part of the sandbox; without it, malicious code could exfiltrate data from the machine up to the internet. Because we wanted to avoid an elevation requirement, we had limited options to strongly block network traffic. The tools we wanted to use, like Windows Firewall, generally could not be installed without admin permissions.</p>
+</div>
+<div class="pair" id="p-94">
+<p class="target" lang="zh-CN">没有 Windows 防火墙作为选择，我们所能控制的范围就有限了。我们试图让儿童环境在开发者实际使用的网络工具中处于失败关闭状态，这样 Git 命令、软件包安装器等操作就会在沙箱中失败，用户必须批准任何面向互联网的操作。我们的目的是堵住那些明显的逃路：向死端发送支持代理的流量，让 Git 的 HTTP(S) 传输也如此，并让通过 SSH 的 Git 操作立即失败。此外，我们在 PATH 中添加了小的 denybin 目录，并重新排序了 PATHEXT 设置，使得 stub SSH 和 SCP 脚本在真实二进制文件之前被解析。</p>
+<p class="source" lang="en">Without Windows Firewall as an option, we limited what we could control. We tried to make the child environment fail-closed for the kinds of networked tools developers actually use, so that Git commands, package installers, etc., would fail in the sandbox and the user would have to approve any internet-facing operations. The idea was to poison the obvious escape hatches: send proxy-aware traffic to a dead endpoint, make Git’s HTTP(S) transport do the same, and make Git over SSH fail immediately. On top of that, we prepended a small denybin directory to PATH and reordered PATHEXT so stub SSH and SCP scripts would resolve before the real binaries.</p>
+</div>
+<div class="pair" id="p-95">
+<p class="target" lang="zh-CN">例如，以下是我们用来限制网络访问的一些具体环境覆盖设置：</p>
+<p class="source" lang="en">For example, here are some of the specific environment overrides we used to limit network access:</p>
+</div>
+<div class="pair" id="p-96">
+<p class="target" lang="zh-CN">HTTPS_PROXY=http://127.0.0.1:9</p>
+<p class="source" lang="en">HTTPS_PROXY=http://127.0.0.1:9</p>
+</div>
+<div class="pair" id="p-97">
+<p class="target" lang="zh-CN">HTTPS_PROXY=http://127.0.0.1:9</p>
+<p class="source" lang="en">HTTPS_PROXY=http://127.0.0.1:9</p>
+</div>
+<div class="pair" id="p-98">
+<p class="target" lang="zh-CN">ALL_PROXY=http://127.0.0.1:9</p>
+<p class="source" lang="en">ALL_PROXY=http://127.0.0.1:9</p>
+</div>
+<div class="pair" id="p-99">
+<p class="target" lang="zh-CN">ALL_PROXY=http://127.0.0.1:9</p>
+<p class="source" lang="en">ALL_PROXY=http://127.0.0.1:9</p>
+</div>
+<div class="pair" id="p-100">
+<p class="target" lang="zh-CN">GIT_HTTPS_PROXY=http://127.0.0.1:9</p>
+<p class="source" lang="en">GIT_HTTPS_PROXY=http://127.0.0.1:9</p>
+</div>
+<div class="pair" id="p-101">
+<p class="target" lang="zh-CN">GIT_HTTPS_PROXY=http://127.0.0.1:9</p>
+<p class="source" lang="en">GIT_HTTPS_PROXY=http://127.0.0.1:9</p>
+</div>
+<div class="pair" id="p-102">
+<p class="target" lang="zh-CN">NO_PROXY=localhost,127.0.0.1,::1</p>
+<p class="source" lang="en">NO_PROXY=localhost,127.0.0.1,::1</p>
+</div>
+<div class="pair" id="p-103">
+<p class="target" lang="zh-CN">NO_PROXY=localhost,127.0.0.1,::1</p>
+<p class="source" lang="en">NO_PROXY=localhost,127.0.0.1,::1</p>
+</div>
+<div class="pair" id="p-104">
+<p class="target" lang="zh-CN">GIT_SSH_COMMAND=cmd /c exit 1</p>
+<p class="source" lang="en">GIT_SSH_COMMAND=cmd /c exit 1</p>
+</div>
+<div class="pair" id="p-105">
+<p class="target" lang="zh-CN">GIT_SSH_COMMAND=cmd /c exit 1</p>
+<p class="source" lang="en">GIT_SSH_COMMAND=cmd /c exit 1</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/75Js1VkWKm67h9sHF1X6N0/050188fe9938ae1247a80dccc989a5ca/Diagram4-10column-desktop-light.svg?w=3840&amp;q=90" alt="Diagram showing the elevated sandbox architecture with firewall rules and a dedicated Windows user." loading="lazy">
+<div class="pair" id="p-106">
+<p class="target" lang="zh-CN">那吸引了大量的常规工具驱动流量，但仍然只是建议性的操作。某个进程可以忽略环境，绕过 PATH，或者直接打开套接字——这太有风险了。</p>
+<p class="source" lang="en">That caught a lot of normal tool-driven traffic, but it was still only advisory. A process could ignore the environment, bypass PATH, or just open sockets directly—too risky.</p>
+</div>
+<div class="pair" id="p-107">
+<p class="target" lang="zh-CN">这种不高级的方法带来了一些代价</p>
+<p class="source" lang="en">The unelevated approach came with tradeoffs</p>
+</div>
+<div class="pair" id="p-108">
+<p class="target" lang="zh-CN">与任何有趣的软件实现一样，第一个原型也有其优缺点。虽然它仅利用少数标准的 Windows 功能就能完成任务，允许进行非常明确且精细的文件系统操作，并且运行效率也不低——减少了用户需要接受过多权限提示或成为本地机器管理员的需求——但它也有一些真正的缺点，其中一些使得它无法成为我们的最终设计方案。</p>
+<p class="source" lang="en">As with any interesting software implementation, the first prototype had some pros and cons. While it got the job done with only a few standard Windows capabilities, allowed for very explicit and granular filesystem writes, and ran unelevated—cutting the need for users to accept excessive elevation prompts or be admins on their local machine—it had some real drawbacks, some of which disqualified it from becoming our final design:</p>
+</div>
+<div class="pair" id="p-109">
+<p class="target" lang="zh-CN">设置速度：根据工作空间目录的拓扑结构，应用工作空间 ACL 可能会耗费大量资源。</p>
+<p class="source" lang="en">Speed of setup: Applying workspace ACLs can be expensive depending on the topology of the workspace directory.</p>
+</div>
+<div class="pair" id="p-110">
+<p class="target" lang="zh-CN">设置速度：根据工作空间目录的拓扑结构，应用工作空间 ACL 可能会很耗时。</p>
+<p class="source" lang="en">Speed of setup: Applying workspace ACLs can be expensive depending on the topology of the workspace directory.</p>
+</div>
+<div class="pair" id="p-111">
+<p class="target" lang="zh-CN">足迹：我们向开发者的系统应用了真实的 ACL，尽管其影响并不大，因为所有应用的 ACL 都针对一个仅由沙箱环境使用的自定义合成 SID。</p>
+<p class="source" lang="en">Footprint: We applied real ACLs to the developer’s system, although the footprint is not particularly invasive because all the applied ACLs pertain to a custom-created synthetic SID that is used only by the sandbox.</p>
+</div>
+<div class="pair" id="p-112">
+<p class="target" lang="zh-CN">足迹：我们在开发者的系统中应用了真实的 ACL，尽管其影响并不大，因为所有应用的 ACL 都针对一个仅由沙箱环境使用的自定义合成 SID。</p>
+<p class="source" lang="en">Footprint: We applied real ACLs to the developer’s system, although the footprint is not particularly invasive because all the applied ACLs pertain to a custom-created synthetic SID that is used only by the sandbox.</p>
+</div>
+<div class="pair" id="p-113">
+<p class="target" lang="zh-CN">难以修改的语义：由于依赖 ACL 来实现基于文件的限制，修改沙箱语义既昂贵又复杂。而在 macOS 上，我们可以动态改变生成 .sbpl 文件的方式以配置 Seatbelt，而 Windows 沙箱可能需要缓慢且复杂的操作来调整 ACL。</p>
+<p class="source" lang="en">Difficult-to-change semantics: The reliance on ACLs for file-based restrictions means it’s expensive and complex to change sandbox semantics. Whereas on macOS, we can dynamically change how we generate the .sbpl file used to configure Seatbelt, the Windows sandbox could require a slow and intense operation to adjust ACLs.</p>
+</div>
+<div class="pair" id="p-114">
+<p class="target" lang="zh-CN">难以修改的语义：由于依赖 ACL 来实现基于文件的限制，修改沙箱语义会非常昂贵且复杂。而在 macOS 上，我们可以动态改变生成 .sbpl 文件的方式以配置 Seatbelt，而 Windows 沙箱可能需要缓慢且复杂的操作来调整 ACL。</p>
+<p class="source" lang="en">Difficult-to-change semantics: The reliance on ACLs for file-based restrictions means it’s expensive and complex to change sandbox semantics. Whereas on macOS, we can dynamically change how we generate the .sbpl file used to configure Seatbelt, the Windows sandbox could require a slow and intense operation to adjust ACLs.</p>
+</div>
+<div class="pair" id="p-115">
+<p class="target" lang="zh-CN">网络保护措施较弱。如前所述，这种保护只是建议性的，肯定会被一些实现自己网络栈的程序绕过，而且并非为应对恶意代码而设计。</p>
+<p class="source" lang="en">Network protection is weak. As mentioned before, it was “advisory,” would definitely be circumvented by some programs that implemented their own networking stack, and wasn’t designed to hold up to adversarial code.</p>
+</div>
+<div class="pair" id="p-116">
+<p class="target" lang="zh-CN">网络保护较弱。如前所述，这种保护只是建议性措施，肯定会被一些实现了自己网络栈的程序绕过，而且并非为应对恶意代码而设计。</p>
+<p class="source" lang="en">Network protection is weak. As mentioned before, it was “advisory,” would definitely be circumvented by some programs that implemented their own networking stack, and wasn’t designed to hold up to adversarial code.</p>
+</div>
+<div class="pair" id="p-117">
+<p class="target" lang="zh-CN">前三个问题属于自定义沙箱实现的固有特性，这种实现具有足够的灵活性以支持代理式流程。不过，网络抑制问题则有所不同。</p>
+<p class="source" lang="en">The first three issues are inherent to a custom sandbox implementation that’s flexible enough for agentic flows. The network suppression story was different, though.</p>
+</div>
+<div class="pair" id="p-118">
+<p class="target" lang="zh-CN">网络抑制非常重要</p>
+<p class="source" lang="en">Network suppression is too important</p>
+</div>
+<div class="pair" id="p-119">
+<p class="target" lang="zh-CN">除了恶意程序能够轻松绕过基于环境的网络抑制机制外，许多出于好意的代码或二进制文件如果不遵循环境代理变量，或者使用自制的基于套接字的网络代码，同样可以绕过它。我们认为，这一方面就足以说明需要投资更好的沙箱模式了。</p>
+<p class="source" lang="en">In addition to a malicious agent being able to easily circumvent the environment-based network suppression, plenty of good-intentioned code/binaries would also circumvent it simply if they didn’t honor the environment proxy variables, or if they implemented their own socket-based network code. We felt that this aspect was enough to consider investing in a better sandbox mode.</p>
+</div>
+<div class="pair" id="p-120">
+<p class="target" lang="zh-CN">为了获得更好的网络抑制效果，我们想使用 Windows 防火墙，因为该工具可以阻止用户或程序的出站网络流量。然而，由于几个原因，我们无法有效地创建只适用于 Codex harness 生成的命令的防火墙规则：</p>
+<p class="source" lang="en">To gain better network suppression, we wanted to use Windows Firewall, which allows us to block outbound network traffic for users or programs. Unfortunately, we couldn’t effectively create a functional firewall rule that applied only to the commands spawned by the Codex harness for a few reasons:</p>
+</div>
+<div class="pair" id="p-121">
+<p class="target" lang="zh-CN">Windows不允许将防火墙规则与受限令牌的非主体身份进行匹配。这意味着我们无法将防火墙规则应用于“任何包含我们合成SID的受限SID列表中的令牌”。</p>
+<p class="source" lang="en">Windows doesn’t allow matching a firewall rule to the non-principal identity of a restricted token. This means we couldn’t apply a firewall rule to “any token that includes our synthetic SID in its restricted SID list.&quot;</p>
+</div>
+<div class="pair" id="p-122">
+<p class="target" lang="zh-CN">Windows不允许将防火墙规则与受限令牌的非主体身份进行匹配。这意味着我们无法将防火墙规则应用于“任何包含我们合成SID的受限SID列表中的令牌”。</p>
+<p class="source" lang="en">Windows doesn’t allow matching a firewall rule to the non-principal identity of a restricted token. This means we couldn’t apply a firewall rule to “any token that includes our synthetic SID in its restricted SID list.&quot;</p>
+</div>
+<div class="pair" id="p-123">
+<p class="target" lang="zh-CN">虽然我们可以创建一条匹配特定二进制文件的防火墙规则，但这只能限制 codex.exe 本身的网络访问，无法影响代理代表用户运行的进程，比如 Git 或 Python 进程。</p>
+<p class="source" lang="en">While we could create a firewall rule that matches a specific binary, that only allows us to limit networking for codex.exe itself. It wouldn’t apply to the processes that the agent spawns on behalf of the user, like Git or Python processes.</p>
+</div>
+<div class="pair" id="p-124">
+<p class="target" lang="zh-CN">虽然我们可以创建一条匹配特定二进制文件的防火墙规则，但这只能限制 codex.exe 本身的网络访问，无法影响代理代表用户运行的进程，比如 Git 或 Python 进程。</p>
+<p class="source" lang="en">While we could create a firewall rule that matches a specific binary, that only allows us to limit networking for codex.exe itself. It wouldn’t apply to the processes that the agent spawns on behalf of the user, like Git or Python processes.</p>
+</div>
+<div class="pair" id="p-125">
+<p class="target" lang="zh-CN">其他防火墙匹配维度也形状不对。用户级规则在简单的设计中仍然匹配真实的 Windows 用户，而不仅仅是受限制的子进程。程序路径规则过于粗糙：它们可以阻止 codex.exe 或 python.exe，但无法阻止这种沙箱化的 python.exe 调用。基于端口或地址的规则也完全不符合正确的策略。例如，我们不想阻止端口 443；我们希望阻止针对这个特定受限制进程树的任意出站访问。</p>
+<p class="source" lang="en">Other firewall match dimensions were the wrong shape, too. User-scoped rules still matched the real Windows user in the unelevated design, not just the restricted child. Program-path rules were too coarse: they could block codex.exe or python.exe generally, but not this one sandboxed invocation of python.exe. Port- or address-based rules were also the wrong policy entirely. For instance, we didn’t want to block port 443; we wanted to block arbitrary outbound access for this specific restricted process tree.</p>
+</div>
+<div class="pair" id="p-126">
+<p class="target" lang="zh-CN">其他防火墙匹配维度也形状不对。用户范围规则在简单的设计中仍然匹配真实的 Windows 用户，而不只是受限的子进程。程序路径规则过于粗糙：它们可以阻止 codex.exe 或 python.exe，但无法阻止这种沙箱化的 python.exe 调用。基于端口或地址的规则也完全不符合预期策略。例如，我们不想阻止端口 443；我们希望阻止这个特定受限进程树的任何出站访问。</p>
+<p class="source" lang="en">Other firewall match dimensions were the wrong shape, too. User-scoped rules still matched the real Windows user in the unelevated design, not just the restricted child. Program-path rules were too coarse: they could block codex.exe or python.exe generally, but not this one sandboxed invocation of python.exe. Port- or address-based rules were also the wrong policy entirely. For instance, we didn’t want to block port 443; we wanted to block arbitrary outbound access for this specific restricted process tree.</p>
+</div>
+<div class="pair" id="p-127">
+<p class="target" lang="zh-CN">为了将防火墙规则特定地应用于我们的沙盒命令，我们需要以独立的主体身份运行这些命令，而不是以“真实”用户身份运行。这种方法引导我们走向了一条新路径，我们放宽了“不允许提升权限”的限制。</p>
+<p class="source" lang="en">To apply a firewall rule specifically to our sandboxed commands, we needed to run them as a separate principal, not as the “real” user. This approach led us down a new path, one in which we relaxed our “no elevation” constraint.</p>
+</div>
+<div class="pair" id="p-128">
+<p class="target" lang="zh-CN">重新设计： “提升版的沙箱”</p>
+<p class="source" lang="en">The redesign: the &quot;elevated sandbox&quot;</p>
+</div>
+<div class="pair" id="p-129">
+<p class="target" lang="zh-CN">当前我们的实现版本中的下一个沙箱版本在设置时需要高级管理权限。因此，我将其称为“高级沙箱”。在 Codex 在系统中生成命令的边界处，高级沙箱看起来与普通沙箱相同。它仍然使用受限令牌运行子进程——也就是带有相同的受限 SID 列表 [Everyone, Logon, Synthetic] 的 write_restricted 令牌——但是，该令牌的主机不再是实际的 Windows 用户，而是 Codex 自己创建的两个本地用户之一。</p>
+<p class="source" lang="en">The next iteration of the sandbox, which is our current implementation, requires elevated admin permissions at setup time. I therefore refer to it as “the elevated sandbox.” At the boundary where Codex spawns a command on the system, the elevated sandbox looks like the unelevated one. It still runs child processes under a restricted token—similarly a write_restricted token with the same restricted SID list of [Everyone, Logon, Synthetic]—however, the principal of this token is no longer the actual Windows user but one of two local users created by Codex itself:</p>
+</div>
+<div class="pair" id="p-130">
+<p class="target" lang="zh-CN">CodexSandboxOffline（受防火墙规则限制的对象）</p>
+<p class="source" lang="en">CodexSandboxOffline (the one targeted by firewall rules)</p>
+</div>
+<div class="pair" id="p-131">
+<p class="target" lang="zh-CN">CodexSandboxOffline（受防火墙规则限制的那个）</p>
+<p class="source" lang="en">CodexSandboxOffline (the one targeted by firewall rules)</p>
+</div>
+<div class="pair" id="p-132">
+<p class="target" lang="zh-CN">CodexSandboxOnline（未被防火墙规则限制的那个）</p>
+<p class="source" lang="en">CodexSandboxOnline (the one not targeted by firewall rules)</p>
+</div>
+<div class="pair" id="p-133">
+<p class="target" lang="zh-CN">CodexSandboxOnline（未被防火墙规则限制的那个）</p>
+<p class="source" lang="en">CodexSandboxOnline (the one not targeted by firewall rules)</p>
+</div>
+<div class="pair" id="p-134">
+<p class="target" lang="zh-CN">这个看似微不足道的细节实际上对沙盒的使用者、其设置复杂性和运行执行过程都有重要影响。</p>
+<p class="source" lang="en">This seemingly small detail actually has big implications for the sandbox, who can use it, and the complexity of its setup and runtime execution.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/5eGlraTLEirbaMwaM74UOD/f0f6e41e99894a0e6a4ffdd2d965fdcb/Diagram3-10column-desktop-light.svg?w=3840&amp;q=90" alt="Diagram showing network environment overrides for the unelevated sandbox." loading="lazy">
+<div class="pair" id="p-135">
+<p class="target" lang="zh-CN">它从视觉上与未升级的原型相似，增加了防火墙规则和专门的 Windows 用户，该用户负责执行命令。（然而，由于引入了这些新概念，在沙箱开始运行并保护命令之前，还需要进行更多的设置工作。）</p>
+<p class="source" lang="en">It’s visually similar to the unelevated prototype, with the introduction of firewall rules and a dedicated Windows user, which actually runs the commands. (However, the introduction of these new concepts, means that there is more setup work to do before the sandbox can start running and protecting commands.)</p>
+</div>
+<div class="pair" id="p-136">
+<p class="target" lang="zh-CN">我们现在需要一个一流的设置步骤</p>
+<p class="source" lang="en">We now need a first-class setup step</p>
+</div>
+<div class="pair" id="p-137">
+<p class="target" lang="zh-CN">&lt;text&gt;
+这个不太高级的沙箱设计有一个简单的设置步骤，但规模相对较小：
+&lt;/text&gt;</p>
+<p class="source" lang="en">The unelevated sandbox design had a simple setup step, but it was relatively small:</p>
+</div>
+<div class="pair" id="p-138">
+<p class="target" lang="zh-CN">如果需要，创建一个合成的 SID</p>
+<p class="source" lang="en">Create a synthetic SID if needed</p>
+</div>
+<div class="pair" id="p-139">
+<p class="target" lang="zh-CN">如果需要，创建一个合成的 SID</p>
+<p class="source" lang="en">Create a synthetic SID if needed</p>
+</div>
+<div class="pair" id="p-140">
+<p class="target" lang="zh-CN">对沙箱写入合成 SID 应用 ACL 规则</p>
+<p class="source" lang="en">Apply ACLs for the sandbox-write synthetic SID</p>
+</div>
+<div class="pair" id="p-141">
+<p class="target" lang="zh-CN">对沙箱写入合成 SID 应用 ACL 规则</p>
+<p class="source" lang="en">Apply ACLs for the sandbox-write synthetic SID</p>
+</div>
+<div class="pair" id="p-142">
+<p class="target" lang="zh-CN">然而， elevated 沙箱有更多职责。</p>
+<p class="source" lang="en">The elevated sandbox, however, has more to do.</p>
+</div>
+<div class="pair" id="p-143">
+<p class="target" lang="zh-CN">如果尚未创建，请创建一个合成的 SID。</p>
+<p class="source" lang="en">Create a synthetic SID, if not already created</p>
+</div>
+<div class="pair" id="p-144">
+<p class="target" lang="zh-CN">如果尚未创建，请创建一个合成的 SID。</p>
+<p class="source" lang="en">Create a synthetic SID, if not already created</p>
+</div>
+<div class="pair" id="p-145">
+<p class="target" lang="zh-CN">创建在线和离线沙箱用户，如果尚未创建的话</p>
+<p class="source" lang="en">Create the online and offline sandbox users, if not already created</p>
+</div>
+<div class="pair" id="p-146">
+<p class="target" lang="zh-CN">创建在线和离线沙盒用户，如果尚未创建的话</p>
+<p class="source" lang="en">Create the online and offline sandbox users, if not already created</p>
+</div>
+<div class="pair" id="p-147">
+<p class="target" lang="zh-CN">将新创建的用户凭证存储在本地，并使用 Windows 数据保护 API (DPAPI) 进行加密，存储位置是沙箱用户无法实际读取的。</p>
+<p class="source" lang="en">Store the newly-created users’ credentials locally and encrypt using the Windows Data Protection API (DPAPI) in a place where the sandbox users cannot actually read</p>
+</div>
+<div class="pair" id="p-148">
+<p class="target" lang="zh-CN">将新创建的用户凭据存储在本地，并使用 Windows 数据保护 API (DPAPI) 进行加密，存储位置是沙箱用户无法实际读取的。</p>
+<p class="source" lang="en">Store the newly-created users’ credentials locally and encrypt using the Windows Data Protection API (DPAPI) in a place where the sandbox users cannot actually read</p>
+</div>
+<div class="pair" id="p-149">
+<p class="target" lang="zh-CN">创建防火墙规则，阻止 CodexSandboxOffline 用户的所有出站网络访问，或者如果已有规则，则验证其正确性。</p>
+<p class="source" lang="en">Create firewall rules that block all outbound network access for the CodexSandboxOffline user or, if they already exist, validate they’re correct</p>
+</div>
+<div class="pair" id="p-150">
+<p class="target" lang="zh-CN">创建防火墙规则，阻止 CodexSandboxOffline 用户的所有出站网络访问，或者如果已有规则，则验证其正确性。</p>
+<p class="source" lang="en">Create firewall rules that block all outbound network access for the CodexSandboxOffline user or, if they already exist, validate they’re correct</p>
+</div>
+<div class="pair" id="p-151">
+<p class="target" lang="zh-CN">在设置阶段还有一个额外的问题。Codex的沙箱预计具有与实际Windows用户相同的读取权限。在较低的沙箱中，受限令牌的主SID是Windows用户，这种情况是可行的。然而，当主用户变成新的CodexSandbox用户时，情况就不同了。Windows上的许多相关目录会授予“已验证用户”读取/执行权限。一个典型的例子是用户配置文件目录。默认情况下，Windows用户无法读取其他Windows用户的配置文件目录，因此在许多情况下，即使是简单的文件读取也会失败。</p>
+<p class="source" lang="en">There’s an additional wrinkle in the setup stage. Codex’s sandbox is expected to have read access equivalent to the actual Windows user. In the unelevated sandbox, where the restricted token’s principal SID was the Windows user, this was achieved. However, that doesn’t come for free when the principal becomes a new CodexSandbox user. Many relevant directories on Windows will grant read/execute permissions to “Authenticated Users”. One notable example is the user’s profile directory. By default, Windows users cannot read the profile directories of other Windows users, so even simple file reads in many scenarios would fail.</p>
+</div>
+<div class="pair" id="p-152">
+<p class="target" lang="zh-CN">为了解决这一问题，我们在沙箱设置流程中增加了另一层机制，用于向沙箱用户授予可能尚未存在的读取权限。例如，对于一些常用的 Windows 目录来说：</p>
+<p class="source" lang="en">To address this, we added another layer to the sandbox setup process—one for granting read ACLs to the sandbox users where such ACLs might not already exist. For example, to some commonly used Windows directories:</p>
+</div>
+<div class="pair" id="p-153">
+<p class="target" lang="zh-CN">C:\Users\&lt;真实用户&gt;</p>
+<p class="source" lang="en">C:\Users\&lt;real-user&gt;</p>
+</div>
+<div class="pair" id="p-154">
+<p class="target" lang="zh-CN">C:\Users\&lt;真实用户&gt;</p>
+<p class="source" lang="en">C:\Users\&lt;real-user&gt;</p>
+</div>
+<div class="pair" id="p-155">
+<p class="target" lang="zh-CN">C:\Windows\</p>
+<p class="source" lang="en">C:\Windows\</p>
+</div>
+<div class="pair" id="p-156">
+<p class="target" lang="zh-CN">C:\Windows\</p>
+<p class="source" lang="en">C:\Windows\</p>
+</div>
+<div class="pair" id="p-157">
+<p class="target" lang="zh-CN">C:\Program Files\</p>
+<p class="source" lang="en">C:\Program Files\</p>
+</div>
+<div class="pair" id="p-158">
+<p class="target" lang="zh-CN">C:\Program Files\</p>
+<p class="source" lang="en">C:\Program Files\</p>
+</div>
+<div class="pair" id="p-159">
+<p class="target" lang="zh-CN">C:\Program Files (x86)\</p>
+<p class="source" lang="en">C:\Program Files (x86)\</p>
+</div>
+<div class="pair" id="p-160">
+<p class="target" lang="zh-CN">C:\Program Files (x86)\</p>
+<p class="source" lang="en">C:\Program Files (x86)\</p>
+</div>
+<div class="pair" id="p-161">
+<p class="target" lang="zh-CN">C:\ProgramData\</p>
+<p class="source" lang="en">C:\ProgramData\</p>
+</div>
+<div class="pair" id="p-162">
+<p class="target" lang="zh-CN">C:\ProgramData\</p>
+<p class="source" lang="en">C:\ProgramData\</p>
+</div>
+<div class="pair" id="p-163">
+<p class="target" lang="zh-CN">由于这个目录列表是尽力而为的方式，而在每个目录上安装 ACL 可能会花费相当多的成本，我们采用异步方式执行此逻辑，这样阻碍用户操作的沙箱设置步骤就不必等待他们完成。</p>
+<p class="source" lang="en">Because this list of directories is best-effort and installing ACLs on each one can be quite expensive, we run this logic asynchronously so the sandbox setup step, which is blocking to users, doesn’t have to wait for them to complete.</p>
+</div>
+<div class="pair" id="p-164">
+<p class="target" lang="zh-CN">我们将设置逻辑封装在独立的二进制文件中，仅在需要时才处理 UAC 边界问题。但更深层次的原因是架构上的考虑：沙箱设置的功能与 codex.exe 完全不同。将沙箱设置逻辑放在独立的二进制文件中，使得 codex.exe 能够保持正常的、非 elevated 状态；避免了 Windows 特有的设置机制在其他平台上使 codex.exe 变得臃肿；将较长的设置工作与主进程的生命周期分离开来；并且为我们提供了一个处理沙箱所需不同设置路径的地方。</p>
+<p class="source" lang="en">We encapsulated the setup logic in its own binary partly to cross the UAC boundary only when needed. But the deeper reason was architectural: sandbox setup has a fundamentally different job from codex.exe. Keeping the sandbox setup logic in a dedicated binary let codex.exe stay a normal, unelevated harness; kept the Windows-only setup machinery from bloating codex.exe on other platforms; decoupled longer-running setup work from the lifetime of the main process; and gave us one place to handle the different setup paths the sandbox needed.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/1L0jHduyQ5wiNbQ9hAVXaz/b2e2c5871a5a8feb378fc10b70d08a1c/Diagram5-10column-desktop-light.svg?w=3840&amp;q=90" alt="Diagram showing the first-class elevated sandbox setup step." loading="lazy">
+<div class="pair" id="p-165">
+<p class="target" lang="zh-CN">命令执行器是一个新的二进制文件，用于实际执行用户命令</p>
+<p class="source" lang="en">The command runner is a new binary that actually runs user commands</p>
+</div>
+<div class="pair" id="p-166">
+<p class="target" lang="zh-CN">由于 Windows 用户和令牌登录边界的运作方式，我们无法像在未升级的沙箱环境中那样继续创建受限令牌并生成进程。为了以不同的 Windows 用户身份实际生成命令，我们的第一个思路是如下流程：</p>
+<p class="source" lang="en">Because of how Windows user and token login boundaries work, we couldn’t continue to create a restricted token and spawn a process under it the way we could with the unelevated sandbox. To actually spawn commands as a different Windows user, our first idea was the following flow:</p>
+</div>
+<div class="pair" id="p-167">
+<p class="target" lang="zh-CN">codex.exe以真实 Windows 用户身份运行。然后，按照顺序，Codex:Calls LogonUserW(...)用于沙箱用户。接着，使用该沙箱用户令牌调用 CreateRestrictedToken(...)。利用该受限沙箱用户令牌，再调用 CreateProcessAsUserW(...)来启动最终子进程。</p>
+<p class="source" lang="en">codex.exe runs as the real Windows user. Then, in a sequence, Codex:Calls LogonUserW(...) for the sandbox user.Calls CreateRestrictedToken(...) on that sandbox-user token.Using that restricted sandbox-user token, calls CreateProcessAsUserW(...) to launch the final child.</p>
+</div>
+<div class="pair" id="p-168">
+<p class="target" lang="zh-CN">codex.exe 以真实 Windows 用户身份运行。然后，按照顺序，Codex：</p>
+<p class="source" lang="en">codex.exe runs as the real Windows user. Then, in a sequence, Codex:</p>
+</div>
+<div class="pair" id="p-169">
+<p class="target" lang="zh-CN">为沙箱用户调用 LogonUserW(...) 方法。</p>
+<p class="source" lang="en">Calls LogonUserW(...) for the sandbox user.</p>
+</div>
+<div class="pair" id="p-170">
+<p class="target" lang="zh-CN">为沙箱用户调用 LogonUserW(...) 函数。</p>
+<p class="source" lang="en">Calls LogonUserW(...) for the sandbox user.</p>
+</div>
+<div class="pair" id="p-171">
+<p class="target" lang="zh-CN">在那个沙箱用户令牌上调用 CreateRestrictedToken(...)。</p>
+<p class="source" lang="en">Calls CreateRestrictedToken(...) on that sandbox-user token.</p>
+</div>
+<div class="pair" id="p-172">
+<p class="target" lang="zh-CN">在那个沙箱用户令牌上调用 CreateRestrictedToken(...)。</p>
+<p class="source" lang="en">Calls CreateRestrictedToken(...) on that sandbox-user token.</p>
+</div>
+<div class="pair" id="p-173">
+<p class="target" lang="zh-CN">使用该受限沙箱用户令牌，调用 CreateProcessAsUserW(...) 来启动最终子进程。</p>
+<p class="source" lang="en">Using that restricted sandbox-user token, calls CreateProcessAsUserW(...) to launch the final child.</p>
+</div>
+<div class="pair" id="p-174">
+<p class="target" lang="zh-CN">使用该受限沙箱用户令牌，调用 CreateProcessAsUserW(...) 来启动最终的子进程。</p>
+<p class="source" lang="en">Using that restricted sandbox-user token, calls CreateProcessAsUserW(...) to launch the final child.</p>
+</div>
+<div class="pair" id="p-175">
+<p class="target" lang="zh-CN">实际上，所期望的流程无法实现，是因为 CreateProcessAsUserW(...) 存在权限限制。这意味着 codex.exe 可以为沙盒用户创建受限令牌，但无法从真实用户端可靠地使用该令牌启动子进程。我们需要一个已经以沙盒用户身份运行的进程——这样就能让限制步骤和最终启动在沙盒用户端进行，而不是在真实用户端。</p>
+<p class="source" lang="en">In practice, that desired flow didn’t work because of a privilege wall at CreateProcessAsUserW(...). This means codex.exe could create a restricted token for the sandbox user, but it couldn’t reliably launch a child with that token from the real-user side of the boundary. We needed a process that was already running as the sandbox user—this would let the restriction step and final spawn happen on the sandbox-user side of the boundary instead of the real-user side.</p>
+</div>
+<div class="pair" id="p-176">
+<p class="target" lang="zh-CN">这一要求催生了 codex-command-runner.exe 这个新的二进制文件，它的唯一任务就是生成受限令牌并启动所请求的命令。我们没有让 codex.exe 完成整个流程（真实用户 → 沙箱用户 → 受限令牌 → 子进程），而是将流程分成了两部分。</p>
+<p class="source" lang="en">That requirement led to codex-command-runner.exe, a new binary whose only job is to mint a restricted token and spawn the requested command. Instead of asking codex.exe to do the entire flow itself (real user → sandbox user → restricted token → child process), we split the flow in two:</p>
+</div>
+<div class="pair" id="p-177">
+<p class="target" lang="zh-CN">第一部分</p>
+<p class="source" lang="en">Part 1</p>
+</div>
+<div class="pair" id="p-178">
+<p class="target" lang="zh-CN">codex.exe调用CreateProcessWithLogonW(...)来以沙箱用户身份启动codex-command-runner.exe，目前尚未使用受限令牌。</p>
+<p class="source" lang="en">codex.exe calls CreateProcessWithLogonW(...) to launch codex-command-runner.exe as the sandbox user, without using a restricted token yet.</p>
+</div>
+<div class="pair" id="p-179">
+<p class="target" lang="zh-CN">codex.exe调用CreateProcessWithLogonW(...)来以沙箱用户身份启动codex-command-runner.exe，目前尚未使用受限令牌。</p>
+<p class="source" lang="en">codex.exe calls CreateProcessWithLogonW(...) to launch codex-command-runner.exe as the sandbox user, without using a restricted token yet.</p>
+</div>
+<div class="pair" id="p-180">
+<p class="target" lang="zh-CN">第二部分</p>
+<p class="source" lang="en">Part 2</p>
+</div>
+<div class="pair" id="p-181">
+<p class="target" lang="zh-CN">在运行器中，OpenProcessToken(GetCurrentProcess(), ...)会打开运行器自身的令牌，该令牌已经属于沙箱用户。</p>
+<p class="source" lang="en">Inside the runner, OpenProcessToken(GetCurrentProcess(), ...) opens the runner’s own token, which already belongs to the sandbox user.</p>
+</div>
+<div class="pair" id="p-182">
+<p class="target" lang="zh-CN">在运行器中，OpenProcessToken(GetCurrentProcess(), ...)会打开运行器自身的令牌，该令牌已经属于沙箱用户。</p>
+<p class="source" lang="en">Inside the runner, OpenProcessToken(GetCurrentProcess(), ...) opens the runner’s own token, which already belongs to the sandbox user.</p>
+</div>
+<div class="pair" id="p-183">
+<p class="target" lang="zh-CN">跑步者调用 GetTokenInformation(...) 来提取沙箱登录 SID，然后调用 CreateRestrictedToken(...) 来生成最终的受限令牌。</p>
+<p class="source" lang="en">The runner calls GetTokenInformation(...) to extract the sandbox logon SID, then CreateRestrictedToken(...) to build the final restricted token.</p>
+</div>
+<div class="pair" id="p-184">
+<p class="target" lang="zh-CN">跑步者调用 GetTokenInformation(...) 来提取沙箱登录 SID，然后调用 CreateRestrictedToken(...) 来生成最终的受限令牌。</p>
+<p class="source" lang="en">The runner calls GetTokenInformation(...) to extract the sandbox logon SID, then CreateRestrictedToken(...) to build the final restricted token.</p>
+</div>
+<div class="pair" id="p-185">
+<p class="target" lang="zh-CN">仍然在运行器中，它使用那个受限令牌调用 CreateProcessAsUserW(...) 来启动真正的子进程。</p>
+<p class="source" lang="en">Still inside the runner, it calls CreateProcessAsUserW(...) with that restricted token to launch the real child.</p>
+</div>
+<div class="pair" id="p-186">
+<p class="target" lang="zh-CN">仍然在运行器中，它使用那个受限令牌调用 CreateProcessAsUserW(...) 来启动真正的子进程。</p>
+<p class="source" lang="en">Still inside the runner, it calls CreateProcessAsUserW(...) with that restricted token to launch the real child.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3D3UDLteywxw2R6tFbrzRH/afafb32a8d8f39fbc1a35f4f576cf787/Diagram6-8column-desktop-light.svg?w=3840&amp;q=90" alt="Diagram showing the command runner flow for spawning restricted commands." loading="lazy">
+<div class="pair" id="p-187">
+<p class="target" lang="zh-CN">完整的画面</p>
+<p class="source" lang="en">The full picture</p>
+</div>
+<div class="pair" id="p-188">
+<p class="target" lang="zh-CN">阿尔伯特·爱因斯坦说：“一切应该尽可能简单，但不能再简单了。”本着这种理念，我们的设计充分解决了每个问题。最终架构包含我们之前提到的四层结构。</p>
+<p class="source" lang="en">Albert Einstein said, “Everything should be made as simple as possible, but no simpler.” In that spirit, our design adequately solved each problem. The final architecture has the four layers we have previously covered:</p>
+</div>
+<div class="pair" id="p-189">
+<p class="target" lang="zh-CN">codex.exe 本身</p>
+<p class="source" lang="en">codex.exe itself</p>
+</div>
+<div class="pair" id="p-190">
+<p class="target" lang="zh-CN">codex.exe 本身</p>
+<p class="source" lang="en">codex.exe itself</p>
+</div>
+<div class="pair" id="p-191">
+<p class="target" lang="zh-CN">codex-windows-sandbox-setup.exe，用于处理所有 elevated 设置相关工作</p>
+<p class="source" lang="en">codex-windows-sandbox-setup.exe for handling all elevated setup related work</p>
+</div>
+<div class="pair" id="p-192">
+<p class="target" lang="zh-CN">codex-windows-sandbox-setup.exe，用于处理所有高级设置相关工作</p>
+<p class="source" lang="en">codex-windows-sandbox-setup.exe for handling all elevated setup related work</p>
+</div>
+<div class="pair" id="p-193">
+<p class="target" lang="zh-CN">用于运行受限制令牌命令的 codex-command-runner.exe 程序</p>
+<p class="source" lang="en">codex-command-runner.exe for running restricted token commands</p>
+</div>
+<div class="pair" id="p-194">
+<p class="target" lang="zh-CN">用于运行受限制令牌命令的 codex-command-runner.exe</p>
+<p class="source" lang="en">codex-command-runner.exe for running restricted token commands</p>
+</div>
+<div class="pair" id="p-195">
+<p class="target" lang="zh-CN">子进程</p>
+<p class="source" lang="en">The child process</p>
+</div>
+<div class="pair" id="p-196">
+<p class="target" lang="zh-CN">子进程</p>
+<p class="source" lang="en">The child process</p>
+</div>
+<div class="pair" id="p-197">
+<p class="target" lang="zh-CN">&lt;text&gt;
+当我最初接触这个项目时，我并不清楚最终会达到什么效果。我的方法是先在 Codex 与操作系统之间的边界处对沙箱功能进行监控。这种方法与 Codex 在 MacOS 和 Linux 上的沙箱实现方式非常相似。
+&lt;/text&gt;</p>
+<p class="source" lang="en">When I first approached this project, I did not have a strong sense of where it would wind up. My approach was to start by instrumenting the sandboxing capability in the boundary between Codex and the operating system. This approach closely matches how Codex’s sandbox is implemented on MacOs and Linux.</p>
+</div>
+<div class="pair" id="p-198">
+<p class="target" lang="zh-CN">随着我对 Windows 提供的特定工具有了更深入了解，并通过数十次平衡安全与易用性的决策，该系统逐渐发展成了现在的形式——包括多个二进制文件、自定义用户、防火墙规则、更高的设置步骤、异步进程等等。</p>
+<p class="source" lang="en">As I learned more about the specific tools that Windows provides, and through dozens of decisions balancing security and ease of use, the system grew to its current form—multiple binaries, custom users, firewall rules, an elevated setup step, asynchronous processes, and more.</p>
+</div>
+<div class="pair" id="p-199">
+<p class="target" lang="zh-CN">这不是一个特别简单的系统，但每个复杂元素都是出于必要而添加的，目的是打造一个既安全又尽可能不会妨碍用户的沙箱环境。</p>
+<p class="source" lang="en">It’s not a particularly simple system, but each piece of complexity was added out of necessity, to build a sandbox that is both safe and, as much as possible, not in the user&#39;s way.</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/d2zAquU2z95UFB0cqNgCs/4a45909b0c9c3e8d44fc416b2da8050c/Diagram7-12column-desktop-light.svg?w=3840&amp;q=90" alt="Diagram showing the final Windows sandbox architecture." loading="lazy">
+<div class="pair" id="p-200">
+<p class="target" lang="zh-CN">将安全性与实际实用性平衡起来</p>
+<p class="source" lang="en">Balancing safety with actual usefulness</p>
+</div>
+<div class="pair" id="p-201">
+<p class="target" lang="zh-CN">我们致力于为 Windows 上的 Codex 用户提供良好的使用体验，目标是打造既安全又实用的产品——使用 Codex 的核心优势就是让代理能够自主工作，无需用户持续关注。</p>
+<p class="source" lang="en">Working to deliver a good user experience for Codex users on Windows, our goal was to make something safe that didn’t compromise on usefulness—the whole point of using Codex is to have agents be able to do work without your constant attention.</p>
+</div>
+<div class="pair" id="p-202">
+<p class="target" lang="zh-CN">这个项目最大的教训之一是，Windows并没有给我们一个能够清晰对应“安全自主编程代理”的基本原语。我们通过组合多种工具和概念来构建出一个连贯的整体。一些最初的想法最终都未能成功。最终的设计则是早期原型的混合体，每个原型都解决了问题的一部分。</p>
+<p class="source" lang="en">One of the biggest lessons from this project was that Windows did not hand us one primitive that cleanly maps to “safe autonomous coding agent.” We composed several tools and concepts to build something coherent. Some early ideas were dead ends. The final design was a hybrid of earlier prototypes that each solved part of the problem.</p>
+</div>
+<div class="pair" id="p-203">
+<p class="target" lang="zh-CN">另一个教训是，编码代理的安全性与传统的应用程序安全不同。Codex必须能够适应真实的开发者工作流程。工程工作在于平衡与代理工作负载的兼容性与实际的安全执行。这种矛盾导致了最终设计中的权衡。</p>
+<p class="source" lang="en">The other lesson was that security for a coding agent is a different beast than more classic application security. Codex has to work for real developer workflows. The engineering work was about balancing compatibility with agentic workloads against real enforcement. That tension shaped tradeoffs in the final design.</p>
+</div>
+<div class="pair" id="p-204">
+<p class="target" lang="zh-CN">想看看 Codex 沙箱的实际效果吗？试试看吧。</p>
+<p class="source" lang="en">Curious to see the Codex sandbox in action? Try it out⁠.</p>
+</div>
+<div class="pair" id="p-205">
+<p class="target" lang="zh-CN">继续阅读</p>
+<p class="source" lang="en">Keep reading</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3fdDXi3KINgse06btdaYYq/b14a269201ec921b530470d9a3326b1e/partnering-with-hacktron-cover.png?w=3840&amp;q=90&amp;fm=webp" alt="Partnering with Hacktron to find vulnerabilities in OpenAI’s systems — Cover" loading="lazy">
+<div class="pair" id="p-206">
+<p class="target" lang="zh-CN">安全 2026年11月6日</p>
+<p class="source" lang="en">SecurityNov 6, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/1AiFc9sQFyo6YguQtfjHHN/3ac0a37435e1dfd2b532eaefe26b18bb/gpt-6-cyber-cover.png?w=3840&amp;q=90&amp;fm=webp" alt="GPT-6 Cyber — Cover" loading="lazy">
+<div class="pair" id="p-207">
+<p class="target" lang="zh-CN">产品 2026年11月5日</p>
+<p class="source" lang="en">ProductNov 5, 2026</p>
+</div>
+<img src="https://images.ctfassets.net/kftzwdyauwt9/3NOPzjiEJ3CYIUuWfexkd5/c16ef9c6350003e5f2f161245be1f78c/daybreak-red-aws-govcloud-cover.png?w=3840&amp;q=90&amp;fm=webp" alt="Daybreak Red is now available in AWS GovCloud (US-East) — Cover" loading="lazy">
+<div class="pair" id="p-208">
+<p class="target" lang="zh-CN">产品 2026年11月4日</p>
+<p class="source" lang="en">ProductNov 4, 2026</p>
+</div>
+<h2>声明</h2>
+<p>本文为公开 AI 工程博客文章的非官方中英对照归档，中文译文仅作辅助阅读，请以英文原文为准；发现错译欢迎提交 Issue 勘误。文章版权归原作者所有。原文链接：<a href="https://openai.com/index/building-codex-windows-sandbox" target="_blank" rel="noopener noreferrer">https://openai.com/index/building-codex-windows-sandbox</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/how-we-contain-claude-across-products.html">← How we contain Claude across products</a><a href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html">Unlocking large scale AI training networks with MRC (Multipath Reliable Connection) →</a></nav>
+  <footer class="footer">文章版权归原作者所有，译文请以英文原文为准。</footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var nav = navs[n];
+      var items = nav.querySelectorAll(".nav-item");
+      for (var i = 0; i < items.length; i++) {
+        items[i].hidden = query !== "" && items[i].textContent.toLowerCase().indexOf(query) === -1;
+      }
+      var groups = nav.querySelectorAll(".group");
+      for (var g = 0; g < groups.length; g++) {
+        var sibling = groups[g].nextElementSibling;
+        var visible = false;
+        while (sibling !== null && sibling.classList.contains("nav-item")) {
+          if (!sibling.hidden) visible = true;
+          sibling = sibling.nextElementSibling;
+        }
+        groups[g].hidden = query !== "" && !visible;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>
