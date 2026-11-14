@@ -2,7 +2,9 @@
 
 AI 工程博客的中英对照阅读站，按段落对齐原文与译文。收录 Anthropic Engineering、Google DeepMind、OpenAI Engineering 的公开文章，目前 61 篇。
 
-站点：https://aiengblogx.github.io/ai-engineering-related-blogs/（GitHub Pages，从 `main` 根目录发布）。侧边栏按来源分组、可折叠；文章页支持全文检索与隐藏英文原文。译文以英文原文为准。
+站点：https://aiengblogx.github.io/ai-engineering-related-blogs（GitHub Pages，从 `main` 根目录发布）。侧边栏按来源分组、可折叠；文章页支持全文检索与隐藏英文原文。译文以英文原文为准。
+
+仓库：[https://github.com/AIEngblogx/ai-engineering-related-blogs](https://github.com/AIEngblogx/ai-engineering-related-blogs) · [https://github.com/AIEngblogx/AIEngblogx](https://github.com/AIEngblogx/AIEngblogx)
 
 ## 生成
 
