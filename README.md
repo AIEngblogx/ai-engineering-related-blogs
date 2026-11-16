@@ -1,6 +1,6 @@
 # AIEngblogx
 
-收录 AI 实验室公开工程文章中关于怎么用 AI、以及 AI 系统原理的内容，按段落对齐中文译文与英文原文。目前 96 篇，来自 Anthropic Engineering、Cohere Blog、Google DeepMind、OpenAI Engineering。
+收录 AI 实验室公开工程文章中关于怎么用 AI、以及 AI 系统原理的内容，按段落对齐中文译文与英文原文。目前 95 篇，来自 Anthropic Engineering、Cohere Blog、Google DeepMind、OpenAI Engineering。
 
 站点：[GitHub Pages](https://aiengblogx.github.io/ai-engineering-related-blogs/) · [站点仓库](https://github.com/AIEngblogx/ai-engineering-related-blogs) · [工具仓库](https://github.com/AIEngblogx/AIEngblogx)
 
