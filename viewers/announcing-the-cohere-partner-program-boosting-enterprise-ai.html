@@ -1,0 +1,689 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Announcing the Cohere Partner Program: Boosting enterprise AI · AIEngblogx</title>
+<meta name="description" content="AI 使用与原理相关工程文章的中英对照归档">
+<style>
+:root {
+  color-scheme: light;
+  --ink: #111111;
+  --muted: #666666;
+  --line: #e5e5e5;
+  --panel: #fafafa;
+  --wash: #f2f2f2;
+  --bg: #ffffff;
+  --nav-ink: #333333;
+  --shadow: rgba(0, 0, 0, 0.12);
+  --mark-bg: #fff0a8;
+  --mark-ink: #111111;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9e9e9;
+  --muted: #9d9d9d;
+  --line: #333333;
+  --panel: #1a1a1a;
+  --wash: #262626;
+  --bg: #121212;
+  --nav-ink: #d4d4d4;
+  --shadow: rgba(0, 0, 0, 0.55);
+  --mark-bg: #6b5310;
+  --mark-ink: #fff4ce;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+a { color: var(--ink); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 2px; }
+::focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+::placeholder { color: var(--muted); opacity: 1; }
+.topbar {
+  position: fixed; z-index: 3; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 0 24px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.crumb { display: flex; flex: 1 1 auto; gap: 8px; align-items: baseline; min-width: 0; font-size: 0.875rem; }
+.crumb a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumb span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tools { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; font-size: 0.875rem; }
+.tools button { white-space: nowrap; }
+.search input {
+  font: inherit; font-size: 0.875rem; width: 140px; padding: 5px 8px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink);
+}
+.search-panel {
+  position: fixed; z-index: 5; top: 52px; right: 24px; width: 420px;
+  max-width: calc(100vw - 32px); max-height: 70vh; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  box-shadow: 0 8px 28px var(--shadow); padding: 8px;
+}
+.search-status { padding: 6px 8px; font-size: 0.8rem; color: var(--muted); }
+.search-status:empty { display: none; }
+.search-hit { display: block; padding: 8px; border-radius: 4px; font-size: 0.875rem; }
+.search-hit:hover, .search-hit:focus-visible { background: var(--wash); text-decoration: none; }
+.search-hit-title { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.search-hit-snippet {
+  display: block; margin-top: 4px; color: var(--muted); font-size: 0.8rem;
+  line-height: 1.5; overflow-wrap: anywhere;
+}
+mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 2px; padding: 0 1px; }
+.sidebar {
+  position: fixed; z-index: 2; top: 56px; left: 0; bottom: 0; width: 240px;
+  overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 0 48px;
+}
+.sidebar nav a, .mobile-nav nav a {
+  display: block; padding: 6px 20px; font-size: 0.9rem; color: var(--nav-ink); overflow-wrap: anywhere;
+}
+.sidebar nav a:hover, .mobile-nav nav a:hover { background: var(--wash); text-decoration: none; }
+.sidebar nav a.current, .mobile-nav nav a.current { background: var(--wash); font-weight: 600; }
+.group { padding: 20px 20px 6px; font-size: 0.8rem; color: var(--muted); }
+.nav-group > summary.group { cursor: pointer; list-style: none; }
+.nav-group > summary.group::-webkit-details-marker { display: none; }
+.nav-group > summary.group::before {
+  content: ""; display: inline-block; width: 5px; height: 5px; margin-right: 8px;
+  border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted);
+  transform: rotate(-45deg); vertical-align: 2px;
+}
+.nav-group[open] > summary.group::before { transform: rotate(45deg); vertical-align: 1px; }
+.num { display: inline-block; min-width: 26px; font-size: 0.8rem; color: var(--muted); }
+.empty { padding: 12px 20px; font-size: 0.875rem; color: var(--muted); }
+.post-list { list-style: none; padding: 0; margin: 0 0 24px; }
+.post-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.post-list .date { margin-left: 8px; font-size: 0.875rem; color: var(--muted); }
+.mobile-nav { display: none; }
+.main { margin-left: 240px; padding-top: 56px; min-width: 0; }
+.page { max-width: 780px; margin: 0 auto; padding: 48px 32px 96px; }
+h1 { font-size: 2rem; line-height: 1.25; margin: 0 0 8px; font-weight: 650; overflow-wrap: anywhere; }
+h2 { font-size: 1.2rem; margin: 36px 0 12px; font-weight: 650; }
+.subline { margin: 0; font-size: 0.875rem; color: var(--muted); overflow-wrap: anywhere; }
+.divider { border-top: 1px solid var(--line); margin: 24px 0 32px; }
+p { margin: 0 0 1.25em; }
+img { display: block; max-width: 100%; height: auto; margin: 0 0 24px; }
+table { width: 100%; border-collapse: collapse; margin: 0 0 24px; font-size: 0.9rem; }
+th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.toolbar { display: flex; align-items: baseline; gap: 16px; margin-bottom: 16px; }
+button {
+  font: inherit; padding: 0; border: 0; background: none; color: var(--ink);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+button:hover { text-decoration-thickness: 2px; }
+.status { font-size: 0.875rem; color: var(--muted); }
+.bilingual-reader { display: flex; gap: 40px; }
+.pane { flex: 1 1 0; min-width: 0; max-height: 78vh; overflow-y: auto; scroll-behavior: smooth; }
+body[data-layout="target-source"] .pane-target { order: 1; }
+body[data-layout="target-source"] .pane-source { order: 2; }
+.segment {
+  padding: 4px 0 4px 10px; border-left: 2px solid transparent;
+  cursor: pointer; overflow-wrap: anywhere; transition: background 0.15s;
+}
+.segment:hover { background: var(--wash); }
+.segment.active { background: var(--wash); border-left-color: var(--ink); font-weight: 600; }
+.pager {
+  display: flex; justify-content: space-between; gap: 16px; margin-top: 64px;
+  padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem;
+}
+.pager a { overflow-wrap: anywhere; }
+.footer {
+  margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-size: 0.875rem; color: var(--muted);
+}
+[id^="p-"] { scroll-margin-top: 110px; }
+[id^="p-"]:target { background: var(--wash); border-radius: 4px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding-top: 96px; }
+  .mobile-nav {
+    display: block; position: fixed; z-index: 3; top: 56px; left: 0; right: 0;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+  }
+  .mobile-nav summary { padding: 10px 20px; cursor: pointer; font-size: 0.9rem; }
+  .mobile-nav nav { max-height: 60vh; overflow-y: auto; padding-bottom: 12px; }
+  .bilingual-reader { flex-direction: column; gap: 24px; }
+  .pane { max-height: 42vh; }
+  body[data-layout="target-source"] .pane-target, body[data-layout="target-source"] .pane-source { order: initial; }
+}
+@media (max-width: 600px) {
+  .crumb span { display: none; }
+  .tools { gap: 10px; }
+  .search input { width: 92px; }
+  .search-panel { left: 12px; right: 12px; width: auto; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane { scroll-behavior: auto; }
+  .segment { transition: none; }
+}
+</style>
+<script>
+(function () {
+  var theme = "light";
+  try {
+    var stored = localStorage.getItem("site-theme");
+    if (stored === "dark" || stored === "light") theme = stored;
+    else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+  } catch (error) { theme = "light"; }
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+</head>
+<body data-prefix="../" data-search-index="search-index.json">
+<header class="topbar">
+  <div class="crumb"><a href="../index.html">AIEngblogx</a><span>/ Announcing the Cohere Partner Program: Boosting enterprise AI</span></div>
+  <div class="tools">
+    <label class="search"><input id="nav-filter" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off"></label>
+    <button id="theme-toggle" type="button" aria-pressed="false">Dark</button>
+    <a href="../rss.xml">RSS</a>
+    <a href="https://github.com/AIEngblogx/ai-engineering-related-blogs">GitHub</a>
+  </div>
+</header>
+<div class="search-panel" id="search-panel" hidden>
+  <div class="search-status" id="search-status" role="status" aria-live="polite"></div>
+  <div id="search-results"></div>
+</div>
+<aside class="sidebar"><nav id="site-nav" aria-label="目录"><a href="../index.html">目录</a>
+<a href="../about.html">关于</a>
+<a href="../rss.xml">RSS</a>
+<details class="nav-group" open>
+<summary class="group">Cohere Blog</summary>
+<a class="nav-item" href="../viewers/building-ai-agents-in-finance-reshaping-financial-services.html"><span class="num">01</span>在金融领域构建人工智能代理：重塑金融服务（Building AI agents in finance: Reshaping financial services）</a>
+<a class="nav-item" href="../viewers/modernizing-freedom-of-information-foi-request-systems-with-.html"><span class="num">02</span>利用人工智能实现信息自由请求系统的现代化（Modernizing freedom of information (FOI) request systems with AI）</a>
+<a class="nav-item" href="../viewers/navigating-the-global-push-for-sovereign-ai.html"><span class="num">03</span>应对全球主权人工智能发展浪潮（Navigating the global push for sovereign AI）</a>
+<a class="nav-item" href="../viewers/building-trust-in-ai-cohere-s-approach-to-ai-governance.html"><span class="num">04</span>建立对人工智能的信任：Cohere的人工智能治理方法（Building trust in AI: Cohere’s approach to AI governance）</a>
+<a class="nav-item" href="../viewers/cohere-labs-launches-tiny-aya-making-multilingual-ai-accessi.html"><span class="num">05</span>Cohere Labs推出Tiny Aya，让多语言AI变得易于使用（Cohere Labs Launches Tiny Aya, Making Multilingual AI Accessible）</a>
+<a class="nav-item" href="../viewers/security-risks-in-ai-supply-chains.html"><span class="num">06</span>AI供应链中的安全风险（Security risks in AI supply chains）</a>
+<a class="nav-item" href="../viewers/the-advantages-of-ai-in-business.html"><span class="num">07</span>AI 在商业中的优势（The advantages of AI in business）</a>
+<a class="nav-item" href="../viewers/ai-in-finance-navigating-compliance-efficiency-and-scale.html"><span class="num">08</span>AI在金融领域：应对合规、效率和规模挑战（AI in finance: Navigating compliance, efficiency, and scale）</a>
+<a class="nav-item" href="../viewers/defining-ai-automation-a-new-kind-of-workplace.html"><span class="num">09</span>定义人工智能自动化：一种新的工作模式（Defining AI automation: A new kind of workplace）</a>
+<a class="nav-item" href="../viewers/introducing-model-vault-your-private-platform-for-secure-and.html"><span class="num">10</span>介绍 Model Vault：您的私密平台，用于安全且可扩展的模型推理（Introducing Model Vault: Your private platform for secure and scalable model inference）</a>
+<a class="nav-item" href="../viewers/how-a-community-effort-is-teaching-ai-to-see-africa-s-richne.html"><span class="num">11</span>社区努力如何教会人工智能欣赏非洲的丰富性（How a Community Effort is Teaching AI to See Africa’s Richness）</a>
+<a class="nav-item" href="../viewers/introducing-rerank-4-cohere-s-most-powerful-reranker-yet.html"><span class="num">12</span>介绍 Rerank 4：Cohere 最强大的重新排序工具（Introducing Rerank 4: Cohere’s most powerful reranker yet）</a>
+<a class="nav-item" href="../viewers/securing-ai-supply-chains-cohere-s-commitment-to-model-signi.html"><span class="num">13</span>保障AI供应链安全：Cohere对模型签名承诺（Securing AI supply chains: Cohere’s commitment to model signing）</a>
+<a class="nav-item" href="../viewers/making-data-transfer-in-llm-systems-faster-leaner-and-more-s.html"><span class="num">14</span>将 LLM 系统中的数据传输变得更快速、更简洁且更具可扩展性（Making data transfer in LLM systems faster, leaner, and more scalable）</a>
+<a class="nav-item current" href="../viewers/announcing-the-cohere-partner-program-boosting-enterprise-ai.html" aria-current="page"><span class="num">15</span>发布 Cohere 合作伙伴计划：推动企业人工智能发展（Announcing the Cohere Partner Program: Boosting enterprise AI）</a>
+<a class="nav-item" href="../viewers/exploring-ai-in-education.html"><span class="num">16</span>探索教育中的人工智能（Exploring AI in Education）</a>
+<a class="nav-item" href="../viewers/ai-adoption-for-national-security-modernizing-defense.html"><span class="num">17</span>国家安全中的AI应用：国防现代化（AI adoption for national security: Modernizing defense）</a>
+<a class="nav-item" href="../viewers/command-a-translate-secure-translation-for-global-enterprise.html"><span class="num">18</span>Command A Translate：全球企业的安全翻译服务（Command A Translate: Secure translation for global enterprises）</a>
+<a class="nav-item" href="../viewers/command-a-reasoning-enterprise-grade-control-for-ai-agents.html"><span class="num">19</span>命令式推理：面向人工智能代理的企业级控制（Command A Reasoning: Enterprise-grade control for AI agents）</a>
+<a class="nav-item" href="../viewers/introducing-command-a-vision-multimodal-ai-built-for-busines.html"><span class="num">20</span>介绍 Command A Vision：专为商业设计的多模态 AI（Introducing Command A Vision: Multimodal AI built for business）</a>
+<a class="nav-item" href="../viewers/secure-and-responsible-ai-for-europe.html"><span class="num">21</span>欧洲安全且负责任的人工智能（Secure and responsible AI for Europe）</a>
+<a class="nav-item" href="../viewers/legal-work-with-ai-the-draftwise-story.html"><span class="num">22</span>AI与法律工作：DraftWise的故事（Legal work with AI: The DraftWise story）</a>
+<a class="nav-item" href="../viewers/bringing-secure-ai-to-critical-systems.html"><span class="num">23</span>将安全AI引入关键系统（Bringing secure AI to critical systems）</a>
+<a class="nav-item" href="../viewers/secure-ai-how-to-safeguard-your-ai-systems.html"><span class="num">24</span>安全人工智能：如何保护您的AI系统（Secure AI: How to safeguard your AI systems）</a>
+<a class="nav-item" href="../viewers/ai-agents-driving-productivity-at-work.html"><span class="num">25</span>AI代理：提升工作效率（AI agents: Driving productivity at work）</a>
+<a class="nav-item" href="../viewers/how-to-build-an-ai-agent-a-practical-guide-for-enterprises.html"><span class="num">26</span>如何构建人工智能代理：企业实用指南（How to build an AI agent: A practical guide for enterprises）</a>
+<a class="nav-item" href="../viewers/five-ways-to-modernize-manufacturing-with-ai.html"><span class="num">27</span>五种利用人工智能实现制造业现代化的方法（Five ways to modernize manufacturing with AI）</a>
+<a class="nav-item" href="../viewers/the-ai-efficiency-paradigm.html"><span class="num">28</span>人工智能效率范式（The AI efficiency paradigm）</a>
+<a class="nav-item" href="../viewers/what-is-explainable-ai.html"><span class="num">29</span>可解释人工智能是什么（What is explainable AI?）</a>
+<a class="nav-item" href="../viewers/customizing-ai-for-business-a-path-to-efficiency-and-roi.html"><span class="num">30</span>为业务定制人工智能：实现效率与投资回报的路径（Customizing AI for business: A path to efficiency and ROI）</a>
+<a class="nav-item" href="../viewers/understanding-ai-hallucination.html"><span class="num">31</span>理解人工智能幻觉（Understanding AI hallucination）</a>
+<a class="nav-item" href="../viewers/ai-reasoning-and-the-future-of-decision-making.html"><span class="num">32</span>AI推理与决策制定的未来（AI reasoning and the future of decision-making）</a>
+<a class="nav-item" href="../viewers/the-future-of-coding-ai-code-generation-explained.html"><span class="num">33</span>代码未来的前景：AI代码生成详解（The future of coding: AI code generation explained）</a>
+<a class="nav-item" href="../viewers/enterprise-ai-security-challenges-and-solutions.html"><span class="num">34</span>企业人工智能安全挑战与解决方案（Enterprise AI security challenges and solutions）</a>
+</details>
+<details class="nav-group" open>
+<summary class="group">Anthropic Engineering</summary>
+<a class="nav-item" href="../viewers/building-strong-safety-evaluations.html"><span class="num">01</span>构建强大的安全评估（Building strong safety evaluations）</a>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">02</span>代理内存的组成部分（The components of agent memory）</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">03</span>Anthropic 的源代码控制重新设计（Redesigning source control at Anthropic）</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">04</span>如何在各产品中集成 Claude（How we contain Claude across products）</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">05</span>最近 Claude 代码质量报告更新（An update on recent Claude Code quality reports）</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">06</span>分离管理代理的缩放：将大脑与手分离（Scaling Managed Agents: Decoupling the brain from the hands）</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">07</span>我们如何构建 Claude Code 自动模式：一种更安全的权限跳过方法（How we built Claude Code auto mode: a safer way to skip permissions）</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">08</span>长周期应用开发中的 harness设计（Harness design for long-running application development）</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">09</span>Claude Opus 4.6 BrowseComp性能中的评估意识（Eval awareness in Claude Opus 4.6’s BrowseComp performance）</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">10</span>使用团队和并行 Claudes 构建 C 编译器（Building a C compiler with a team of parallel Claudes）</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">11</span>量化代理式编码中的基础设施噪声影响（Quantifying infrastructure noise in agentic coding evals）</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">12</span>设计抗AI技术评估（Designing AI-resistant technical evaluations）</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">13</span>揭秘 AI 智能体的评估方法（Demystifying evals for AI agents）</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">14</span>长期运行代理的有效管理工具（Effective harnesses for long-running agents）</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">15</span>介绍 Claude 开发者平台上的高级工具使用（Introducing advanced tool use on the Claude Developer Platform）</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">16</span>使用 MCP 执行代码：构建更高效的智能体（Code execution with MCP: Building more efficient agents）</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">17</span>超越权限提示：让 Claude Code 更加安全与自主（Beyond permission prompts: making Claude Code more secure and autonomous）</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">18</span>为真实世界中的代理配备代理技能（Equipping agents for the real world with Agent Skills）</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">19</span>AI智能体有效的上下文工程（Effective context engineering for AI agents）</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">20</span>最近三个问题的反思（A postmortem of three recent issues）</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">21</span>编写有效的代理工具 — 与代理一起（Writing effective tools for agents — with agents）</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">22</span>桌面扩展：Claude 桌面一键 MCP 服务器安装（Desktop Extensions: One-click MCP server installation for Claude Desktop）</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">23</span>通过可信虚拟机的保密推理（Confidential Inference via Trusted Virtual Machines）</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">24</span>我们如何构建多智能体研究系统（How we built our multi-agent research system）</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">25</span>Claude Code：代理式编码的最佳实践（Claude Code: Best practices for agentic coding）</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">26</span>“思考”工具：让 Claude 在复杂的工具使用场景中停止并思考（The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations）</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">27</span>通过 Claude 3.5 Sonnet 提升 SWE-bench 标准（Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet）</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">28</span>构建有效智能体（Building effective agents）</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">29</span>介绍上下文检索（Introducing Contextual Retrieval）</a>
+</details>
+<details class="nav-group" open>
+<summary class="group">OpenAI Engineering</summary>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">01</span>OpenAI 的 Git 扩展（Scaling Git at OpenAI）</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">02</span>快速扩展在线存储以服务超过10亿个ChatGPT用户（第二部分）（Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)）</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">03</span>我们如何构建 ChatGPT 新颖的广告堆栈以提升用户信任和相关性（How we built ChatGPT’s novel ad stack for user trust and relevance）</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">04</span>快速扩展在线存储服务，满足超过10亿 ChatGPT用户的需求（Rapidly scaling online storage to serve over 1 billion ChatGPT users）</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">05</span>Jalapeño 的首批结果显示出其在 AI 推理方面的领先速度和效率（Jalapeño’s first results show industry-leading speed and efficiency in AI inference）</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">06</span>如何在六个月内构建实时响应语音人工智能系统（How we built a realtime system for responsive voice AI in six months）</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">07</span>GPT-5.6 如何融合前沿智能与前沿效率（How GPT-5.6 fuses frontier intelligence with frontier efficiency）</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">08</span>核心转储流行病学：修复一个18年的漏洞（Core dump epidemiology: fixing an 18-year-old bug）</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">09</span>构建自我改进的税务代理系统（Building self-improving tax agents with Codex）</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">10</span>构建安全有效的沙箱以在 Windows 上启用 Codex（Building a safe, effective sandbox to enable Codex on Windows）</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">11</span>利用MRC（多路径可靠连接）解锁大规模AI训练网络（Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)）</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">12</span>OpenAI如何大规模提供低延迟语音人工智能（How OpenAI delivers low-latency voice AI at scale）</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">13</span>开源编排规范：Symphony（An open-source spec for orchestration: Symphony）</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">14</span>使用 Responses API中的 WebSockets 加速代理工作流（Speeding up agentic workflows with WebSockets in the Responses API）</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">15</span>从模型到代理：为 Responses API 配备计算机环境（From model to agent: Equipping the Responses API with a computer environment）</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">16</span>超出速率限制：扩展 Codex 和 Sora 的访问能力（Beyond rate limits: scaling access to Codex and Sora）</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">17</span>利用代码在代理优先时代（Harness engineering: leveraging Codex in an agent-first world）</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">18</span>解锁代码器装置：我们如何构建应用服务器（Unlocking the Codex harness: how we built the App Server）</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">19</span>OpenAI内部数据代理（Inside OpenAI’s in-house data agent）</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">20</span>展开代码本代理循环（Unrolling the Codex agent loop）</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">21</span>将 PostgreSQL 扩展以支持 8 亿 ChatGPT 用户（Scaling PostgreSQL to power 800 million ChatGPT users）</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">22</span>我们如何使用Codex在28天内将Sora推送到Android平台（How We Used Codex to Ship Sora for Android in 28 Days）</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">23</span>我们如何构建 OWL，基于 ChatGPT 的浏览器 Atlas 的新架构（How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas）</a>
+</details>
+<details class="nav-group" open>
+<summary class="group">Google DeepMind</summary>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2：解析细胞如何读取DNA以更好地理解疾病（AlphaGenome 2: Deciphering how cells read DNA to better understand disease）</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon 现已上市（Gemini 4 Carbon is now available）</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">03</span>Gemini Omni 1.2 Flash：快速且经济实惠，镜头更长（Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips）</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">04</span>Gemini 4 Carbon：我们的下一个前沿模型（Gemini 4 Carbon: Our next frontier model）</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">05</span>利用 Google Antigravity 加速抗菌肽的搜索（Accelerating the search for antimicrobial peptides with Google Antigravity）</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">06</span>负责任且安全地开发 Gemini 4 Argon（Developing Gemini 4 Argon responsibly and safely）</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">07</span>Gemini 4 Argon：专为解决最棘手问题而设计（Gemini 4 Argon: Built to solve your hardest problems）</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">08</span>EmbeddingGemma 2：一个开放、轻量的多模态嵌入模型（EmbeddingGemma 2: an open, lightweight multimodal embedding model）</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">09</span>Gemini 4 Argon：我们下一个前沿智能时代（Gemini 4 Argon: our next era of frontier intelligence）</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">10</span>推出 Gemini 3.8 实时版带实时头像（Introducing Gemini 3.8 Live with Live Avatar）</a>
+</details></nav></aside>
+<details class="mobile-nav"><summary>目录</summary><nav aria-label="目录"><a href="../index.html">目录</a>
+<a href="../about.html">关于</a>
+<a href="../rss.xml">RSS</a>
+<details class="nav-group" open>
+<summary class="group">Cohere Blog</summary>
+<a class="nav-item" href="../viewers/building-ai-agents-in-finance-reshaping-financial-services.html"><span class="num">01</span>在金融领域构建人工智能代理：重塑金融服务（Building AI agents in finance: Reshaping financial services）</a>
+<a class="nav-item" href="../viewers/modernizing-freedom-of-information-foi-request-systems-with-.html"><span class="num">02</span>利用人工智能实现信息自由请求系统的现代化（Modernizing freedom of information (FOI) request systems with AI）</a>
+<a class="nav-item" href="../viewers/navigating-the-global-push-for-sovereign-ai.html"><span class="num">03</span>应对全球主权人工智能发展浪潮（Navigating the global push for sovereign AI）</a>
+<a class="nav-item" href="../viewers/building-trust-in-ai-cohere-s-approach-to-ai-governance.html"><span class="num">04</span>建立对人工智能的信任：Cohere的人工智能治理方法（Building trust in AI: Cohere’s approach to AI governance）</a>
+<a class="nav-item" href="../viewers/cohere-labs-launches-tiny-aya-making-multilingual-ai-accessi.html"><span class="num">05</span>Cohere Labs推出Tiny Aya，让多语言AI变得易于使用（Cohere Labs Launches Tiny Aya, Making Multilingual AI Accessible）</a>
+<a class="nav-item" href="../viewers/security-risks-in-ai-supply-chains.html"><span class="num">06</span>AI供应链中的安全风险（Security risks in AI supply chains）</a>
+<a class="nav-item" href="../viewers/the-advantages-of-ai-in-business.html"><span class="num">07</span>AI 在商业中的优势（The advantages of AI in business）</a>
+<a class="nav-item" href="../viewers/ai-in-finance-navigating-compliance-efficiency-and-scale.html"><span class="num">08</span>AI在金融领域：应对合规、效率和规模挑战（AI in finance: Navigating compliance, efficiency, and scale）</a>
+<a class="nav-item" href="../viewers/defining-ai-automation-a-new-kind-of-workplace.html"><span class="num">09</span>定义人工智能自动化：一种新的工作模式（Defining AI automation: A new kind of workplace）</a>
+<a class="nav-item" href="../viewers/introducing-model-vault-your-private-platform-for-secure-and.html"><span class="num">10</span>介绍 Model Vault：您的私密平台，用于安全且可扩展的模型推理（Introducing Model Vault: Your private platform for secure and scalable model inference）</a>
+<a class="nav-item" href="../viewers/how-a-community-effort-is-teaching-ai-to-see-africa-s-richne.html"><span class="num">11</span>社区努力如何教会人工智能欣赏非洲的丰富性（How a Community Effort is Teaching AI to See Africa’s Richness）</a>
+<a class="nav-item" href="../viewers/introducing-rerank-4-cohere-s-most-powerful-reranker-yet.html"><span class="num">12</span>介绍 Rerank 4：Cohere 最强大的重新排序工具（Introducing Rerank 4: Cohere’s most powerful reranker yet）</a>
+<a class="nav-item" href="../viewers/securing-ai-supply-chains-cohere-s-commitment-to-model-signi.html"><span class="num">13</span>保障AI供应链安全：Cohere对模型签名承诺（Securing AI supply chains: Cohere’s commitment to model signing）</a>
+<a class="nav-item" href="../viewers/making-data-transfer-in-llm-systems-faster-leaner-and-more-s.html"><span class="num">14</span>将 LLM 系统中的数据传输变得更快速、更简洁且更具可扩展性（Making data transfer in LLM systems faster, leaner, and more scalable）</a>
+<a class="nav-item current" href="../viewers/announcing-the-cohere-partner-program-boosting-enterprise-ai.html" aria-current="page"><span class="num">15</span>发布 Cohere 合作伙伴计划：推动企业人工智能发展（Announcing the Cohere Partner Program: Boosting enterprise AI）</a>
+<a class="nav-item" href="../viewers/exploring-ai-in-education.html"><span class="num">16</span>探索教育中的人工智能（Exploring AI in Education）</a>
+<a class="nav-item" href="../viewers/ai-adoption-for-national-security-modernizing-defense.html"><span class="num">17</span>国家安全中的AI应用：国防现代化（AI adoption for national security: Modernizing defense）</a>
+<a class="nav-item" href="../viewers/command-a-translate-secure-translation-for-global-enterprise.html"><span class="num">18</span>Command A Translate：全球企业的安全翻译服务（Command A Translate: Secure translation for global enterprises）</a>
+<a class="nav-item" href="../viewers/command-a-reasoning-enterprise-grade-control-for-ai-agents.html"><span class="num">19</span>命令式推理：面向人工智能代理的企业级控制（Command A Reasoning: Enterprise-grade control for AI agents）</a>
+<a class="nav-item" href="../viewers/introducing-command-a-vision-multimodal-ai-built-for-busines.html"><span class="num">20</span>介绍 Command A Vision：专为商业设计的多模态 AI（Introducing Command A Vision: Multimodal AI built for business）</a>
+<a class="nav-item" href="../viewers/secure-and-responsible-ai-for-europe.html"><span class="num">21</span>欧洲安全且负责任的人工智能（Secure and responsible AI for Europe）</a>
+<a class="nav-item" href="../viewers/legal-work-with-ai-the-draftwise-story.html"><span class="num">22</span>AI与法律工作：DraftWise的故事（Legal work with AI: The DraftWise story）</a>
+<a class="nav-item" href="../viewers/bringing-secure-ai-to-critical-systems.html"><span class="num">23</span>将安全AI引入关键系统（Bringing secure AI to critical systems）</a>
+<a class="nav-item" href="../viewers/secure-ai-how-to-safeguard-your-ai-systems.html"><span class="num">24</span>安全人工智能：如何保护您的AI系统（Secure AI: How to safeguard your AI systems）</a>
+<a class="nav-item" href="../viewers/ai-agents-driving-productivity-at-work.html"><span class="num">25</span>AI代理：提升工作效率（AI agents: Driving productivity at work）</a>
+<a class="nav-item" href="../viewers/how-to-build-an-ai-agent-a-practical-guide-for-enterprises.html"><span class="num">26</span>如何构建人工智能代理：企业实用指南（How to build an AI agent: A practical guide for enterprises）</a>
+<a class="nav-item" href="../viewers/five-ways-to-modernize-manufacturing-with-ai.html"><span class="num">27</span>五种利用人工智能实现制造业现代化的方法（Five ways to modernize manufacturing with AI）</a>
+<a class="nav-item" href="../viewers/the-ai-efficiency-paradigm.html"><span class="num">28</span>人工智能效率范式（The AI efficiency paradigm）</a>
+<a class="nav-item" href="../viewers/what-is-explainable-ai.html"><span class="num">29</span>可解释人工智能是什么（What is explainable AI?）</a>
+<a class="nav-item" href="../viewers/customizing-ai-for-business-a-path-to-efficiency-and-roi.html"><span class="num">30</span>为业务定制人工智能：实现效率与投资回报的路径（Customizing AI for business: A path to efficiency and ROI）</a>
+<a class="nav-item" href="../viewers/understanding-ai-hallucination.html"><span class="num">31</span>理解人工智能幻觉（Understanding AI hallucination）</a>
+<a class="nav-item" href="../viewers/ai-reasoning-and-the-future-of-decision-making.html"><span class="num">32</span>AI推理与决策制定的未来（AI reasoning and the future of decision-making）</a>
+<a class="nav-item" href="../viewers/the-future-of-coding-ai-code-generation-explained.html"><span class="num">33</span>代码未来的前景：AI代码生成详解（The future of coding: AI code generation explained）</a>
+<a class="nav-item" href="../viewers/enterprise-ai-security-challenges-and-solutions.html"><span class="num">34</span>企业人工智能安全挑战与解决方案（Enterprise AI security challenges and solutions）</a>
+</details>
+<details class="nav-group" open>
+<summary class="group">Anthropic Engineering</summary>
+<a class="nav-item" href="../viewers/building-strong-safety-evaluations.html"><span class="num">01</span>构建强大的安全评估（Building strong safety evaluations）</a>
+<a class="nav-item" href="../viewers/the-components-of-agent-memory.html"><span class="num">02</span>代理内存的组成部分（The components of agent memory）</a>
+<a class="nav-item" href="../viewers/redesigning-source-control-at-anthropic.html"><span class="num">03</span>Anthropic 的源代码控制重新设计（Redesigning source control at Anthropic）</a>
+<a class="nav-item" href="../viewers/how-we-contain-claude-across-products.html"><span class="num">04</span>如何在各产品中集成 Claude（How we contain Claude across products）</a>
+<a class="nav-item" href="../viewers/an-update-on-recent-claude-code-quality-reports.html"><span class="num">05</span>最近 Claude 代码质量报告更新（An update on recent Claude Code quality reports）</a>
+<a class="nav-item" href="../viewers/scaling-managed-agents-decoupling-the-brain-from-the-hands.html"><span class="num">06</span>分离管理代理的缩放：将大脑与手分离（Scaling Managed Agents: Decoupling the brain from the hands）</a>
+<a class="nav-item" href="../viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html"><span class="num">07</span>我们如何构建 Claude Code 自动模式：一种更安全的权限跳过方法（How we built Claude Code auto mode: a safer way to skip permissions）</a>
+<a class="nav-item" href="../viewers/harness-design-for-long-running-application-development.html"><span class="num">08</span>长周期应用开发中的 harness设计（Harness design for long-running application development）</a>
+<a class="nav-item" href="../viewers/eval-awareness-in-claude-opus-4-6-s-browsecomp-performance.html"><span class="num">09</span>Claude Opus 4.6 BrowseComp性能中的评估意识（Eval awareness in Claude Opus 4.6’s BrowseComp performance）</a>
+<a class="nav-item" href="../viewers/building-a-c-compiler-with-a-team-of-parallel-claudes.html"><span class="num">10</span>使用团队和并行 Claudes 构建 C 编译器（Building a C compiler with a team of parallel Claudes）</a>
+<a class="nav-item" href="../viewers/quantifying-infrastructure-noise-in-agentic-coding-evals.html"><span class="num">11</span>量化代理式编码中的基础设施噪声影响（Quantifying infrastructure noise in agentic coding evals）</a>
+<a class="nav-item" href="../viewers/designing-ai-resistant-technical-evaluations.html"><span class="num">12</span>设计抗AI技术评估（Designing AI-resistant technical evaluations）</a>
+<a class="nav-item" href="../viewers/demystifying-evals-for-ai-agents.html"><span class="num">13</span>揭秘 AI 智能体的评估方法（Demystifying evals for AI agents）</a>
+<a class="nav-item" href="../viewers/effective-harnesses-for-long-running-agents.html"><span class="num">14</span>长期运行代理的有效管理工具（Effective harnesses for long-running agents）</a>
+<a class="nav-item" href="../viewers/introducing-advanced-tool-use-on-the-claude-developer-platfo.html"><span class="num">15</span>介绍 Claude 开发者平台上的高级工具使用（Introducing advanced tool use on the Claude Developer Platform）</a>
+<a class="nav-item" href="../viewers/code-execution-with-mcp-building-more-efficient-agents.html"><span class="num">16</span>使用 MCP 执行代码：构建更高效的智能体（Code execution with MCP: Building more efficient agents）</a>
+<a class="nav-item" href="../viewers/beyond-permission-prompts-making-claude-code-more-secure-and.html"><span class="num">17</span>超越权限提示：让 Claude Code 更加安全与自主（Beyond permission prompts: making Claude Code more secure and autonomous）</a>
+<a class="nav-item" href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html"><span class="num">18</span>为真实世界中的代理配备代理技能（Equipping agents for the real world with Agent Skills）</a>
+<a class="nav-item" href="../viewers/effective-context-engineering-for-ai-agents.html"><span class="num">19</span>AI智能体有效的上下文工程（Effective context engineering for AI agents）</a>
+<a class="nav-item" href="../viewers/a-postmortem-of-three-recent-issues.html"><span class="num">20</span>最近三个问题的反思（A postmortem of three recent issues）</a>
+<a class="nav-item" href="../viewers/writing-effective-tools-for-agents-with-agents.html"><span class="num">21</span>编写有效的代理工具 — 与代理一起（Writing effective tools for agents — with agents）</a>
+<a class="nav-item" href="../viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html"><span class="num">22</span>桌面扩展：Claude 桌面一键 MCP 服务器安装（Desktop Extensions: One-click MCP server installation for Claude Desktop）</a>
+<a class="nav-item" href="../viewers/confidential-inference-via-trusted-virtual-machines.html"><span class="num">23</span>通过可信虚拟机的保密推理（Confidential Inference via Trusted Virtual Machines）</a>
+<a class="nav-item" href="../viewers/how-we-built-our-multi-agent-research-system.html"><span class="num">24</span>我们如何构建多智能体研究系统（How we built our multi-agent research system）</a>
+<a class="nav-item" href="../viewers/claude-code-best-practices-for-agentic-coding.html"><span class="num">25</span>Claude Code：代理式编码的最佳实践（Claude Code: Best practices for agentic coding）</a>
+<a class="nav-item" href="../viewers/the-think-tool-enabling-claude-to-stop-and-think-in-complex-.html"><span class="num">26</span>“思考”工具：让 Claude 在复杂的工具使用场景中停止并思考（The &quot;think&quot; tool: Enabling Claude to stop and think in complex tool use situations）</a>
+<a class="nav-item" href="../viewers/raising-the-bar-on-swe-bench-verified-with-claude-3-5-sonnet.html"><span class="num">27</span>通过 Claude 3.5 Sonnet 提升 SWE-bench 标准（Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet）</a>
+<a class="nav-item" href="../viewers/building-effective-agents.html"><span class="num">28</span>构建有效智能体（Building effective agents）</a>
+<a class="nav-item" href="../viewers/introducing-contextual-retrieval.html"><span class="num">29</span>介绍上下文检索（Introducing Contextual Retrieval）</a>
+</details>
+<details class="nav-group" open>
+<summary class="group">OpenAI Engineering</summary>
+<a class="nav-item" href="../viewers/scaling-git-at-openai.html"><span class="num">01</span>OpenAI 的 Git 扩展（Scaling Git at OpenAI）</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg.html"><span class="num">02</span>快速扩展在线存储以服务超过10亿个ChatGPT用户（第二部分）（Rapidly scaling online storage to serve over 1 billion ChatGPT users (Part II)）</a>
+<a class="nav-item" href="../viewers/how-we-built-chatgpt-s-novel-ad-stack-for-user-trust-and-rel.html"><span class="num">03</span>我们如何构建 ChatGPT 新颖的广告堆栈以提升用户信任和相关性（How we built ChatGPT’s novel ad stack for user trust and relevance）</a>
+<a class="nav-item" href="../viewers/rapidly-scaling-online-storage-to-serve-over-1-billion-chatg-46fcf5bb7b99520f.html"><span class="num">04</span>快速扩展在线存储服务，满足超过10亿 ChatGPT用户的需求（Rapidly scaling online storage to serve over 1 billion ChatGPT users）</a>
+<a class="nav-item" href="../viewers/jalapen-o-s-first-results-show-industry-leading-speed-and-ef.html"><span class="num">05</span>Jalapeño 的首批结果显示出其在 AI 推理方面的领先速度和效率（Jalapeño’s first results show industry-leading speed and efficiency in AI inference）</a>
+<a class="nav-item" href="../viewers/how-we-built-a-realtime-system-for-responsive-voice-ai-in-si.html"><span class="num">06</span>如何在六个月内构建实时响应语音人工智能系统（How we built a realtime system for responsive voice AI in six months）</a>
+<a class="nav-item" href="../viewers/how-gpt-5-6-fuses-frontier-intelligence-with-frontier-effici.html"><span class="num">07</span>GPT-5.6 如何融合前沿智能与前沿效率（How GPT-5.6 fuses frontier intelligence with frontier efficiency）</a>
+<a class="nav-item" href="../viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html"><span class="num">08</span>核心转储流行病学：修复一个18年的漏洞（Core dump epidemiology: fixing an 18-year-old bug）</a>
+<a class="nav-item" href="../viewers/building-self-improving-tax-agents-with-codex.html"><span class="num">09</span>构建自我改进的税务代理系统（Building self-improving tax agents with Codex）</a>
+<a class="nav-item" href="../viewers/building-a-safe-effective-sandbox-to-enable-codex-on-windows.html"><span class="num">10</span>构建安全有效的沙箱以在 Windows 上启用 Codex（Building a safe, effective sandbox to enable Codex on Windows）</a>
+<a class="nav-item" href="../viewers/unlocking-large-scale-ai-training-networks-with-mrc-multipat.html"><span class="num">11</span>利用MRC（多路径可靠连接）解锁大规模AI训练网络（Unlocking large scale AI training networks with MRC (Multipath Reliable Connection)）</a>
+<a class="nav-item" href="../viewers/how-openai-delivers-low-latency-voice-ai-at-scale.html"><span class="num">12</span>OpenAI如何大规模提供低延迟语音人工智能（How OpenAI delivers low-latency voice AI at scale）</a>
+<a class="nav-item" href="../viewers/an-open-source-spec-for-orchestration-symphony.html"><span class="num">13</span>开源编排规范：Symphony（An open-source spec for orchestration: Symphony）</a>
+<a class="nav-item" href="../viewers/speeding-up-agentic-workflows-with-websockets-in-the-respons.html"><span class="num">14</span>使用 Responses API中的 WebSockets 加速代理工作流（Speeding up agentic workflows with WebSockets in the Responses API）</a>
+<a class="nav-item" href="../viewers/from-model-to-agent-equipping-the-responses-api-with-a-compu.html"><span class="num">15</span>从模型到代理：为 Responses API 配备计算机环境（From model to agent: Equipping the Responses API with a computer environment）</a>
+<a class="nav-item" href="../viewers/beyond-rate-limits-scaling-access-to-codex-and-sora.html"><span class="num">16</span>超出速率限制：扩展 Codex 和 Sora 的访问能力（Beyond rate limits: scaling access to Codex and Sora）</a>
+<a class="nav-item" href="../viewers/harness-engineering-leveraging-codex-in-an-agent-first-world.html"><span class="num">17</span>利用代码在代理优先时代（Harness engineering: leveraging Codex in an agent-first world）</a>
+<a class="nav-item" href="../viewers/unlocking-the-codex-harness-how-we-built-the-app-server.html"><span class="num">18</span>解锁代码器装置：我们如何构建应用服务器（Unlocking the Codex harness: how we built the App Server）</a>
+<a class="nav-item" href="../viewers/inside-openai-s-in-house-data-agent.html"><span class="num">19</span>OpenAI内部数据代理（Inside OpenAI’s in-house data agent）</a>
+<a class="nav-item" href="../viewers/unrolling-the-codex-agent-loop.html"><span class="num">20</span>展开代码本代理循环（Unrolling the Codex agent loop）</a>
+<a class="nav-item" href="../viewers/scaling-postgresql-to-power-800-million-chatgpt-users.html"><span class="num">21</span>将 PostgreSQL 扩展以支持 8 亿 ChatGPT 用户（Scaling PostgreSQL to power 800 million ChatGPT users）</a>
+<a class="nav-item" href="../viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html"><span class="num">22</span>我们如何使用Codex在28天内将Sora推送到Android平台（How We Used Codex to Ship Sora for Android in 28 Days）</a>
+<a class="nav-item" href="../viewers/how-we-built-owl-the-new-architecture-behind-our-chatgpt-bas.html"><span class="num">23</span>我们如何构建 OWL，基于 ChatGPT 的浏览器 Atlas 的新架构（How we built OWL, the new architecture behind our ChatGPT-based browser, Atlas）</a>
+</details>
+<details class="nav-group" open>
+<summary class="group">Google DeepMind</summary>
+<a class="nav-item" href="../viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html"><span class="num">01</span>AlphaGenome 2：解析细胞如何读取DNA以更好地理解疾病（AlphaGenome 2: Deciphering how cells read DNA to better understand disease）</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-is-now-available.html"><span class="num">02</span>Gemini 4 Carbon 现已上市（Gemini 4 Carbon is now available）</a>
+<a class="nav-item" href="../viewers/gemini-omni-1-2-flash-fast-and-cost-effective-with-longer-cl.html"><span class="num">03</span>Gemini Omni 1.2 Flash：快速且经济实惠，镜头更长（Gemini Omni 1.2 Flash: Fast and cost-effective with longer clips）</a>
+<a class="nav-item" href="../viewers/gemini-4-carbon-our-next-frontier-model.html"><span class="num">04</span>Gemini 4 Carbon：我们的下一个前沿模型（Gemini 4 Carbon: Our next frontier model）</a>
+<a class="nav-item" href="../viewers/accelerating-the-search-for-antimicrobial-peptides-with-goog.html"><span class="num">05</span>利用 Google Antigravity 加速抗菌肽的搜索（Accelerating the search for antimicrobial peptides with Google Antigravity）</a>
+<a class="nav-item" href="../viewers/developing-gemini-4-argon-responsibly-and-safely.html"><span class="num">06</span>负责任且安全地开发 Gemini 4 Argon（Developing Gemini 4 Argon responsibly and safely）</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-built-to-solve-your-hardest-problems.html"><span class="num">07</span>Gemini 4 Argon：专为解决最棘手问题而设计（Gemini 4 Argon: Built to solve your hardest problems）</a>
+<a class="nav-item" href="../viewers/embeddinggemma-2-an-open-lightweight-multimodal-embedding-mo.html"><span class="num">08</span>EmbeddingGemma 2：一个开放、轻量的多模态嵌入模型（EmbeddingGemma 2: an open, lightweight multimodal embedding model）</a>
+<a class="nav-item" href="../viewers/gemini-4-argon-our-next-era-of-frontier-intelligence.html"><span class="num">09</span>Gemini 4 Argon：我们下一个前沿智能时代（Gemini 4 Argon: our next era of frontier intelligence）</a>
+<a class="nav-item" href="../viewers/introducing-gemini-3-8-live-with-live-avatar.html"><span class="num">10</span>推出 Gemini 3.8 实时版带实时头像（Introducing Gemini 3.8 Live with Live Avatar）</a>
+</details></nav></details>
+<main class="main"><article class="page">
+  <h1>Announcing the Cohere Partner Program: Boosting enterprise AI</h1>
+  <p class="subline">原文：<a href="https://cohere.com/blog/cohere-partner-program-boosting-enterprise-ai" target="_blank" rel="noopener noreferrer">https://cohere.com/blog/cohere-partner-program-boosting-enterprise-ai</a> · 2025-10-07 · Cohere Blog · 中英对照</p>
+  <div class="divider"></div>
+  <style>
+.pair { margin: 0 0 1.6em; }
+.pair .target { margin: 0; overflow-wrap: anywhere; }
+.pair .source {
+  margin: 0.4em 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  color: var(--muted); font-size: 0.875rem; line-height: 1.65; overflow-wrap: anywhere;
+}
+body.hide-source .pair .source { display: none; }
+.reader-tools { display: flex; align-items: baseline; gap: 16px; margin: 0 0 28px; font-size: 0.875rem; }
+</style>
+<div class="reader-tools">
+<button id="toggle-source" type="button" aria-pressed="false">隐藏英文原文</button>
+</div>
+<script>
+(function () {
+  var button = document.getElementById("toggle-source");
+  if (!button) return;
+  button.addEventListener("click", function () {
+    var hidden = document.body.classList.toggle("hide-source");
+    button.setAttribute("aria-pressed", String(hidden));
+    button.textContent = hidden ? "显示英文原文" : "隐藏英文原文";
+  });
+})();
+</script>
+<img src="https://cohere.com/_next/image?url=https%3A%2F%2Fstorage.ghost.io%2Fc%2F81%2F47%2F8147eb50-617d-4929-b563-3922b88421fd%2Fcontent%2Fimages%2F2023%2F03%2FCohere-Symbol-Color-RGB.png&amp;w=256&amp;q=75" alt="Cohere Team" loading="lazy">
+<img src="https://cohere.com/images/new_twitter_icon.svg" alt="X (Formerly Twitter) Icon" loading="lazy">
+<img src="https://cohere.com/images/new_linkedin_icon.svg" alt="LinkedIn Icon" loading="lazy">
+<div class="pair" id="p-0">
+<p class="target" lang="zh-CN">AI并不是一种捷径。它是企业取得进步的方式。</p>
+<p class="source" lang="en">AI isn’t a shortcut. It’s how business gets ahead.</p>
+</div>
+<h2>声明</h2>
+<p>公开 AI 工程文章的非官方中英对照归档，译文仅作辅助阅读，以英文原文为准。文章版权归原作者所有。原文：<a href="https://cohere.com/blog/cohere-partner-program-boosting-enterprise-ai" target="_blank" rel="noopener noreferrer">https://cohere.com/blog/cohere-partner-program-boosting-enterprise-ai</a>。</p>
+  <nav class="pager" aria-label="Previous and next"><a href="../viewers/equipping-agents-for-the-real-world-with-agent-skills.html">← Equipping agents for the real world with Agent Skills</a><a href="../viewers/effective-context-engineering-for-ai-agents.html">Effective context engineering for AI agents →</a></nav>
+  <footer class="footer">文章版权归原作者所有，译文以英文原文为准。 · <a href="https://github.com/AIEngblogx/ai-engineering-related-blogs">站点仓库</a> · <a href="https://github.com/AIEngblogx/AIEngblogx">工具仓库</a></footer>
+</article></main>
+<script>
+(function () {
+  "use strict";
+  var tokenize = function tokenize(text) {
+    const input = String(text).toLowerCase();
+    const chunks = input.match(/[a-z0-9_]+|[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+/g) ?? [];
+    const tokens = [];
+    for (const chunk of chunks) {
+        if (/^[a-z0-9_]/.test(chunk)) {
+            tokens.push(chunk);
+            continue;
+        }
+        const characters = Array.from(chunk);
+        if (characters.length === 1) {
+            tokens.push(characters[0] ?? "");
+            continue;
+        }
+        for (let i = 0; i < characters.length - 1; i++) {
+            tokens.push((characters[i] ?? "") + (characters[i + 1] ?? ""));
+        }
+    }
+    return tokens;
+};
+  var rankRecords = function rankRecords(index, query, limit) {
+    const tokens = Array.from(new Set(tokenize(query))).slice(0, 8);
+    if (tokens.length === 0)
+        return [];
+    const total = index.records.length;
+    const scores = new Map();
+    for (const token of tokens) {
+        const list = index.postings[token];
+        if (!Array.isArray(list))
+            continue;
+        const idf = Math.log(1 + total / (1 + list.length));
+        for (const posting of list) {
+            const current = scores.get(posting[0]) ?? { score: 0, matched: 0 };
+            current.score += idf * (1 + Math.log(posting[1]));
+            current.matched += 1;
+            scores.set(posting[0], current);
+        }
+    }
+    const ranked = [];
+    for (const [record, value] of scores) {
+        let score = value.score;
+        if (value.matched === tokens.length)
+            score *= 1.6;
+        const fields = index.records[record];
+        if (fields !== undefined && fields[1] === -1)
+            score *= 1.25;
+        ranked.push({ record, score });
+    }
+    ranked.sort((left, right) => right.score - left.score);
+    const perDocument = new Map();
+    const hits = [];
+    for (const item of ranked) {
+        const fields = index.records[item.record];
+        if (fields === undefined)
+            continue;
+        const count = perDocument.get(fields[0]) ?? 0;
+        if (count >= 2)
+            continue;
+        perDocument.set(fields[0], count + 1);
+        hits.push(item.record);
+        if (hits.length >= limit)
+            break;
+    }
+    return hits;
+};
+
+  var input = document.getElementById("nav-filter");
+  var panel = document.getElementById("search-panel");
+  var results = document.getElementById("search-results");
+  var status = document.getElementById("search-status");
+  var prefix = document.body.getAttribute("data-prefix") || "";
+  var indexUrl = document.body.getAttribute("data-search-index");
+  var cached = null;
+  var pending = null;
+  var timer = null;
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character];
+    });
+  }
+
+  function filterNav(query) {
+    var navs = document.querySelectorAll("#site-nav, .mobile-nav nav");
+    for (var n = 0; n < navs.length; n++) {
+      var groups = navs[n].querySelectorAll(".nav-group");
+      for (var g = 0; g < groups.length; g++) {
+        var group = groups[g];
+        var items = group.querySelectorAll(".nav-item");
+        var visible = false;
+        for (var i = 0; i < items.length; i++) {
+          var match = query === "" || items[i].textContent.toLowerCase().indexOf(query) !== -1;
+          items[i].hidden = !match;
+          if (match) visible = true;
+        }
+        group.hidden = query !== "" && !visible;
+        if (query !== "" && visible) group.open = true;
+      }
+    }
+  }
+
+  function loadIndex() {
+    if (cached !== null) return Promise.resolve(cached);
+    if (pending !== null) return pending;
+    pending = fetch(prefix + indexUrl)
+      .then(function (response) {
+        if (!response.ok) throw new Error("index unavailable");
+        return response.json();
+      })
+      .then(function (data) { cached = data; pending = null; return data; })
+      .catch(function () { pending = null; return null; });
+    return pending;
+  }
+
+  function highlight(safeText, needles) {
+    if (needles.length === 0) return safeText;
+    var lower = safeText.toLowerCase();
+    var marks = [];
+    for (var i = 0; i < needles.length; i++) {
+      var needle = needles[i].toLowerCase();
+      if (needle === "") continue;
+      var from = 0;
+      var at = lower.indexOf(needle, from);
+      while (at !== -1) {
+        marks.push([at, at + needle.length]);
+        from = at + needle.length;
+        at = lower.indexOf(needle, from);
+      }
+    }
+    marks.sort(function (left, right) { return left[0] - right[0]; });
+    var out = "", cursor = 0;
+    for (var m = 0; m < marks.length; m++) {
+      var start = marks[m][0], end = marks[m][1];
+      if (start < cursor) continue;
+      out += safeText.slice(cursor, start) + "<mark>" + safeText.slice(start, end) + "</mark>";
+      cursor = end;
+    }
+    return out + safeText.slice(cursor);
+  }
+
+  function snippet(record, query) {
+    var target = record[2] || "";
+    var source = record[3] || "";
+    var lowered = query.toLowerCase();
+    var text = target === "" ? source : target;
+    if (source !== "" && source.toLowerCase().indexOf(lowered) !== -1) text = source;
+    var at = text.toLowerCase().indexOf(lowered);
+    if (at === -1) {
+      var terms = tokenize(query);
+      if (terms.length > 0) at = text.toLowerCase().indexOf(terms[0]);
+    }
+    var start = at > 60 ? at - 60 : 0;
+    var plain = text.slice(start, start + 180);
+    var needles = [escapeHtml(query)];
+    var queryTerms = tokenize(query).slice(0, 4);
+    for (var t = 0; t < queryTerms.length; t++) needles.push(escapeHtml(queryTerms[t]));
+    return (start > 0 ? "…" : "") + highlight(escapeHtml(plain), needles) +
+      (start + 180 < text.length ? "…" : "");
+  }
+
+  function render(data, query) {
+    var ranked = rankRecords(data, query, 8);
+    var html = "";
+    for (var i = 0; i < ranked.length; i++) {
+      var record = data.records[ranked[i]];
+      var doc = data.documents[record[0]];
+      var href = doc.href + (record[1] < 0 ? "" : "#p-" + record[1]);
+      html += '<a class="search-hit" href="' + escapeHtml(prefix + href) + '">' +
+        '<span class="search-hit-title">' + escapeHtml(doc.title) + "</span>" +
+        '<span class="search-hit-snippet">' + snippet(record, query) + "</span></a>";
+    }
+    results.innerHTML = html;
+    status.textContent = ranked.length === 0 ? "No matches" : "";
+    panel.hidden = false;
+  }
+
+  function run(query) {
+    if (query === "" || indexUrl === null || indexUrl === "") {
+      panel.hidden = true;
+      return;
+    }
+    status.textContent = cached === null ? "Loading index…" : "";
+    panel.hidden = false;
+    loadIndex().then(function (data) {
+      if (data === null) { panel.hidden = true; status.textContent = ""; return; }
+      if (input.value.trim().toLowerCase() !== query) return;
+      render(data, query);
+    });
+  }
+
+  if (input !== null) {
+    input.addEventListener("input", function () {
+      var query = input.value.trim().toLowerCase();
+      filterNav(query);
+      clearTimeout(timer);
+      timer = setTimeout(function () { run(query); }, 120);
+    });
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { panel.hidden = true; input.blur(); }
+      else if (event.key === "Enter") {
+        var first = results.querySelector(".search-hit");
+        if (first !== null) { event.preventDefault(); window.location.href = first.getAttribute("href"); }
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (event.target !== input && !panel.contains(event.target)) panel.hidden = true;
+    });
+  }
+
+  var themeButton = document.getElementById("theme-toggle");
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function syncTheme() {
+    if (themeButton === null) return;
+    var dark = isDark();
+    var next = dark ? "light" : "dark";
+    themeButton.setAttribute("aria-pressed", String(dark));
+    themeButton.setAttribute("aria-label", "Switch to " + next + " theme");
+    themeButton.setAttribute("title", "Switch to " + next + " theme");
+    themeButton.textContent = dark ? "Light" : "Dark";
+  }
+  if (themeButton !== null) {
+    themeButton.addEventListener("click", function () {
+      var next = isDark() ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try { localStorage.setItem("site-theme", next); } catch (error) { /* storage may be unavailable */ }
+      syncTheme();
+    });
+  }
+  syncTheme();
+})();
+</script>
+</body>
+</html>

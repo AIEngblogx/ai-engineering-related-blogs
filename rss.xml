@@ -5,6 +5,13 @@
     <link>https://aiengblogx.github.io/ai-engineering-related-blogs</link>
     <description>AI 使用与原理相关工程文章的中英对照</description>
     <item>
+      <title>Building strong safety evaluations</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/building-strong-safety-evaluations.html</link>
+      <guid isPermaLink="false">3007f82c38138e35</guid>
+      <pubDate>Fri, 13 Nov 2026 00:00:00 GMT</pubDate>
+      <description>Building strong safety evaluations · 2026-11-13</description>
+    </item>
+    <item>
       <title>AlphaGenome 2: Deciphering how cells read DNA to better understand disease</title>
       <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/alphagenome-2-deciphering-how-cells-read-dna-to-better-under.html</link>
       <guid isPermaLink="false">ba0fcf4e325b4115</guid>
@@ -138,11 +145,32 @@
       <description>How GPT-5.6 fuses frontier intelligence with frontier efficiency · 2026-07-29</description>
     </item>
     <item>
+      <title>Building AI agents in finance: Reshaping financial services</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/building-ai-agents-in-finance-reshaping-financial-services.html</link>
+      <guid isPermaLink="false">7ff0ba4ede30a6f5</guid>
+      <pubDate>Tue, 21 Jul 2026 00:00:00 GMT</pubDate>
+      <description>Building AI agents in finance: Reshaping financial services · 2026-07-21</description>
+    </item>
+    <item>
       <title>Core dump epidemiology: fixing an 18-year-old bug</title>
       <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/core-dump-epidemiology-fixing-an-18-year-old-bug.html</link>
       <guid isPermaLink="false">f1f7d4f8001b4288</guid>
       <pubDate>Tue, 30 Jun 2026 00:00:00 GMT</pubDate>
       <description>Core dump epidemiology: fixing an 18-year-old bug · 2026-06-30</description>
+    </item>
+    <item>
+      <title>Modernizing freedom of information (FOI) request systems with AI</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/modernizing-freedom-of-information-foi-request-systems-with-.html</link>
+      <guid isPermaLink="false">ea827c206ab96e2c</guid>
+      <pubDate>Mon, 15 Jun 2026 00:00:00 GMT</pubDate>
+      <description>Modernizing freedom of information (FOI) request systems with AI · 2026-06-15</description>
+    </item>
+    <item>
+      <title>Navigating the global push for sovereign AI</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/navigating-the-global-push-for-sovereign-ai.html</link>
+      <guid isPermaLink="false">bb2d97e154cd6c80</guid>
+      <pubDate>Mon, 01 Jun 2026 00:00:00 GMT</pubDate>
+      <description>Navigating the global push for sovereign AI · 2026-06-01</description>
     </item>
     <item>
       <title>Building self-improving tax agents with Codex</title>
@@ -157,6 +185,13 @@
       <guid isPermaLink="false">e4bdeb479512926e</guid>
       <pubDate>Mon, 25 May 2026 00:00:00 GMT</pubDate>
       <description>How we contain Claude across products · 2026-05-25</description>
+    </item>
+    <item>
+      <title>Building trust in AI: Cohere’s approach to AI governance</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/building-trust-in-ai-cohere-s-approach-to-ai-governance.html</link>
+      <guid isPermaLink="false">6370982d9a6c6256</guid>
+      <pubDate>Thu, 14 May 2026 00:00:00 GMT</pubDate>
+      <description>Building trust in AI: Cohere’s approach to AI governance · 2026-05-14</description>
     </item>
     <item>
       <title>Building a safe, effective sandbox to enable Codex on Windows</title>
@@ -178,6 +213,13 @@
       <guid isPermaLink="false">5c3d93bd7160f244</guid>
       <pubDate>Mon, 04 May 2026 00:00:00 GMT</pubDate>
       <description>How OpenAI delivers low-latency voice AI at scale · 2026-05-04</description>
+    </item>
+    <item>
+      <title>Cohere Labs Launches Tiny Aya, Making Multilingual AI Accessible</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/cohere-labs-launches-tiny-aya-making-multilingual-ai-accessi.html</link>
+      <guid isPermaLink="false">d5a083cf78109f43</guid>
+      <pubDate>Fri, 01 May 2026 00:00:00 GMT</pubDate>
+      <description>Cohere Labs Launches Tiny Aya, Making Multilingual AI Accessible · 2026-05-01</description>
     </item>
     <item>
       <title>An open-source spec for orchestration: Symphony</title>
@@ -208,6 +250,13 @@
       <description>Scaling Managed Agents: Decoupling the brain from the hands · 2026-04-08</description>
     </item>
     <item>
+      <title>Security risks in AI supply chains</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/security-risks-in-ai-supply-chains.html</link>
+      <guid isPermaLink="false">49d67576401a7015</guid>
+      <pubDate>Tue, 31 Mar 2026 00:00:00 GMT</pubDate>
+      <description>Security risks in AI supply chains · 2026-03-31</description>
+    </item>
+    <item>
       <title>How we built Claude Code auto mode: a safer way to skip permissions</title>
       <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/how-we-built-claude-code-auto-mode-a-safer-way-to-skip-permi.html</link>
       <guid isPermaLink="false">aeba4a5ac745f0d1</guid>
@@ -234,6 +283,20 @@
       <guid isPermaLink="false">191d25f83854ebf7</guid>
       <pubDate>Fri, 06 Mar 2026 00:00:00 GMT</pubDate>
       <description>Eval awareness in Claude Opus 4.6’s BrowseComp performance · 2026-03-06</description>
+    </item>
+    <item>
+      <title>The advantages of AI in business</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/the-advantages-of-ai-in-business.html</link>
+      <guid isPermaLink="false">48c56df59bcbcc95</guid>
+      <pubDate>Tue, 03 Mar 2026 00:00:00 GMT</pubDate>
+      <description>The advantages of AI in business · 2026-03-03</description>
+    </item>
+    <item>
+      <title>AI in finance: Navigating compliance, efficiency, and scale</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/ai-in-finance-navigating-compliance-efficiency-and-scale.html</link>
+      <guid isPermaLink="false">2a61ad98a80763bd</guid>
+      <pubDate>Thu, 26 Feb 2026 00:00:00 GMT</pubDate>
+      <description>AI in finance: Navigating compliance, efficiency, and scale · 2026-02-26</description>
     </item>
     <item>
       <title>Beyond rate limits: scaling access to Codex and Sora</title>
@@ -271,11 +334,25 @@
       <description>Unlocking the Codex harness: how we built the App Server · 2026-02-04</description>
     </item>
     <item>
+      <title>Defining AI automation: A new kind of workplace</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/defining-ai-automation-a-new-kind-of-workplace.html</link>
+      <guid isPermaLink="false">f1eb8671c3d6178b</guid>
+      <pubDate>Tue, 03 Feb 2026 00:00:00 GMT</pubDate>
+      <description>Defining AI automation: A new kind of workplace · 2026-02-03</description>
+    </item>
+    <item>
       <title>Inside OpenAI’s in-house data agent</title>
       <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/inside-openai-s-in-house-data-agent.html</link>
       <guid isPermaLink="false">fa5410010e0ab5ac</guid>
       <pubDate>Thu, 29 Jan 2026 00:00:00 GMT</pubDate>
       <description>Inside OpenAI’s in-house data agent · 2026-01-29</description>
+    </item>
+    <item>
+      <title>Introducing Model Vault: Your private platform for secure and scalable model inference</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/introducing-model-vault-your-private-platform-for-secure-and.html</link>
+      <guid isPermaLink="false">97e5981f0b9899a3</guid>
+      <pubDate>Wed, 28 Jan 2026 00:00:00 GMT</pubDate>
+      <description>Introducing Model Vault: Your private platform for secure and scalable model inference · 2026-01-28</description>
     </item>
     <item>
       <title>Unrolling the Codex agent loop</title>
@@ -306,11 +383,25 @@
       <description>Demystifying evals for AI agents · 2026-01-09</description>
     </item>
     <item>
+      <title>How a Community Effort is Teaching AI to See Africa’s Richness</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/how-a-community-effort-is-teaching-ai-to-see-africa-s-richne.html</link>
+      <guid isPermaLink="false">ce360603bf5aaac5</guid>
+      <pubDate>Tue, 16 Dec 2025 00:00:00 GMT</pubDate>
+      <description>How a Community Effort is Teaching AI to See Africa’s Richness · 2025-12-16</description>
+    </item>
+    <item>
       <title>How We Used Codex to Ship Sora for Android in 28 Days</title>
       <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/how-we-used-codex-to-ship-sora-for-android-in-28-days.html</link>
       <guid isPermaLink="false">eafd28afa8a69fbc</guid>
       <pubDate>Fri, 12 Dec 2025 00:00:00 GMT</pubDate>
       <description>How We Used Codex to Ship Sora for Android in 28 Days · 2025-12-12</description>
+    </item>
+    <item>
+      <title>Introducing Rerank 4: Cohere’s most powerful reranker yet</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/introducing-rerank-4-cohere-s-most-powerful-reranker-yet.html</link>
+      <guid isPermaLink="false">afe5e2cb18b44ad1</guid>
+      <pubDate>Thu, 11 Dec 2025 00:00:00 GMT</pubDate>
+      <description>Introducing Rerank 4: Cohere’s most powerful reranker yet · 2025-12-11</description>
     </item>
     <item>
       <title>Effective harnesses for long-running agents</title>
@@ -325,6 +416,20 @@
       <guid isPermaLink="false">c81bbcb144a3719c</guid>
       <pubDate>Mon, 24 Nov 2025 00:00:00 GMT</pubDate>
       <description>Introducing advanced tool use on the Claude Developer Platform · 2025-11-24</description>
+    </item>
+    <item>
+      <title>Securing AI supply chains: Cohere’s commitment to model signing</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/securing-ai-supply-chains-cohere-s-commitment-to-model-signi.html</link>
+      <guid isPermaLink="false">1be971c5e35e9c49</guid>
+      <pubDate>Thu, 13 Nov 2025 00:00:00 GMT</pubDate>
+      <description>Securing AI supply chains: Cohere’s commitment to model signing · 2025-11-13</description>
+    </item>
+    <item>
+      <title>Making data transfer in LLM systems faster, leaner, and more scalable</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/making-data-transfer-in-llm-systems-faster-leaner-and-more-s.html</link>
+      <guid isPermaLink="false">59ab5863043d6d35</guid>
+      <pubDate>Wed, 12 Nov 2025 00:00:00 GMT</pubDate>
+      <description>Making data transfer in LLM systems faster, leaner, and more scalable · 2025-11-12</description>
     </item>
     <item>
       <title>Code execution with MCP: Building more efficient agents</title>
@@ -355,11 +460,25 @@
       <description>Equipping agents for the real world with Agent Skills · 2025-10-16</description>
     </item>
     <item>
+      <title>Announcing the Cohere Partner Program: Boosting enterprise AI</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/announcing-the-cohere-partner-program-boosting-enterprise-ai.html</link>
+      <guid isPermaLink="false">f7a7e49a9cb14a09</guid>
+      <pubDate>Tue, 07 Oct 2025 00:00:00 GMT</pubDate>
+      <description>Announcing the Cohere Partner Program: Boosting enterprise AI · 2025-10-07</description>
+    </item>
+    <item>
       <title>Effective context engineering for AI agents</title>
       <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/effective-context-engineering-for-ai-agents.html</link>
       <guid isPermaLink="false">6d7ad609a0608e58</guid>
       <pubDate>Mon, 29 Sep 2025 00:00:00 GMT</pubDate>
       <description>Effective context engineering for AI agents · 2025-09-29</description>
+    </item>
+    <item>
+      <title>Exploring AI in Education</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/exploring-ai-in-education.html</link>
+      <guid isPermaLink="false">fd1b8714415bbf0e</guid>
+      <pubDate>Tue, 23 Sep 2025 00:00:00 GMT</pubDate>
+      <description>Exploring AI in Education · 2025-09-23</description>
     </item>
     <item>
       <title>A postmortem of three recent issues</title>
@@ -376,11 +495,137 @@
       <description>Writing effective tools for agents — with agents · 2025-09-11</description>
     </item>
     <item>
+      <title>AI adoption for national security: Modernizing defense</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/ai-adoption-for-national-security-modernizing-defense.html</link>
+      <guid isPermaLink="false">3e18b45b39c7b82f</guid>
+      <pubDate>Tue, 09 Sep 2025 00:00:00 GMT</pubDate>
+      <description>AI adoption for national security: Modernizing defense · 2025-09-09</description>
+    </item>
+    <item>
+      <title>Command A Translate: Secure translation for global enterprises</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/command-a-translate-secure-translation-for-global-enterprise.html</link>
+      <guid isPermaLink="false">b8bddc6274ea0d7e</guid>
+      <pubDate>Thu, 28 Aug 2025 00:00:00 GMT</pubDate>
+      <description>Command A Translate: Secure translation for global enterprises · 2025-08-28</description>
+    </item>
+    <item>
+      <title>Command A Reasoning: Enterprise-grade control for AI agents</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/command-a-reasoning-enterprise-grade-control-for-ai-agents.html</link>
+      <guid isPermaLink="false">0f92e96edd0a1468</guid>
+      <pubDate>Thu, 21 Aug 2025 00:00:00 GMT</pubDate>
+      <description>Command A Reasoning: Enterprise-grade control for AI agents · 2025-08-21</description>
+    </item>
+    <item>
+      <title>Introducing Command A Vision: Multimodal AI built for business</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/introducing-command-a-vision-multimodal-ai-built-for-busines.html</link>
+      <guid isPermaLink="false">f7401b2b45bf3ece</guid>
+      <pubDate>Thu, 07 Aug 2025 00:00:00 GMT</pubDate>
+      <description>Introducing Command A Vision: Multimodal AI built for business · 2025-08-07</description>
+    </item>
+    <item>
+      <title>Secure and responsible AI for Europe</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/secure-and-responsible-ai-for-europe.html</link>
+      <guid isPermaLink="false">96f2bd331db5e235</guid>
+      <pubDate>Thu, 24 Jul 2025 00:00:00 GMT</pubDate>
+      <description>Secure and responsible AI for Europe · 2025-07-24</description>
+    </item>
+    <item>
+      <title>Legal work with AI: The DraftWise story</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/legal-work-with-ai-the-draftwise-story.html</link>
+      <guid isPermaLink="false">03dd46f884c16dbe</guid>
+      <pubDate>Wed, 23 Jul 2025 00:00:00 GMT</pubDate>
+      <description>Legal work with AI: The DraftWise story · 2025-07-23</description>
+    </item>
+    <item>
+      <title>Bringing secure AI to critical systems</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/bringing-secure-ai-to-critical-systems.html</link>
+      <guid isPermaLink="false">d62e8782b08b4ae8</guid>
+      <pubDate>Wed, 16 Jul 2025 00:00:00 GMT</pubDate>
+      <description>Bringing secure AI to critical systems · 2025-07-16</description>
+    </item>
+    <item>
+      <title>Secure AI: How to safeguard your AI systems</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/secure-ai-how-to-safeguard-your-ai-systems.html</link>
+      <guid isPermaLink="false">b40f1889b95a10da</guid>
+      <pubDate>Wed, 16 Jul 2025 00:00:00 GMT</pubDate>
+      <description>Secure AI: How to safeguard your AI systems · 2025-07-16</description>
+    </item>
+    <item>
+      <title>AI agents: Driving productivity at work</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/ai-agents-driving-productivity-at-work.html</link>
+      <guid isPermaLink="false">ab3741b2ef72a289</guid>
+      <pubDate>Wed, 16 Jul 2025 00:00:00 GMT</pubDate>
+      <description>AI agents: Driving productivity at work · 2025-07-16</description>
+    </item>
+    <item>
+      <title>How to build an AI agent: A practical guide for enterprises</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/how-to-build-an-ai-agent-a-practical-guide-for-enterprises.html</link>
+      <guid isPermaLink="false">ca83c5f989eec0dc</guid>
+      <pubDate>Wed, 16 Jul 2025 00:00:00 GMT</pubDate>
+      <description>How to build an AI agent: A practical guide for enterprises · 2025-07-16</description>
+    </item>
+    <item>
+      <title>Five ways to modernize manufacturing with AI</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/five-ways-to-modernize-manufacturing-with-ai.html</link>
+      <guid isPermaLink="false">de3503476385d696</guid>
+      <pubDate>Wed, 16 Jul 2025 00:00:00 GMT</pubDate>
+      <description>Five ways to modernize manufacturing with AI · 2025-07-16</description>
+    </item>
+    <item>
+      <title>The AI efficiency paradigm</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/the-ai-efficiency-paradigm.html</link>
+      <guid isPermaLink="false">56856a0a00d50e09</guid>
+      <pubDate>Wed, 16 Jul 2025 00:00:00 GMT</pubDate>
+      <description>The AI efficiency paradigm · 2025-07-16</description>
+    </item>
+    <item>
+      <title>What is explainable AI?</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/what-is-explainable-ai.html</link>
+      <guid isPermaLink="false">848c33df14e6a4c7</guid>
+      <pubDate>Wed, 16 Jul 2025 00:00:00 GMT</pubDate>
+      <description>What is explainable AI? · 2025-07-16</description>
+    </item>
+    <item>
+      <title>Customizing AI for business: A path to efficiency and ROI</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/customizing-ai-for-business-a-path-to-efficiency-and-roi.html</link>
+      <guid isPermaLink="false">ba4da06dd51d3d5c</guid>
+      <pubDate>Wed, 16 Jul 2025 00:00:00 GMT</pubDate>
+      <description>Customizing AI for business: A path to efficiency and ROI · 2025-07-16</description>
+    </item>
+    <item>
+      <title>Understanding AI hallucination</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/understanding-ai-hallucination.html</link>
+      <guid isPermaLink="false">056395dbeb003d78</guid>
+      <pubDate>Wed, 16 Jul 2025 00:00:00 GMT</pubDate>
+      <description>Understanding AI hallucination · 2025-07-16</description>
+    </item>
+    <item>
+      <title>AI reasoning and the future of decision-making</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/ai-reasoning-and-the-future-of-decision-making.html</link>
+      <guid isPermaLink="false">e47ec9f1a0d17fc1</guid>
+      <pubDate>Wed, 16 Jul 2025 00:00:00 GMT</pubDate>
+      <description>AI reasoning and the future of decision-making · 2025-07-16</description>
+    </item>
+    <item>
+      <title>The future of coding: AI code generation explained</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/the-future-of-coding-ai-code-generation-explained.html</link>
+      <guid isPermaLink="false">1c46bace6fb7008b</guid>
+      <pubDate>Wed, 16 Jul 2025 00:00:00 GMT</pubDate>
+      <description>The future of coding: AI code generation explained · 2025-07-16</description>
+    </item>
+    <item>
       <title>Desktop Extensions: One-click MCP server installation for Claude Desktop</title>
       <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/desktop-extensions-one-click-mcp-server-installation-for-cla.html</link>
       <guid isPermaLink="false">087ba172494097ea</guid>
       <pubDate>Thu, 26 Jun 2025 00:00:00 GMT</pubDate>
       <description>Desktop Extensions: One-click MCP server installation for Claude Desktop · 2025-06-26</description>
+    </item>
+    <item>
+      <title>Enterprise AI security challenges and solutions</title>
+      <link>https://aiengblogx.github.io/ai-engineering-related-blogs/viewers/enterprise-ai-security-challenges-and-solutions.html</link>
+      <guid isPermaLink="false">4b157dd316da74f4</guid>
+      <pubDate>Mon, 23 Jun 2025 00:00:00 GMT</pubDate>
+      <description>Enterprise AI security challenges and solutions · 2025-06-23</description>
     </item>
     <item>
       <title>Confidential Inference via Trusted Virtual Machines</title>
